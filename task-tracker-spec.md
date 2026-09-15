@@ -21,8 +21,12 @@ file in an OneDrive-backed folder.
 
 ## Data Model
 
-**Folder**
-- id, name, category (Work / Errands / Recruiting / custom)
+**Category** (top-level, drives the tabs)
+- id, name. Seeded with Work / Errands / Recruiting; user can add more via
+  "+ Category"
+
+**Folder** (a grouping within a category, e.g. "Finances" or "Chores" inside Errands)
+- id, category_id, name
 
 **Task**
 - id, folder_id, parent_task_id (nullable — enables nesting)
@@ -112,8 +116,15 @@ The app has two views, not one combined screen:
 - Read-only glance, no checking things off here
 
 **2. List view** (primary, where work actually happens)
-- Nested task list, filterable by folder or "All" via a top banner/tabs
+- Tabs are Categories ("All" plus one per category); within a category tab,
+  tasks are grouped into collapsible Folder sections (e.g. "Finances" and
+  "Chores" as two sections inside the Errands tab)
+- Nested task list within each folder, with collapsible subtasks
 - Checkboxes to mark done, live here
+- **Active count** (shown per folder, e.g. "4 active"): counts only
+  top-level tasks (no `parent_task_id`), never subtasks. Subtask count is a
+  documentation-granularity choice, not additional workload, so it must
+  never inflate this number.
 - **Heat-map coloring**: each task row is tinted by its current quadrant
   (e.g. Do Now = warm/coral, Plan = teal, Quick win = amber, low-priority =
   neutral gray). This carries the matrix concept into the view where you're
@@ -138,8 +149,9 @@ carrying the same prioritization without needing to re-check the matrix.
 
 ## Feature List (v1)
 
-- Folders (Work / Errands / Recruiting), collapsible
-- Nested tasks (subtasks under tasks)
+- Categories (Work / Errands / Recruiting, extensible) containing folders
+  (e.g. Finances, Chores), both collapsible
+- Nested tasks (subtasks under tasks, also collapsible)
 - Daily and weekly recurrence
 - Manual urgent flag for true ad-hoc fires
 - Deadline field with the dynamic urgency engine above
@@ -174,11 +186,11 @@ carrying the same prioritization without needing to re-check the matrix.
 ## Bulk Import (v1, lightweight)
 One task per line, with optional inline tags parsed mechanically (no AI
 call, no ongoing cost):
-- `#folder` — assigns folder
+- `#folder` — assigns folder (and its parent category)
 - `@friday` / `@2026-10-01` — sets deadline
 - `!` — sets manual_urgent_flag
-Unrecognized lines still import as plain tasks in an Inbox folder for
-manual sorting.
+Unrecognized lines still import as plain tasks in an Inbox folder (under an
+Inbox category) for manual sorting.
 
 ## Build Phases (for Claude Code, one phase at a time)
 1. List view skeleton: folders, collapsible nested tasks, add/edit/delete,
