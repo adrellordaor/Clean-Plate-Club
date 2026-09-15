@@ -19,6 +19,7 @@
     <h1>Task Tracker</h1>
     <button id="theme-toggle-btn" class="theme-toggle" type="button" aria-label="Toggle dark mode"></button>
   </div>
+  <div id="storage-bar" class="storage-bar"></div>
   <nav id="folder-tabs" class="folder-tabs"></nav>
 </header>
 
@@ -130,6 +131,20 @@
   </div>
 </div>
 
+<!-- Shown when a previously chosen folder needs a click to re-grant access after reload -->
+<div id="storage-gate" class="modal hidden">
+  <div class="modal-content">
+    <h2>Reconnect to your folder</h2>
+    <p class="gate-text">Your tasks are stored in <strong id="storage-gate-folder"></strong>. The browser needs you to confirm access again.</p>
+    <div class="gate-actions">
+      <button type="button" id="gate-reconnect-btn" class="btn btn-primary">Reconnect</button>
+      <button type="button" id="gate-choose-btn" class="btn btn-secondary">Choose a different folder</button>
+      <button type="button" id="gate-browser-btn" class="btn btn-secondary">Use browser storage instead</button>
+    </div>
+  </div>
+</div>
+
+<script src="storage.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

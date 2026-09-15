@@ -1,29 +1,60 @@
-// Phase 1: List view skeleton — categories, folders, nested tasks, add/edit/delete, category filter.
-// In-memory only. Storage (File System Access API / IndexedDB) lands in Phase 2.
+// List view — categories, folders, nested tasks, add/edit/delete, category filter.
+// Data is persisted through storage.js (folder file via File System Access API, IndexedDB fallback).
 
-let nextId = 1;
+// Random ids so tasks created on two devices before a OneDrive sync can't collide.
 function makeId() {
-  return "id" + (nextId++);
+  return crypto.randomUUID
+    ? crypto.randomUUID()
+    : Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
 }
 
 const IMPORTANCE_VALUES = { Low: 25, Medium: 50, High: 75, Critical: 100 };
 
-// Category: top-level grouping, drives the tabs.
-let categories = [
-  { id: "c-work", name: "Work" },
-  { id: "c-errands", name: "Errands" },
-  { id: "c-recruiting", name: "Recruiting" },
-];
+const DATA_VERSION = 1;
 
-// Folder: a named grouping within a category (e.g. "Finances" inside Errands).
-let folders = [
-  { id: "f-work", category_id: "c-work", name: "Work" },
-  { id: "f-errands-chores", category_id: "c-errands", name: "Chores" },
-  { id: "f-errands-finances", category_id: "c-errands", name: "Finances" },
-  { id: "f-recruiting", category_id: "c-recruiting", name: "Recruiting" },
-];
-
+let categories = []; // Category: top-level grouping, drives the tabs.
+let folders = [];    // Folder: a named grouping within a category (e.g. "Finances" inside Errands).
 let tasks = [];
+
+function seedDefaults() {
+  categories = [
+    { id: "c-work", name: "Work" },
+    { id: "c-errands", name: "Errands" },
+    { id: "c-recruiting", name: "Recruiting" },
+  ];
+  folders = [
+    { id: "f-work", category_id: "c-work", name: "Work" },
+    { id: "f-errands-chores", category_id: "c-errands", name: "Chores" },
+    { id: "f-errands-finances", category_id: "c-errands", name: "Finances" },
+    { id: "f-recruiting", category_id: "c-recruiting", name: "Recruiting" },
+  ];
+  tasks = [];
+}
+
+function loadState(data) {
+  if (!data) {
+    seedDefaults();
+    persist();
+    return;
+  }
+  categories = data.categories || [];
+  folders = data.folders || [];
+  tasks = data.tasks || [];
+}
+
+function serializeState() {
+  return {
+    version: DATA_VERSION,
+    saved_at: new Date().toISOString(),
+    categories,
+    folders,
+    tasks,
+  };
+}
+
+function persist() {
+  storage.save(serializeState());
+}
 
 function makeTask(overrides) {
   const now = new Date().toISOString();
@@ -43,16 +74,6 @@ function makeTask(overrides) {
     completed_at: null,
   }, overrides);
 }
-
-// Seed data so folder nesting/collapsing is visible on first load.
-tasks.push(makeTask({ folder_id: "f-work", title: "Finish Q3 budget review", importance: "Critical", deadline: null }));
-let seedParent = makeTask({ folder_id: "f-work", title: "Prep quarterly presentation", importance: "High" });
-tasks.push(seedParent);
-tasks.push(makeTask({ folder_id: "f-work", parent_task_id: seedParent.id, title: "Draft slides" }));
-tasks.push(makeTask({ folder_id: "f-work", parent_task_id: seedParent.id, title: "Get feedback from manager" }));
-tasks.push(makeTask({ folder_id: "f-errands-chores", title: "Pick up dry cleaning" }));
-tasks.push(makeTask({ folder_id: "f-errands-finances", title: "Renew car registration", manual_urgent_flag: true }));
-tasks.push(makeTask({ folder_id: "f-recruiting", title: "Follow up with recruiter", recurrence: "weekly", importance: "Medium" }));
 
 let activeCategoryFilter = "all"; // "all" or a category id
 let collapsedFolders = new Set();
@@ -337,6 +358,7 @@ function toggleTaskDone(task) {
     task.completed_at = new Date().toISOString();
   }
   task.last_touched_at = new Date().toISOString();
+  persist();
   render();
 }
 
@@ -348,6 +370,7 @@ function deleteTask(taskId) {
   const extra = descendantIds.length > 0 ? ` and its ${descendantIds.length} subtask(s)` : "";
   if (!confirm(`Delete ${label}${extra}?`)) return;
   tasks = tasks.filter(t => !idsToRemove.has(t.id));
+  persist();
   render();
 }
 
@@ -447,15 +470,16 @@ taskForm.addEventListener("submit", e => {
 
   if (!data.title) return;
 
-  if (id) {
-    const task = tasks.find(t => t.id === id);
-    Object.assign(task, data);
-    task.last_touched_at = new Date().toISOString();
+  const existing = id ? tasks.find(t => t.id === id) : null;
+  if (existing) {
+    Object.assign(existing, data);
+    existing.last_touched_at = new Date().toISOString();
   } else {
     tasks.push(makeTask(data));
   }
 
   closeTaskModal();
+  persist();
   render();
 });
 
@@ -516,6 +540,7 @@ folderForm.addEventListener("submit", e => {
   if (!name || !categoryId) return;
   folders.push({ id: makeId(), category_id: categoryId, name });
   closeFolderModal();
+  persist();
   render();
 });
 
@@ -548,6 +573,7 @@ categoryForm.addEventListener("submit", e => {
   categories.push(category);
   activeCategoryFilter = category.id;
   closeCategoryModal();
+  persist();
   render();
 });
 
@@ -578,6 +604,127 @@ themeToggleBtn.addEventListener("click", () => {
 
 applyThemeIcon();
 
+// ---------- Storage UI ----------
+
+const storageBar = document.getElementById("storage-bar");
+const storageGate = document.getElementById("storage-gate");
+
+function renderStorageBar() {
+  storageBar.innerHTML = "";
+
+  const text = document.createElement("span");
+  text.className = "storage-text";
+  if (storage.mode === "file") {
+    text.textContent = "Syncing to folder “" + storage.folderName + "”";
+  } else if (storage.supportsFolders) {
+    text.textContent = "Saved in this browser only";
+  } else {
+    text.textContent = "Saved in this browser (folder sync needs Edge or Chrome)";
+  }
+  storageBar.appendChild(text);
+
+  const statusLabels = { saving: "Saving…", saved: "Saved", error: "Save failed" };
+  if (statusLabels[storage.status]) {
+    const status = document.createElement("span");
+    status.className = "storage-status storage-status-" + storage.status;
+    status.textContent = statusLabels[storage.status];
+    storageBar.appendChild(status);
+  }
+
+  if (storage.supportsFolders) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "link-btn";
+    btn.textContent = storage.mode === "file" ? "Change folder" : "Choose OneDrive folder";
+    btn.addEventListener("click", chooseFolder);
+    storageBar.appendChild(btn);
+  }
+}
+
+async function chooseFolder() {
+  let existing;
+  try {
+    existing = await storage.chooseFolder();
+  } catch (e) {
+    console.error(e);
+    alert("Could not open that folder: " + e.message);
+    return;
+  }
+  if (existing === undefined) return;
+
+  if (existing) {
+    const localTaskCount = tasks.length;
+    const ok = localTaskCount === 0 || confirm(
+      "This folder already contains task data. Load it and discard the " +
+      localTaskCount + " task(s) currently shown here?"
+    );
+    if (!ok) {
+      storage.cancelFolder();
+      return;
+    }
+  }
+
+  await storage.commitFolder();
+  if (existing) loadState(existing);
+  persist();
+  render();
+  renderStorageBar();
+}
+
+function showStorageGate() {
+  document.getElementById("storage-gate-folder").textContent = storage.folderName;
+  storageGate.classList.remove("hidden");
+}
+
+async function applyLoadResult(result) {
+  if (result.state === "needs-permission") {
+    showStorageGate();
+    return;
+  }
+  storageGate.classList.add("hidden");
+  loadState(result.data);
+  render();
+  renderStorageBar();
+}
+
+async function runStorageAction(action) {
+  try {
+    await applyLoadResult(await action());
+  } catch (e) {
+    console.error(e);
+    alert("Could not load data: " + e.message);
+  }
+}
+
+document.getElementById("gate-reconnect-btn").addEventListener("click", () => runStorageAction(() => storage.reconnect()));
+document.getElementById("gate-browser-btn").addEventListener("click", () => runStorageAction(() => storage.disconnect()));
+document.getElementById("gate-choose-btn").addEventListener("click", async () => {
+  await storage.disconnect();
+  await applyLoadResult({ state: "ready", data: null });
+  chooseFolder();
+});
+
+async function syncFromFolder() {
+  let data;
+  try {
+    data = await storage.checkForExternalChanges();
+  } catch (e) {
+    console.error("Could not read folder changes", e);
+    return;
+  }
+  if (!data) return;
+  loadState(data);
+  render();
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") syncFromFolder();
+  else storage.flush();
+});
+window.addEventListener("focus", syncFromFolder);
+setInterval(syncFromFolder, 30000);
+
 // ---------- Init ----------
 
-render();
+storage.onStatusChange = renderStorageBar;
+runStorageAction(() => storage.init());
