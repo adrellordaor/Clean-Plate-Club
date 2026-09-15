@@ -13,6 +13,15 @@ const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const DATA_VERSION = 1;
 
+// Minimalist outline icons (stroke = currentColor, so they inherit button text color).
+const SVG_ATTRS = 'viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
+const ICONS = {
+  pencil: `<svg ${SVG_ATTRS}><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`,
+  trash: `<svg ${SVG_ATTRS}><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>`,
+  sun: `<svg ${SVG_ATTRS}><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M4.93 4.93l1.41 1.41"/><path d="M17.66 17.66l1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M6.34 17.66l-1.41 1.41"/><path d="M19.07 4.93l-1.41 1.41"/></svg>`,
+  moon: `<svg ${SVG_ATTRS}><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>`,
+};
+
 let categories = []; // Category: top-level grouping, drives the tabs.
 let folders = [];    // Folder: a named grouping within a category (e.g. "Finances" inside Errands).
 let tasks = [];
@@ -248,7 +257,7 @@ function renderFolderSection(folder) {
   count.title = "Click to toggle count display";
   if (folderCountDisplay === "done") {
     const doneCount = topLevelTasks.filter(t => t.status === "done").length;
-    count.textContent = doneCount + " of " + topLevelTasks.length + " done";
+    count.textContent = doneCount + "/" + topLevelTasks.length + " done";
   } else {
     const activeCount = topLevelTasks.filter(t => t.status === "active").length;
     count.textContent = activeCount + " active";
@@ -397,7 +406,7 @@ function renderTaskRow(task) {
   const editBtn = document.createElement("button");
   editBtn.type = "button";
   editBtn.className = "btn-icon";
-  editBtn.textContent = "✏️";
+  editBtn.innerHTML = ICONS.pencil;
   editBtn.setAttribute("aria-label", "Edit task");
   editBtn.title = "Edit";
   editBtn.addEventListener("click", () => openTaskModal(task));
@@ -407,7 +416,7 @@ function renderTaskRow(task) {
   delBtn.type = "button";
   delBtn.className = "btn-icon";
   delBtn.style.color = "var(--danger)";
-  delBtn.textContent = "🗑️";
+  delBtn.innerHTML = ICONS.trash;
   delBtn.setAttribute("aria-label", "Delete task");
   delBtn.title = "Delete";
   delBtn.addEventListener("click", () => deleteTask(task.id));
@@ -708,7 +717,7 @@ function currentTheme() {
 }
 
 function applyThemeIcon() {
-  themeToggleBtn.textContent = currentTheme() === "dark" ? "☀️" : "\u{1F319}";
+  themeToggleBtn.innerHTML = currentTheme() === "dark" ? ICONS.sun : ICONS.moon;
 }
 
 themeToggleBtn.addEventListener("click", () => {

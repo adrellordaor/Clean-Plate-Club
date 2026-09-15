@@ -87,14 +87,15 @@ body {
 }
 
 .theme-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
   border-radius: 999px;
   width: 2.1rem;
   height: 2.1rem;
-  font-size: 1rem;
-  line-height: 1;
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -213,11 +214,12 @@ body {
 }
 
 .btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: none;
   cursor: pointer;
-  font-size: 0.95rem;
-  line-height: 1;
   color: var(--text-muted);
   padding: 0.2rem 0.4rem;
 }
