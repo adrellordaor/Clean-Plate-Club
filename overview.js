@@ -16,7 +16,8 @@ const OVERVIEW_CORNERS = [QUADRANTS.q1, QUADRANTS.q2, QUADRANTS.q3, QUADRANTS.q4
 
 const OVERVIEW_MODES = [
   { key: "scatter", label: "Scatter" },
-  { key: "list", label: "Quadrants" },
+  { key: "list", label: "List" }, // the quadrant-boxes display mode; not to be confused with the
+  // header's "Checklist" toggle, which is the separate primary List view where work happens
 ];
 
 function renderOverview() {
@@ -32,7 +33,7 @@ function renderOverview() {
   document.getElementById("overview-scatter").hidden = mode !== "scatter";
   document.getElementById("matrix-grid").hidden = mode !== "list";
   if (mode === "scatter") renderScatter(ranked, summaryIds);
-  else renderQuadrantGrid(ranked);
+  else renderQuadrantGrid(ranked, summaryIds);
 
   renderPrioritySummary(ranked, summary);
   renderDigest(today);
@@ -318,7 +319,7 @@ function truncateTitle(title) {
 // Four boxes in the same corner layout, tasks listed inside each. Better for scanning
 // within one quadrant. Cell positions are pinned in CSS (.matrix-cell-q*).
 
-function renderQuadrantGrid(ranked) {
+function renderQuadrantGrid(ranked, summaryIds) {
   const grid = document.getElementById("matrix-grid");
   grid.innerHTML = "";
 
@@ -337,7 +338,7 @@ function renderQuadrantGrid(ranked) {
         high ? "Importance high / critical" : "Importance low / medium"
       ));
     }
-    grid.appendChild(renderMatrixCell(quadrant, byQuadrant[quadrant.key]));
+    grid.appendChild(renderMatrixCell(quadrant, byQuadrant[quadrant.key], summaryIds));
   });
 }
 
@@ -352,7 +353,7 @@ function makeMatrixAxis(className, text) {
   return el;
 }
 
-function renderMatrixCell(q, entries) {
+function renderMatrixCell(q, entries, summaryIds) {
   const cell = document.createElement("section");
   cell.className = "matrix-cell matrix-cell-" + q.key + " quadrant-" + q.key;
   cell.style.setProperty("--p", "1");
@@ -387,14 +388,18 @@ function renderMatrixCell(q, entries) {
 
   const ul = document.createElement("ul");
   ul.className = "matrix-list";
-  entries.forEach(({ task, assessment }) => ul.appendChild(renderMatrixItem(task, assessment)));
+  entries.forEach(entry => ul.appendChild(renderMatrixItem(entry, summaryIds.has(entry.task.id))));
   cell.appendChild(ul);
   return cell;
 }
 
-function renderMatrixItem(task, assessment) {
+// `entry` carries { task, assessment, rank } (from rankActiveTasks); `inSummary` mirrors the
+// same priority-panel inclusion this task got in the scatter plot and the panel itself, so
+// a task's rank badge and glow are the same across all three representations.
+function renderMatrixItem(entry, inSummary) {
+  const { task, assessment, rank } = entry;
   const li = document.createElement("li");
-  li.className = "matrix-item quadrant-" + assessment.quadrant.key;
+  li.className = "matrix-item quadrant-" + assessment.quadrant.key + (inSummary ? " matrix-item-priority" : "");
   li.style.setProperty("--p", assessment.intensity.toFixed(3));
   li.title = [
     "priority " + assessment.priorityScore,
@@ -402,6 +407,13 @@ function renderMatrixItem(task, assessment) {
     "importance " + task.importance,
     task.deadline ? "due " + task.deadline : null,
   ].filter(Boolean).join(" · ");
+
+  if (inSummary) {
+    const rankBadge = document.createElement("span");
+    rankBadge.className = "matrix-item-rank";
+    rankBadge.textContent = rank;
+    li.appendChild(rankBadge);
+  }
 
   const title = document.createElement("span");
   title.className = "matrix-item-title";

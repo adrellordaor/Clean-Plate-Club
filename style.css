@@ -1345,6 +1345,33 @@ body {
   cursor: default;
 }
 
+/* Priority-panel tasks get a rank badge column plus the same accent ring + glow as their
+   scatter-plot halo and priority-card, so all three representations read as the same
+   highlighted task. */
+.matrix-item-priority {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "rank title score" "rank meta score";
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--row-accent) 40%, transparent),
+    0 3px 10px -3px color-mix(in srgb, var(--row-accent) 65%, transparent);
+}
+
+.matrix-item-rank {
+  grid-area: rank;
+  align-self: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--row-accent);
+  flex-shrink: 0;
+}
+
 .matrix-item-title {
   grid-area: title;
   font-size: 0.9rem;
