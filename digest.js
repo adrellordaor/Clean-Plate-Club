@@ -253,6 +253,69 @@ function buildDigest(history, tasks, settings, today) {
   return { baseline, priorBaseline, primary, secondary, entered, left };
 }
 
+// ---------- Staleness check-ins ----------
+// Undated tasks only (a deadline task's urgency is already climbing toward the deadline and
+// gets its own Overdue callout instead). The primary drift tier above only fires once, when
+// staleness first crosses into "high" urgency around day 7-8 — after that there's nowhere
+// higher for staleness to push a quadrant, so a task ignored for 30 days would go quiet after
+// its first flag. This re-fires every staleness_reminder_interval_days by watching for the
+// days-untouched count crossing a new multiple of that interval, using the same
+// live-vs-baseline-snapshot technique the primary tier's diff uses.
+
+// Tiers checked strongest-first: "high" (strong color) / "medium" / "low" (mild), or null if
+// not even the mildest threshold is met (shouldn't happen since the interval default equals
+// the low threshold, so the first-ever firing already qualifies as at least mild).
+function stalenessReminderTier(daysUntouched, settings) {
+  if (daysUntouched >= settings.staleness_reminder_high_days) return "high";
+  if (daysUntouched >= settings.staleness_reminder_medium_days) return "medium";
+  if (daysUntouched >= settings.staleness_reminder_low_days) return "low";
+  return null;
+}
+
+// Days a task had sat untouched as of `atDate`, given the last_touched_at value in effect at
+// that time (live task.last_touched_at for today, a stored snapshot's field for a past day)
+// — falls back to the task's (immutable) created_at, same as computeUrgency's staleness path.
+function daysUntouchedAt(task, lastTouchedAt, atDate) {
+  const touched = lastTouchedAt || task.created_at || atDate;
+  return Math.max(0, calendarDaysBetween(touched, atDate));
+}
+
+// { task, days, tier, quadrant, message }, one per undated active task whose days-untouched
+// count crossed a new multiple of staleness_reminder_interval_days between the baseline day
+// and today — so a task ignored for a month keeps getting a low-key nudge every week instead
+// of going quiet after its one initial urgency-tier flag. `quadrant` is the task's current
+// live quadrant (from assessTask), kept separate from `tier`: quadrant marks which heat-map
+// color this task carries everywhere else in the app, tier marks how overdue this particular
+// reminder is, they can and do disagree (e.g. a Low-importance task sitting in Backlog can
+// still be deep into a "strong" staleness tier). A task with no baseline record (new or
+// reopened since) is skipped, there's no prior count for it to have crossed anything relative
+// to. Sorted longest-untouched first.
+function buildStalenessCheckIns(history, tasks, settings, today) {
+  const baseline = findNearestSnapshotBefore(history, today);
+  const interval = settings.staleness_reminder_interval_days;
+  if (!baseline || !(interval > 0)) return [];
+
+  const yesterday = baseline.snapshot;
+  const checkIns = [];
+  tasks.forEach(task => {
+    if (task.status !== "active" || task.deadline) return;
+    const fromRecord = yesterday[task.id];
+    if (!fromRecord) return;
+
+    const daysToday = daysUntouchedAt(task, task.last_touched_at, today);
+    const daysBaseline = daysUntouchedAt(task, fromRecord.last_touched_at, baseline.date);
+    if (Math.floor(daysToday / interval) <= Math.floor(daysBaseline / interval)) return;
+
+    const tier = stalenessReminderTier(daysToday, settings);
+    if (!tier) return;
+    const quadrant = assessTask(task, settings, today).quadrant;
+    checkIns.push({ task, days: daysToday, tier, quadrant, message: "Just so you know: untouched for " + pluralDays(daysToday) });
+  });
+
+  checkIns.sort((a, b) => b.days - a.days);
+  return checkIns;
+}
+
 // "yesterday", or "Fri 12 Sep (3 days ago)" when the app wasn't opened yesterday.
 function describeBaseline(baseline) {
   if (baseline.daysAgo <= 1) return "yesterday";
@@ -265,6 +328,6 @@ if (typeof module !== "undefined" && module.exports) {
     HISTORY_KEEP_DAYS, QUADRANT_RANK, snapshotFieldsFor, fieldsDiffer, buildDailySnapshot,
     snapshotRecordsEqual, sameSnapshot, sanitizeQuadrantHistory, recordQuadrantSnapshot,
     findNearestSnapshotBefore, findDigestBaseline, describeQuadrantChange, describeStoredEdit,
-    buildDigest, describeBaseline,
+    buildDigest, describeBaseline, stalenessReminderTier, daysUntouchedAt, buildStalenessCheckIns,
   };
 }

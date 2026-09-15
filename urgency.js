@@ -18,6 +18,10 @@ const DEFAULT_SETTINGS = Object.freeze({
   overview_top_n: 3,              // priority panel: always show at least this many
   overview_flag_threshold: 80,    // priority panel: and anything scoring at or above this
   overview_display_mode: "scatter", // "scatter" | "list"
+  staleness_reminder_interval_days: 7,  // digest: re-flag an undated task every N days untouched
+  staleness_reminder_low_days: 7,       // check-in color tier: mild at/above this many days
+  staleness_reminder_medium_days: 14,   // check-in color tier: medium at/above this many days
+  staleness_reminder_high_days: 28,     // check-in color tier: strong at/above this many days
 });
 
 const SETTINGS_KEYS = Object.keys(DEFAULT_SETTINGS);

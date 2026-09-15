@@ -41,6 +41,14 @@
   --day-gold: #e0a616;
   --day-gold-soft: rgba(224, 166, 22, 0.45);
 
+  /* Staleness check-in tiers: mild -> medium -> strong, shades of the same teal as the
+     Remember quadrant (--h: 173) — an undated task quietly aging is exactly the "important,
+     not urgent, don't forget it" case Remember exists for. Light theme deepens and saturates
+     with severity; wording never escalates, only these colors do. */
+  --staleness-low-text: #5b8c86;
+  --staleness-medium-text: #1f7a6c;
+  --staleness-high-text: #0e5c50;
+
   --overlay: rgba(20, 20, 18, 0.35);
 
   /* Heat-map ramp: each quadrant has a fixed hue (see .quadrant-* below); a row's --p
@@ -101,6 +109,10 @@
   --day-gray-text: #c7c6c0;
   --day-gold: #f0c14b;
   --day-gold-soft: rgba(240, 193, 75, 0.5);
+
+  --staleness-low-text: #7fb3ac;
+  --staleness-medium-text: #52c4b0;
+  --staleness-high-text: #3ee2c4;
 
   --overlay: rgba(0, 0, 0, 0.55);
 
@@ -1029,9 +1041,15 @@ body {
   min-width: 0;
 }
 
-.overview-panel {
+.overview-sidebar {
   width: 300px;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.overview-panel {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -1044,7 +1062,7 @@ body {
     align-items: stretch; /* so the plot box takes the full width and scrolls inside itself */
   }
 
-  .overview-panel {
+  .overview-sidebar {
     width: 100%;
   }
 }
@@ -1615,6 +1633,69 @@ body {
     flex-basis: 100%;
   }
 }
+
+/* Staleness check-ins: its own card under the Priority Today panel, not part of the "what
+   changed" digest above — a different kind of signal (undated tasks aging in place, not a
+   quadrant shift). Teal throughout, the same hue as the Remember quadrant, since staleness on
+   an undated task is exactly the "important but not urgent, don't forget it" case Remember
+   exists for. Severity is carried by color alone (border stripe + message tint), the wording
+   never escalates. */
+.digest-staleness {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.8rem 0.9rem 0.9rem;
+}
+
+.digest-staleness-heading {
+  margin: 0 0 0.6rem;
+  font-size: 1rem;
+}
+
+.digest-staleness-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+/* Left edge is the task's own quadrant color (same --row-accent formula as the digest chips
+   and priority cards), so a stale task still reads as Do/Remember/Clear/Backlog at a glance.
+   The teal tier ramp below is reserved for the message text alone — the two colors answer
+   different questions (why this task is prioritized vs. how overdue this reminder is) and
+   can disagree, e.g. a Backlog task deep into a "strong" staleness tier. */
+.digest-staleness-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 6px;
+  border-left: 3px solid var(--row-accent);
+  background: var(--row-hover);
+}
+
+.digest-staleness-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.digest-staleness-context {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.digest-staleness-message {
+  font-size: 0.78rem;
+  color: var(--staleness-low-text);
+}
+
+.staleness-tier-medium .digest-staleness-message { color: var(--staleness-medium-text); }
+.staleness-tier-high .digest-staleness-message { color: var(--staleness-high-text); font-weight: 600; }
 
 /* ---- Calendar (monthly grid, day repository, Weekly Accomplishments panel) ---- */
 .calendar-toolbar {

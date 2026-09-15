@@ -44,7 +44,10 @@
         <div id="overview-scatter" class="scatter" hidden></div>
         <div id="matrix-grid" class="matrix-grid" hidden></div>
       </div>
-      <aside id="overview-panel" class="overview-panel" aria-label="Priority summary"></aside>
+      <div class="overview-sidebar">
+        <aside id="overview-panel" class="overview-panel" aria-label="Priority summary"></aside>
+        <section id="digest-staleness" class="digest-staleness" aria-live="polite"></section>
+      </div>
     </div>
     <section id="digest" class="digest" aria-live="polite"></section>
   </section>
@@ -296,6 +299,25 @@
           </label>
         </div>
         <p class="settings-hint">The split is the boundary between low and high on both axes (62.5 sits between Medium 50 and High 75), so it decides which quadrant a task belongs to everywhere, including the Calendar's Red rule and gold glow. The panel lists the top N tasks plus anything at or above the flag score; the Calendar reuses that same rule for its accented upcoming-deadline marker.</p>
+      </fieldset>
+
+      <fieldset class="settings-group">
+        <legend>Staleness check-ins (Daily Digest, undated tasks only)</legend>
+        <div class="form-row">
+          <label>Re-flag every
+            <input type="number" id="setting-staleness-reminder-interval" min="1" step="1" required>
+          </label>
+          <label>Mild color at
+            <input type="number" id="setting-staleness-reminder-low" min="0" step="1" required>
+          </label>
+          <label>Medium color at
+            <input type="number" id="setting-staleness-reminder-medium" min="0" step="1" required>
+          </label>
+          <label>Strong color at
+            <input type="number" id="setting-staleness-reminder-high" min="0" step="1" required>
+          </label>
+        </div>
+        <p class="settings-hint">Once an undated task's days-untouched count crosses a new multiple of the re-flag interval, it gets a low-key check-in ("Just so you know: untouched for 21 days") in its own card under the Priority Today panel, colored in shades of teal — the Remember quadrant's hue — by whichever of the three day thresholds it's currently past. Separate from the staleness thresholds above, which drive urgency scoring, not this reminder.</p>
       </fieldset>
 
       <p id="settings-error" class="settings-error" aria-live="polite"></p>

@@ -1143,6 +1143,10 @@ const SETTINGS_FIELDS = {
   overview_top_n: "setting-overview-top-n",
   overview_flag_threshold: "setting-overview-flag",
   overview_display_mode: "setting-overview-mode",
+  staleness_reminder_interval_days: "setting-staleness-reminder-interval",
+  staleness_reminder_low_days: "setting-staleness-reminder-low",
+  staleness_reminder_medium_days: "setting-staleness-reminder-medium",
+  staleness_reminder_high_days: "setting-staleness-reminder-high",
 };
 
 // Settings read back as a string choice rather than a number.
@@ -1178,6 +1182,10 @@ function validateSettings(v) {
   if (v.quadrant_split_score > 100) return "Quadrant split is a score from 0 to 100.";
   if (v.overview_flag_threshold > 100) return "Flag threshold is a score from 0 to 100.";
   if (!Number.isInteger(v.overview_top_n)) return "Top N must be a whole number.";
+  if (v.staleness_reminder_interval_days < 1) return "Re-flag interval must be at least 1 day.";
+  if (!(v.staleness_reminder_low_days <= v.staleness_reminder_medium_days && v.staleness_reminder_medium_days <= v.staleness_reminder_high_days)) {
+    return "Staleness check-in colors must run mild ≤ medium ≤ strong (e.g. 7 / 14 / 28).";
+  }
   return null;
 }
 

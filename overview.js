@@ -36,6 +36,7 @@ function renderOverview() {
   else renderQuadrantGrid(ranked, summaryIds);
 
   renderPrioritySummary(ranked, summary);
+  renderStalenessCheckIns(today);
   renderDigest(today);
 }
 
@@ -521,10 +522,12 @@ function renderPriorityCard(entry) {
 
 // ---------- What changed since yesterday ----------
 // Rendering only; the diff itself is buildDigest() in digest.js. Primary (automatic drift)
-// entries are the digest's core purpose and always shown; entered/left tasks sit alongside
+// entries are the digest's core purpose and always shown; left (finished) tasks sit alongside
 // them since they're a different kind of event, not drift-vs-edit. Secondary entries (a
 // manual edit caused or contributed to the shift) go in a collapsed, de-emphasized section
 // underneath — still there, just out of the way, since you already knew about that edit.
+// digest.entered (brand-new tasks) is intentionally never rendered here — see the note above
+// `total` below.
 
 function renderDigest(today) {
   const container = document.getElementById("digest");
@@ -546,7 +549,10 @@ function renderDigest(today) {
     return;
   }
 
-  const total = digest.primary.length + digest.secondary.length + digest.entered.length + digest.left.length;
+  // Newly-entered tasks (digest.entered) are deliberately not shown here — a task showing up
+  // for the first time isn't a "change" the way a quadrant shift, an edit, or a finish is,
+  // and it drowned out the drift signal on days with a lot of new capture.
+  const total = digest.primary.length + digest.secondary.length + digest.left.length;
   if (total === 0) {
     sub.textContent = "No quadrant changes. Everything is where it was at the end of " + digest.baseline.date + ".";
     container.appendChild(sub);
@@ -555,18 +561,16 @@ function renderDigest(today) {
 
   sub.textContent = [
     digest.primary.length ? digest.primary.length + " automatic" : null,
-    digest.entered.length ? digest.entered.length + " new" : null,
     digest.left.length ? digest.left.length + " finished" : null,
     digest.secondary.length ? digest.secondary.length + " from edits yesterday" : null,
   ].filter(Boolean).join(" · ") + " · compared with the end of " + digest.baseline.date;
   container.appendChild(sub);
 
-  const mainCount = digest.primary.length + digest.entered.length + digest.left.length;
+  const mainCount = digest.primary.length + digest.left.length;
   if (mainCount > 0) {
     const ul = document.createElement("ul");
     ul.className = "digest-list";
     digest.primary.forEach(change => ul.appendChild(renderDigestLine(change.task, change.from, change.to, change.reason)));
-    digest.entered.forEach(change => ul.appendChild(renderDigestLine(change.task, null, change.to, change.reason)));
     digest.left.forEach(change => ul.appendChild(renderDigestLine(change.task, change.from, null, change.status === "done" ? "completed" : "dropped")));
     container.appendChild(ul);
   } else if (digest.secondary.length > 0) {
@@ -591,6 +595,62 @@ function renderDigest(today) {
 
     container.appendChild(details);
   }
+}
+
+// Its own card under the Priority Today panel, not part of the "what changed" digest above —
+// low-key re-flags for undated tasks, re-fired every staleness_reminder_interval_days once
+// they cross a new multiple of it, color-tiered teal (the Remember quadrant's hue) by how
+// long they've sat untouched.
+function renderStalenessCheckIns(today) {
+  const container = document.getElementById("digest-staleness");
+  container.innerHTML = "";
+
+  const heading = document.createElement("h2");
+  heading.className = "digest-staleness-heading";
+  heading.textContent = "Staleness check-ins";
+  container.appendChild(heading);
+
+  const checkIns = buildStalenessCheckIns(quadrantHistory, tasks, settings, today);
+  if (checkIns.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty-hint";
+    empty.textContent = "Nothing to flag — no undated task has crossed a new staleness interval.";
+    container.appendChild(empty);
+    return;
+  }
+
+  const ul = document.createElement("ul");
+  ul.className = "digest-staleness-list";
+  checkIns.forEach(entry => ul.appendChild(renderStalenessCheckInLine(entry)));
+  container.appendChild(ul);
+}
+
+function renderStalenessCheckInLine(entry) {
+  const { task, tier, quadrant, message } = entry;
+  const li = document.createElement("li");
+  li.className = "digest-staleness-item staleness-tier-" + tier + " quadrant-" + quadrant.key;
+  li.style.setProperty("--p", "1"); // full-intensity edge, same fixed look as a digest-chip
+  li.title = quadrant.label;
+
+  const title = document.createElement("span");
+  title.className = "digest-staleness-title";
+  title.textContent = task.title;
+  li.appendChild(title);
+
+  const context = taskContextLabel(task);
+  if (context) {
+    const ctx = document.createElement("span");
+    ctx.className = "digest-staleness-context";
+    ctx.textContent = context;
+    li.appendChild(ctx);
+  }
+
+  const msg = document.createElement("span");
+  msg.className = "digest-staleness-message";
+  msg.textContent = message;
+  li.appendChild(msg);
+
+  return li;
 }
 
 // One line: [from] → [to]  Title · reason. `from` null = entered the matrix, `to` null = left it.

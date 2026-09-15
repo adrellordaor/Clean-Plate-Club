@@ -152,30 +152,42 @@ cost, works offline. Two parts:
      needs its own snapshot-to-snapshot comparison, not a live-vs-snapshot
      one. Shown de-emphasized (e.g. smaller text, collapsed by default).
 
+Brand-new tasks (no snapshot at all in yesterday's baseline) and tasks
+that finished (done/dropped since yesterday) are tracked separately from
+the two tiers above, but only "finished" is surfaced on the card — a task
+showing up for the first time isn't a quadrant *change* the way a drift,
+an edit, or a finish is, and on a heavy capture day it drowned out the
+actual drift signal the digest exists to surface.
+
 Weekly digest = same idea, rolled up: what's trending toward Do, what's been
 sitting in Remember too long. Same primary/secondary split applies.
 
 **Staleness check-ins** (undated tasks only, softer tone than the drift
-tiers above): the primary-drift tier only fires once, when a task first
-crosses into "high" urgency around day 7-8, staleness has nowhere higher
-to go after that, so a task ignored for 30 days would otherwise go quiet
-after its one initial flag. To fix this, compare days-untouched today vs.
-yesterday (same technique as the drift diff above) and flag the task again
-whenever that count crosses a new multiple of `staleness_reminder_interval_
-days` (default 7). Message stays low-key, e.g. "Just so you know: untouched
-for 21 days", not escalating language. Deadline tasks are excluded, their
-urgency is already actively climbing toward the deadline and they're
-covered by the Overdue callout once it passes.
+tiers above, own card in the Overview sidebar underneath the Priority
+summary panel — not part of the "what changed" digest itself, this is a
+different kind of signal): the primary-drift tier only fires once, when a
+task first crosses into "high" urgency around day 7-8, staleness has
+nowhere higher to go after that, so a task ignored for 30 days would
+otherwise go quiet after its one initial flag. To fix this, compare
+days-untouched today vs. yesterday (same technique as the drift diff
+above) and flag the task again whenever that count crosses a new multiple
+of `staleness_reminder_interval_days` (default 7). Message stays low-key,
+e.g. "Just so you know: untouched for 21 days", not escalating language.
+Deadline tasks are excluded, their urgency is already actively climbing
+toward the deadline and they're covered by the Overdue callout once it
+passes.
 
 Each check-in is also color-tiered by days-untouched, separate from the
 urgency engine's own staleness thresholds (which run on a faster 3/7/8-day
 cadence for scoring purposes, not display):
-- `staleness_reminder_low_days` (7) → mild color
-- `staleness_reminder_medium_days` (14) → medium color
-- `staleness_reminder_high_days` (28) → strong color
-The reminder still fires every `staleness_reminder_interval_days`, the
-color just reflects which of these three bands the task currently sits in
-at the time it fires.
+- `staleness_reminder_low_days` (7) → mild teal
+- `staleness_reminder_medium_days` (14) → medium teal
+- `staleness_reminder_high_days` (28) → strong teal
+Teal specifically because it's the Remember quadrant's hue: an undated
+task quietly aging is exactly the "important, not urgent, don't forget it"
+case Remember exists for. The reminder still fires every
+`staleness_reminder_interval_days`, the color just reflects which of these
+three bands the task currently sits in at the time it fires.
 
 ## Views
 
@@ -199,6 +211,9 @@ The app has three views:
   `overview_flag_threshold` (default 80), whichever is broader. So 3 tasks
   scoring 70/60/50 all show (top-3 rule); 5 tasks scoring 90/90/90/80/70
   show the first four, the 70 is excluded (outside top-3 and below 80).
+  Directly beneath it in the same sidebar column: the Staleness check-ins
+  card (see Daily Digest), teal-tiered, its own card rather than folded
+  into the "what changed" digest below.
 - **Display mode toggle** (`overview_display_mode`, default `scatter`):
   switches between the scatter view above and the quadrant-list style
   already built (four boxes, tasks listed inside each), same Do/Remember/
