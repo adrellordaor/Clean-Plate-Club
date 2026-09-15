@@ -165,7 +165,7 @@ body {
 }
 
 .app-main {
-  max-width: 760px;
+  max-width: 1080px;
   margin: 0 auto;
   padding: 1.25rem 1.5rem;
 }
@@ -175,6 +175,75 @@ body {
   justify-content: flex-end;
   gap: 0.5rem;
   margin-bottom: 1rem;
+}
+
+.main-layout {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.main-column {
+  flex: 1;
+  min-width: 0;
+}
+
+.recurring-column {
+  width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+@media (max-width: 860px) {
+  .main-layout {
+    flex-direction: column;
+  }
+
+  .recurring-column {
+    width: 100%;
+  }
+}
+
+.recurring-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.recurring-box-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.recurring-box-title {
+  font-weight: 600;
+}
+
+.recurring-box-fraction {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.recurring-box-body {
+  padding: 0.6rem 0.75rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.recurring-folder-section .folder-header {
+  padding: 0.5rem 0.6rem;
+}
+
+.recurring-folder-section .folder-body {
+  padding: 0.35rem 0.6rem 0.6rem;
 }
 
 .btn {

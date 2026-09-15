@@ -38,15 +38,23 @@ file in an OneDrive-backed folder.
   importance" and High/Critical → "High importance" for quadrant placement,
   the same pattern urgency uses.
 - manual_urgent_flag: bool (ad-hoc fire override)
-- recurrence: none | daily | weekly(+weekday), stored as `recurrence` +
-  `recurrence_weekday` (0=Sun..6=Sat, set only when weekly)
-- series_id: links a recurring task to the other regenerated instances of
-  the same recurring task (a lone task is its own series until it first
-  regenerates)
-- instance_date: the "YYYY-MM-DD" day an instance was generated for, used
-  to avoid regenerating a duplicate for a day that already has one
 - status: active | done | dropped
 - completed_at (nullable)
+
+**RecurringTask** (no importance/urgency/deadline/quadrant, lives outside
+the Eisenhower matrix, but still assigned to a Folder for grouping)
+- id, folder_id, title, cadence: daily | weekly(+weekday)
+- last_completed_date (nullable) — checking it off sets this to today; a
+  daily scan compares against today (or the current week, for weekly) and
+  unchecks anything whose last_completed_date has lapsed. The task itself
+  is singular and resets, it never spawns new instances.
+
+**CompletionLog**
+- id, recurring_task_id, completed_date
+- One row written each time a recurring task is checked off. This is the
+  only thing that accumulates, the task itself stays a single row. Feeds
+  the productivity view's history without needing old completed instances
+  kept around.
 
 ## Urgency Engine (core mechanic)
 
@@ -84,6 +92,9 @@ stored).
 | staleness_medium_days | 7 |
 | staleness_high_days | 8 |
 | near_extreme_threshold | 80 |
+| folder_count_display | active |
+| productivity_low_pct | 33 |
+| productivity_high_pct | 66 |
 
 `last_touched_at` updates whenever the task is edited, commented on, or
 manually "bumped" — this is what lets an important, deadline-less task
@@ -114,7 +125,7 @@ sitting in Q2 too long.
 
 ## Views
 
-The app has two views, not one combined screen:
+The app has three views:
 
 **1. Matrix / Digest view** (orientation, not execution)
 - The 2x2 Eisenhower grid, current snapshot
@@ -127,10 +138,12 @@ The app has two views, not one combined screen:
   "Chores" as two sections inside the Errands tab)
 - Nested task list within each folder, with collapsible subtasks
 - Checkboxes to mark done, live here
-- **Active count** (shown per folder, e.g. "4 active"): counts only
-  top-level tasks (no `parent_task_id`), never subtasks. Subtask count is a
-  documentation-granularity choice, not additional workload, so it must
-  never inflate this number.
+- **Folder count display** (toggleable, `folder_count_display` setting):
+  shows either "X active" (counts only top-level tasks, no
+  `parent_task_id`, subtasks never inflate it) or "X of Y done" (same
+  top-level tasks, framed as completed/total instead). Same underlying
+  numbers either way, purely a display choice, switchable so you can see
+  which motivates you more.
 - **Subtask completion percentage**: any task with subtasks shows a small
   progress indicator (e.g. a thin bar or "67%"), computed as completed
   subtasks ÷ total subtasks, rounded to the nearest whole number. Never
@@ -153,24 +166,55 @@ The app has two views, not one combined screen:
 - **Top banner**: always-visible strip showing the top 3-5 most urgent/
   important tasks across all folders, regardless of which folder filter is
   active, so the highest-priority items are never scrolled out of view.
+- **Recurring habit boxes** (top right, entirely separate from the folder/
+  matrix system below): two small boxes, Weekly on top and Daily below it.
+  Within each box, RecurringTasks are grouped by Folder, collapsible, the
+  same pattern as the main List view (e.g. "Work" section listing "Refresh
+  report", "Chores" section listing "Dishes", "Cleaning"), just reusing
+  the existing Folder grouping rather than a separate system. Each task
+  has a checkbox; each box shows a completion fraction (e.g. "3/5").
+  Checking one off just sets `last_completed_date` and writes a
+  CompletionLog row, nothing here touches importance, urgency, or the
+  quadrant system, recurring tasks never appear in the heat-map, the top
+  banner, or the Matrix/Digest view.
 
 Typical flow: open app → glance at Matrix/Digest view (10 seconds) → switch
 to List view → work through tasks with the top banner and heat-map colors
 carrying the same prioritization without needing to re-check the matrix.
+Recurring habits are ticked off separately, in their own boxes, unrelated
+to that prioritization flow.
+
+**3. Calendar view** (retrospective, replaces the earlier vague "basic
+productivity view")
+- Monthly grid, one cell per day
+- **Color** driven by that day's daily-recurring completion rate (completed
+  ÷ scheduled daily RecurringTasks), bucketed via `productivity_low_pct` /
+  `productivity_high_pct` into red / yellow / green. A day with no daily
+  recurring tasks scheduled shows neutral gray, not red.
+- **Secondary count badge** on each cell: number of regular (non-recurring)
+  tasks completed that day. Shown alongside the color, never blended into
+  it, one clean signal per indicator, same principle as the near-extreme
+  flag.
+- **Click a day** to expand a repository view: every task completed that
+  day, regular and recurring, pulled from `completed_at` and CompletionLog
+  respectively. No new storage, just a query against data already kept.
 
 ## Feature List (v1)
 
 - Categories (Work / Errands / Recruiting, extensible) containing folders
   (e.g. Finances, Chores), both collapsible
 - Nested tasks (subtasks under tasks, also collapsible)
-- Daily and weekly recurrence
+- Recurring habit checklist (Daily/Weekly boxes, separate from the matrix):
+  tasks reset rather than pile up, with a completion fraction and history
+  log
 - Manual urgent flag for true ad-hoc fires
 - Deadline field with the dynamic urgency engine above
 - Quick-capture box (frictionless add, sort later)
 - Daily digest (snapshot + quadrant changes)
 - Weekly digest (trend view)
 - Simple daily log: completed / rolled over / dropped
-- Basic productivity view: completion rate by category over time
+- Calendar view: color-coded by daily-recurring completion rate, with a
+  completed-task count badge and a click-through repository per day
 - Evening review: incomplete tasks require a conscious choice to roll to
   tomorrow, drop, or push to Someday/Maybe — never a silent auto-carry
 - Someday/Maybe list: undated, low-importance tasks that age via the same
@@ -208,11 +252,15 @@ Inbox category) for manual sorting.
    folder filter + "All" top banner
 2. Storage: File System Access API pointed at an OneDrive folder, with
    automatic IndexedDB fallback if unsupported
-3. Recurrence logic (daily/weekly task generation)
+3. Recurring habit checklist: RecurringTask + CompletionLog, the Weekly/
+   Daily boxes, reset-on-schedule logic (this replaces the earlier
+   instance-regeneration approach from the first Phase 3 build, the
+   underlying mechanic changed)
 4. Urgency engine + quadrant derivation (read thresholds from Settings, not
    hardcoded); apply as heat-map coloring on List view rows
 5. Matrix/Digest view (2x2 grid) with change-tracking since yesterday
-6. Daily log + productivity view
+6. Calendar view: color-coded by daily-recurring completion rate, count
+   badge for regular task completions, click-through day repository
 7. Polish pass (styling, keyboard shortcuts, quick-capture)
 
 Commit to git after each phase.

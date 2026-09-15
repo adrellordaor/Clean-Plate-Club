@@ -30,7 +30,15 @@
     <button id="add-task-btn" class="btn btn-primary">+ Task</button>
   </div>
 
-  <div id="folder-list" class="folder-list"></div>
+  <div class="main-layout">
+    <div class="main-column">
+      <div id="folder-list" class="folder-list"></div>
+    </div>
+    <aside class="recurring-column">
+      <div id="recurring-weekly" class="recurring-box"></div>
+      <div id="recurring-daily" class="recurring-box"></div>
+    </aside>
+  </div>
 </main>
 
 <!-- Task add/edit modal -->
@@ -69,28 +77,6 @@
             <option value="Medium">Medium</option>
             <option value="High">High</option>
             <option value="Critical">Critical</option>
-          </select>
-        </label>
-      </div>
-
-      <div class="form-row">
-        <label>Recurrence
-          <select id="task-recurrence">
-            <option value="none">None</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-          </select>
-        </label>
-
-        <label id="task-recurrence-weekday-label">Weekly on
-          <select id="task-recurrence-weekday">
-            <option value="0">Sunday</option>
-            <option value="1">Monday</option>
-            <option value="2">Tuesday</option>
-            <option value="3">Wednesday</option>
-            <option value="4">Thursday</option>
-            <option value="5">Friday</option>
-            <option value="6">Saturday</option>
           </select>
         </label>
       </div>
@@ -139,6 +125,50 @@
       </label>
       <div class="modal-actions">
         <button type="button" id="category-cancel-btn" class="btn btn-secondary">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Recurring habit add/edit modal -->
+<div id="recurring-modal" class="modal hidden">
+  <div class="modal-content">
+    <h2 id="recurring-modal-title">Add Habit</h2>
+    <form id="recurring-form">
+      <input type="hidden" id="recurring-id">
+
+      <label>Title
+        <input type="text" id="recurring-title" required>
+      </label>
+
+      <label>Folder
+        <select id="recurring-folder" required></select>
+      </label>
+
+      <div class="form-row">
+        <label>Cadence
+          <select id="recurring-cadence">
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+          </select>
+        </label>
+
+        <label id="recurring-weekday-label">Weekly on
+          <select id="recurring-weekday">
+            <option value="1">Monday</option>
+            <option value="2">Tuesday</option>
+            <option value="3">Wednesday</option>
+            <option value="4">Thursday</option>
+            <option value="5">Friday</option>
+            <option value="6">Saturday</option>
+            <option value="0">Sunday</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" id="recurring-cancel-btn" class="btn btn-secondary">Cancel</button>
         <button type="submit" class="btn btn-primary">Save</button>
       </div>
     </form>

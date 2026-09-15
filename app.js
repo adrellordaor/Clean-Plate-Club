@@ -11,7 +11,7 @@ function makeId() {
 const IMPORTANCE_VALUES = { Low: 25, Medium: 50, High: 75, Critical: 100 };
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-const DATA_VERSION = 1;
+const DATA_VERSION = 2;
 
 // Minimalist outline icons (stroke = currentColor, so they inherit button text color).
 const SVG_ATTRS = 'viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
@@ -25,6 +25,8 @@ const ICONS = {
 let categories = []; // Category: top-level grouping, drives the tabs.
 let folders = [];    // Folder: a named grouping within a category (e.g. "Finances" inside Errands).
 let tasks = [];
+let recurringTasks = []; // RecurringTask: singular, resets on schedule, outside the Eisenhower matrix.
+let completionLog = [];  // CompletionLog: one row per recurring-task check-off, feeds future history views.
 
 function seedDefaults() {
   categories = [
@@ -39,6 +41,8 @@ function seedDefaults() {
     { id: "f-recruiting", category_id: "c-recruiting", name: "Recruiting" },
   ];
   tasks = [];
+  recurringTasks = [];
+  completionLog = [];
 }
 
 function loadState(data) {
@@ -50,7 +54,8 @@ function loadState(data) {
   categories = data.categories || [];
   folders = data.folders || [];
   tasks = data.tasks || [];
-  generateRecurringInstances();
+  recurringTasks = data.recurringTasks || [];
+  completionLog = data.completionLog || [];
 }
 
 function serializeState() {
@@ -60,6 +65,8 @@ function serializeState() {
     categories,
     folders,
     tasks,
+    recurringTasks,
+    completionLog,
   };
 }
 
@@ -80,87 +87,75 @@ function makeTask(overrides) {
     deadline: null,
     importance: "Low",
     manual_urgent_flag: false,
-    recurrence: "none",
-    recurrence_weekday: null, // 0 (Sun) - 6 (Sat), only meaningful when recurrence === "weekly"
-    series_id: null, // links regenerated recurring instances back to the same recurring task
-    instance_date: null, // "YYYY-MM-DD" day this instance was generated for
     status: "active",
     completed_at: null,
   }, overrides);
 }
 
-// ---------- Recurrence engine ----------
-// Each recurring task belongs to a "series" (tasks sharing series_id, or a lone task
-// keyed by its own id before any instance has regenerated). On its scheduled day, if
-// the series has no instance dated today yet — active or completed — a fresh active
-// instance is added. Existing instances (done or still open) are never touched here;
-// silently carrying over an incomplete task is an Evening Review decision, not this engine's.
+function makeRecurringTask(overrides) {
+  return Object.assign({
+    id: makeId(),
+    folder_id: null,
+    title: "",
+    cadence: "daily", // "daily" | "weekly"
+    weekday: null, // 0 (Sun) - 6 (Sat), only meaningful when cadence === "weekly"
+    last_completed_date: null, // "YYYY-MM-DD"; checking off sets this to today
+  }, overrides);
+}
+
+// ---------- Recurring habits ----------
+// A RecurringTask is a single row that resets rather than piling up instances.
+// "Done for the current period" is derived from last_completed_date vs today (daily)
+// or the current week (weekly) every render, the same way quadrant is derived rather
+// than stored — so nothing needs an explicit daily "reset" scan or migration.
 
 function todayISODate() {
   const d = new Date();
   return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
 }
 
-function dateOnly(isoTimestamp) {
-  return isoTimestamp ? isoTimestamp.slice(0, 10) : null;
-}
-
-function weekdayOfISODate(dateStr) {
+function startOfWeekISODate(dateStr) {
   const [y, m, d] = dateStr.split("-").map(Number);
-  return new Date(y, m - 1, d).getDay();
+  const date = new Date(y, m - 1, d);
+  const daysSinceMonday = (date.getDay() + 6) % 7; // getDay(): 0=Sun..6=Sat, so Mon=0 days back
+  date.setDate(date.getDate() - daysSinceMonday); // back up to Monday
+  return date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0");
 }
 
-function generateRecurringInstances() {
-  const todayStr = todayISODate();
-  const series = new Map(); // seriesId -> tasks
+function isRecurringDoneNow(rt) {
+  if (!rt.last_completed_date) return false;
+  const today = todayISODate();
+  if (rt.cadence === "daily") return rt.last_completed_date === today;
+  return rt.last_completed_date >= startOfWeekISODate(today) && rt.last_completed_date <= today;
+}
 
-  tasks.forEach(t => {
-    if (t.recurrence === "none") return;
-    const key = t.series_id || t.id;
-    if (!series.has(key)) series.set(key, []);
-    series.get(key).push(t);
-  });
+function toggleRecurringTask(rt) {
+  if (isRecurringDoneNow(rt)) {
+    const loggedDate = rt.last_completed_date;
+    completionLog = completionLog.filter(l => !(l.recurring_task_id === rt.id && l.completed_date === loggedDate));
+    rt.last_completed_date = null;
+  } else {
+    const today = todayISODate();
+    rt.last_completed_date = today;
+    completionLog.push({ id: makeId(), recurring_task_id: rt.id, completed_date: today });
+  }
+  persist();
+  render();
+}
 
-  let changed = false;
-
-  series.forEach((seriesTasks, seriesId) => {
-    const alreadyHasToday = seriesTasks.some(t => (t.instance_date || dateOnly(t.created_at)) === todayStr);
-    if (alreadyHasToday) return;
-
-    const template = seriesTasks.reduce((latest, t) => (t.created_at > latest.created_at ? t : latest));
-
-    if (!folders.some(f => f.id === template.folder_id)) return; // folder was deleted, nowhere to place it
-
-    if (template.recurrence === "weekly") {
-      if (template.recurrence_weekday === null || template.recurrence_weekday === undefined) return;
-      if (weekdayOfISODate(todayStr) !== template.recurrence_weekday) return;
-    }
-
-    if (!template.series_id) template.series_id = seriesId;
-
-    const parentStillExists = template.parent_task_id && tasks.some(t => t.id === template.parent_task_id);
-
-    tasks.push(makeTask({
-      folder_id: template.folder_id,
-      parent_task_id: parentStillExists ? template.parent_task_id : null,
-      title: template.title,
-      notes: template.notes,
-      importance: template.importance,
-      recurrence: template.recurrence,
-      recurrence_weekday: template.recurrence_weekday,
-      series_id: seriesId,
-      instance_date: todayStr,
-    }));
-    changed = true;
-  });
-
-  if (changed) persist();
-  return changed;
+function deleteRecurringTask(id) {
+  const rt = recurringTasks.find(r => r.id === id);
+  const label = rt ? `"${rt.title}"` : "this habit";
+  if (!confirm(`Delete ${label}?`)) return;
+  recurringTasks = recurringTasks.filter(r => r.id !== id);
+  persist();
+  render();
 }
 
 let activeCategoryFilter = "all"; // "all" or a category id
 let collapsedFolders = new Set();
 let collapsedTasks = new Set();
+let collapsedRecurringFolders = new Set(); // keyed by "<cadence>:<folder_id>"
 
 // folder_count_display setting: "active" -> "X active", "done" -> "X of Y done".
 // A per-device display preference (like theme), not synced task data.
@@ -177,6 +172,7 @@ function toggleFolderCountDisplay() {
 function render() {
   renderCategoryTabs();
   renderFolderList();
+  renderRecurringSidebar();
 }
 
 function renderCategoryTabs() {
@@ -357,12 +353,6 @@ function renderTaskRow(task) {
   } else if (task.importance === "High") {
     titleLine.appendChild(makeBadge("High", "badge-high"));
   }
-  if (task.recurrence !== "none") {
-    const label = task.recurrence === "weekly" && task.recurrence_weekday != null
-      ? "weekly (" + WEEKDAY_LABELS[task.recurrence_weekday] + ")"
-      : task.recurrence;
-    titleLine.appendChild(makeBadge(label, "badge-recurring"));
-  }
 
   main.appendChild(titleLine);
 
@@ -458,6 +448,179 @@ function renderSubtaskProgress(subtasks) {
   return wrap;
 }
 
+// ---------- Recurring sidebar (Weekly/Daily boxes) ----------
+// Fully separate from the folder/matrix system: no importance, urgency, or heat-map
+// coloring applies here, just a folder-grouped checklist with a completion fraction.
+
+function renderRecurringSidebar() {
+  renderRecurringBox("weekly", "recurring-weekly", "Weekly");
+  renderRecurringBox("daily", "recurring-daily", "Daily");
+}
+
+function renderRecurringBox(cadence, containerId, label) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = "";
+
+  const items = recurringTasks.filter(rt => rt.cadence === cadence);
+  const doneCount = items.filter(isRecurringDoneNow).length;
+
+  const header = document.createElement("div");
+  header.className = "recurring-box-header";
+
+  const title = document.createElement("span");
+  title.className = "recurring-box-title";
+  title.textContent = label;
+  header.appendChild(title);
+
+  const fraction = document.createElement("span");
+  fraction.className = "recurring-box-fraction";
+  fraction.textContent = doneCount + "/" + items.length;
+  header.appendChild(fraction);
+
+  container.appendChild(header);
+
+  const body = document.createElement("div");
+  body.className = "recurring-box-body";
+
+  const foldersWithItems = folders.filter(f => items.some(rt => rt.folder_id === f.id));
+
+  if (foldersWithItems.length === 0) {
+    const hint = document.createElement("div");
+    hint.className = "empty-hint";
+    hint.textContent = "No " + label.toLowerCase() + " habits yet.";
+    body.appendChild(hint);
+  } else {
+    foldersWithItems.forEach(folder => {
+      body.appendChild(renderRecurringFolderSection(folder, cadence, items.filter(rt => rt.folder_id === folder.id)));
+    });
+  }
+
+  const addLink = document.createElement("button");
+  addLink.type = "button";
+  addLink.className = "link-btn";
+  addLink.textContent = "+ Add";
+  addLink.addEventListener("click", () => openRecurringModal({ cadence }));
+  body.appendChild(addLink);
+
+  container.appendChild(body);
+}
+
+function renderRecurringFolderSection(folder, cadence, folderItems) {
+  const key = cadence + ":" + folder.id;
+
+  const section = document.createElement("div");
+  section.className = "folder-section recurring-folder-section" + (collapsedRecurringFolders.has(key) ? " collapsed" : "");
+
+  const header = document.createElement("div");
+  header.className = "folder-header";
+  header.addEventListener("click", () => {
+    if (collapsedRecurringFolders.has(key)) {
+      collapsedRecurringFolders.delete(key);
+    } else {
+      collapsedRecurringFolders.add(key);
+    }
+    render();
+  });
+
+  const caret = document.createElement("span");
+  caret.className = "folder-caret";
+  caret.textContent = "▼";
+  header.appendChild(caret);
+
+  const name = document.createElement("span");
+  name.className = "folder-name";
+  name.textContent = folder.name;
+  header.appendChild(name);
+
+  const count = document.createElement("span");
+  count.className = "folder-count";
+  const done = folderItems.filter(isRecurringDoneNow).length;
+  count.textContent = done + "/" + folderItems.length;
+  header.appendChild(count);
+
+  section.appendChild(header);
+
+  const body = document.createElement("div");
+  body.className = "folder-body";
+
+  const ul = document.createElement("ul");
+  ul.className = "task-list";
+  folderItems.forEach(rt => ul.appendChild(renderRecurringRow(rt)));
+  body.appendChild(ul);
+
+  const addLink = document.createElement("button");
+  addLink.type = "button";
+  addLink.className = "link-btn";
+  addLink.textContent = "+ Add";
+  addLink.addEventListener("click", () => openRecurringModal({ cadence, folder_id: folder.id }));
+  body.appendChild(addLink);
+
+  section.appendChild(body);
+  return section;
+}
+
+function renderRecurringRow(rt) {
+  const li = document.createElement("li");
+
+  const row = document.createElement("div");
+  const done = isRecurringDoneNow(rt);
+  row.className = "task-row" + (done ? " done" : "");
+
+  const spacer = document.createElement("span");
+  spacer.className = "task-caret-spacer";
+  row.appendChild(spacer);
+
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.checked = done;
+  checkbox.addEventListener("change", () => toggleRecurringTask(rt));
+  row.appendChild(checkbox);
+
+  const main = document.createElement("div");
+  main.className = "task-main";
+
+  const titleLine = document.createElement("div");
+  titleLine.className = "task-title-line";
+
+  const title = document.createElement("span");
+  title.className = "task-title";
+  title.textContent = rt.title;
+  titleLine.appendChild(title);
+
+  if (rt.cadence === "weekly" && rt.weekday != null) {
+    titleLine.appendChild(makeBadge(WEEKDAY_LABELS[rt.weekday], "badge-recurring"));
+  }
+
+  main.appendChild(titleLine);
+  row.appendChild(main);
+
+  const actions = document.createElement("div");
+  actions.className = "task-actions";
+
+  const editBtn = document.createElement("button");
+  editBtn.type = "button";
+  editBtn.className = "btn-icon";
+  editBtn.innerHTML = ICONS.pencil;
+  editBtn.setAttribute("aria-label", "Edit habit");
+  editBtn.title = "Edit";
+  editBtn.addEventListener("click", () => openRecurringModal(rt));
+  actions.appendChild(editBtn);
+
+  const delBtn = document.createElement("button");
+  delBtn.type = "button";
+  delBtn.className = "btn-icon";
+  delBtn.style.color = "var(--danger)";
+  delBtn.innerHTML = ICONS.trash;
+  delBtn.setAttribute("aria-label", "Delete habit");
+  delBtn.title = "Delete";
+  delBtn.addEventListener("click", () => deleteRecurringTask(rt.id));
+  actions.appendChild(delBtn);
+
+  row.appendChild(actions);
+  li.appendChild(row);
+  return li;
+}
+
 // ---------- Task actions ----------
 
 function toggleTaskDone(task) {
@@ -500,21 +663,12 @@ const taskModal = document.getElementById("task-modal");
 const taskForm = document.getElementById("task-form");
 const taskFolderSelect = document.getElementById("task-folder");
 const taskParentSelect = document.getElementById("task-parent");
-const taskRecurrenceSelect = document.getElementById("task-recurrence");
-const taskRecurrenceWeekdaySelect = document.getElementById("task-recurrence-weekday");
-const taskRecurrenceWeekdayLabel = document.getElementById("task-recurrence-weekday-label");
-
-function updateRecurrenceWeekdayVisibility() {
-  taskRecurrenceWeekdayLabel.hidden = taskRecurrenceSelect.value !== "weekly";
-}
-
-taskRecurrenceSelect.addEventListener("change", updateRecurrenceWeekdayVisibility);
 
 function openTaskModal(prefillOrTask) {
   const isEdit = tasks.some(t => t.id === prefillOrTask.id);
   document.getElementById("task-modal-title").textContent = isEdit ? "Edit Task" : "Add Task";
 
-  populateFolderSelect(prefillOrTask.folder_id);
+  populateFolderSelectInto(taskFolderSelect, prefillOrTask.folder_id);
   populateParentSelect(prefillOrTask.folder_id, isEdit ? prefillOrTask.id : null, prefillOrTask.parent_task_id);
 
   document.getElementById("task-id").value = isEdit ? prefillOrTask.id : "";
@@ -522,11 +676,6 @@ function openTaskModal(prefillOrTask) {
   document.getElementById("task-notes").value = isEdit ? prefillOrTask.notes : "";
   document.getElementById("task-deadline").value = isEdit ? (prefillOrTask.deadline || "") : "";
   document.getElementById("task-importance").value = isEdit ? prefillOrTask.importance : "Low";
-  taskRecurrenceSelect.value = isEdit ? prefillOrTask.recurrence : "none";
-  taskRecurrenceWeekdaySelect.value = isEdit && prefillOrTask.recurrence_weekday != null
-    ? prefillOrTask.recurrence_weekday
-    : new Date().getDay();
-  updateRecurrenceWeekdayVisibility();
   document.getElementById("task-urgent-flag").checked = isEdit ? prefillOrTask.manual_urgent_flag : false;
 
   taskFolderSelect.value = prefillOrTask.folder_id || folders[0]?.id || "";
@@ -541,8 +690,8 @@ function closeTaskModal() {
   taskForm.reset();
 }
 
-function populateFolderSelect(selectedId) {
-  taskFolderSelect.innerHTML = "";
+function populateFolderSelectInto(selectEl, selectedId) {
+  selectEl.innerHTML = "";
   categories.forEach(category => {
     const categoryFolders = folders.filter(f => f.category_id === category.id);
     if (categoryFolders.length === 0) return;
@@ -554,9 +703,9 @@ function populateFolderSelect(selectedId) {
       opt.textContent = folder.name;
       group.appendChild(opt);
     });
-    taskFolderSelect.appendChild(group);
+    selectEl.appendChild(group);
   });
-  if (selectedId) taskFolderSelect.value = selectedId;
+  if (selectedId) selectEl.value = selectedId;
 }
 
 function populateParentSelect(folderId, excludeTaskId, selectedParentId) {
@@ -588,8 +737,6 @@ taskForm.addEventListener("submit", e => {
     notes: document.getElementById("task-notes").value.trim(),
     deadline: document.getElementById("task-deadline").value || null,
     importance: document.getElementById("task-importance").value,
-    recurrence: taskRecurrenceSelect.value,
-    recurrence_weekday: taskRecurrenceSelect.value === "weekly" ? Number(taskRecurrenceWeekdaySelect.value) : null,
     manual_urgent_flag: document.getElementById("task-urgent-flag").checked,
   };
 
@@ -673,6 +820,76 @@ document.getElementById("add-folder-btn").addEventListener("click", openFolderMo
 document.getElementById("folder-cancel-btn").addEventListener("click", closeFolderModal);
 folderModal.addEventListener("click", e => {
   if (e.target === folderModal) closeFolderModal();
+});
+
+// ---------- Recurring habit modal ----------
+
+const recurringModal = document.getElementById("recurring-modal");
+const recurringForm = document.getElementById("recurring-form");
+const recurringFolderSelect = document.getElementById("recurring-folder");
+const recurringCadenceSelect = document.getElementById("recurring-cadence");
+const recurringWeekdaySelect = document.getElementById("recurring-weekday");
+const recurringWeekdayLabel = document.getElementById("recurring-weekday-label");
+
+function updateRecurringWeekdayVisibility() {
+  recurringWeekdayLabel.hidden = recurringCadenceSelect.value !== "weekly";
+}
+
+recurringCadenceSelect.addEventListener("change", updateRecurringWeekdayVisibility);
+
+function openRecurringModal(prefillOrRt) {
+  if (folders.length === 0) {
+    alert("Add a folder first.");
+    return;
+  }
+
+  const isEdit = recurringTasks.some(r => r.id === prefillOrRt.id);
+  document.getElementById("recurring-modal-title").textContent = isEdit ? "Edit Habit" : "Add Habit";
+
+  populateFolderSelectInto(recurringFolderSelect, prefillOrRt.folder_id || folders[0].id);
+
+  document.getElementById("recurring-id").value = isEdit ? prefillOrRt.id : "";
+  document.getElementById("recurring-title").value = isEdit ? prefillOrRt.title : "";
+  recurringCadenceSelect.value = isEdit ? prefillOrRt.cadence : (prefillOrRt.cadence || "daily");
+  recurringWeekdaySelect.value = isEdit && prefillOrRt.weekday != null ? prefillOrRt.weekday : new Date().getDay();
+  updateRecurringWeekdayVisibility();
+
+  recurringModal.classList.remove("hidden");
+  document.getElementById("recurring-title").focus();
+}
+
+function closeRecurringModal() {
+  recurringModal.classList.add("hidden");
+  recurringForm.reset();
+}
+
+recurringForm.addEventListener("submit", e => {
+  e.preventDefault();
+  const id = document.getElementById("recurring-id").value;
+  const data = {
+    folder_id: recurringFolderSelect.value,
+    title: document.getElementById("recurring-title").value.trim(),
+    cadence: recurringCadenceSelect.value,
+    weekday: recurringCadenceSelect.value === "weekly" ? Number(recurringWeekdaySelect.value) : null,
+  };
+
+  if (!data.title || !data.folder_id) return;
+
+  const existing = id ? recurringTasks.find(r => r.id === id) : null;
+  if (existing) {
+    Object.assign(existing, data);
+  } else {
+    recurringTasks.push(makeRecurringTask(data));
+  }
+
+  closeRecurringModal();
+  persist();
+  render();
+});
+
+document.getElementById("recurring-cancel-btn").addEventListener("click", closeRecurringModal);
+recurringModal.addEventListener("click", e => {
+  if (e.target === recurringModal) closeRecurringModal();
 });
 
 // ---------- Category modal ----------
@@ -838,10 +1055,8 @@ async function syncFromFolder() {
   }
   if (data) {
     loadState(data);
-    render();
-    return;
   }
-  if (generateRecurringInstances()) render();
+  render();
 }
 
 document.addEventListener("visibilitychange", () => {
