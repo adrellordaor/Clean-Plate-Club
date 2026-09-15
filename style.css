@@ -31,6 +31,14 @@
   --acc-l0: 80%;   --acc-l1: 46%;    /* accent bar / label lightness */
   --gray-l1: 82%;  --gray-acc-l1: 50%;
 
+  /* Recurring habit boxes: a completely separate hue pair (violet/sky) from the four
+     quadrant hues above, since these boxes are deliberately outside the Eisenhower
+     system — the color signals "different system," not a priority level. */
+  --weekly-h: 256;
+  --daily-h: 199;
+  --recurring-tint-s: 45%;  --recurring-tint-l: 95%;
+  --recurring-acc-s: 50%;   --recurring-acc-l: 42%;
+
   color-scheme: light;
 }
 
@@ -63,6 +71,9 @@
   --acc-s0: 25%;   --acc-s1: 75%;
   --acc-l0: 34%;   --acc-l1: 66%;
   --gray-l1: 31%;  --gray-acc-l1: 62%;
+
+  --recurring-tint-l: 23%;
+  --recurring-acc-l: 70%;
 
   color-scheme: dark;
 }
@@ -375,6 +386,7 @@ body {
 .recurring-box {
   background: var(--surface);
   border: 1px solid var(--border);
+  border-top: 3px solid transparent;
   border-radius: 8px;
   overflow: hidden;
 }
@@ -394,7 +406,37 @@ body {
 
 .recurring-box-fraction {
   font-size: 0.82rem;
+  font-weight: 600;
   color: var(--text-muted);
+}
+
+/* Weekly/Daily each get their own hue (see :root --weekly-h / --daily-h) so the two
+   boxes read as distinct at a glance, while staying visually separate from the
+   quadrant heat-map hues used in the main list — these tasks are outside that system. */
+#recurring-weekly {
+  border-top-color: hsl(var(--weekly-h) var(--recurring-acc-s) var(--recurring-acc-l));
+}
+
+#recurring-daily {
+  border-top-color: hsl(var(--daily-h) var(--recurring-acc-s) var(--recurring-acc-l));
+}
+
+#recurring-weekly .recurring-box-header {
+  background: hsl(var(--weekly-h) var(--recurring-tint-s) var(--recurring-tint-l));
+}
+
+#recurring-daily .recurring-box-header {
+  background: hsl(var(--daily-h) var(--recurring-tint-s) var(--recurring-tint-l));
+}
+
+#recurring-weekly .recurring-box-title,
+#recurring-weekly .recurring-box-fraction {
+  color: hsl(var(--weekly-h) var(--recurring-acc-s) var(--recurring-acc-l));
+}
+
+#recurring-daily .recurring-box-title,
+#recurring-daily .recurring-box-fraction {
+  color: hsl(var(--daily-h) var(--recurring-acc-s) var(--recurring-acc-l));
 }
 
 .recurring-box-body {
