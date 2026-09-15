@@ -9,6 +9,7 @@ function makeId() {
 }
 
 const IMPORTANCE_VALUES = { Low: 25, Medium: 50, High: 75, Critical: 100 };
+const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const DATA_VERSION = 1;
 
@@ -40,6 +41,7 @@ function loadState(data) {
   categories = data.categories || [];
   folders = data.folders || [];
   tasks = data.tasks || [];
+  generateRecurringInstances();
 }
 
 function serializeState() {
@@ -70,9 +72,81 @@ function makeTask(overrides) {
     importance: "Low",
     manual_urgent_flag: false,
     recurrence: "none",
+    recurrence_weekday: null, // 0 (Sun) - 6 (Sat), only meaningful when recurrence === "weekly"
+    series_id: null, // links regenerated recurring instances back to the same recurring task
+    instance_date: null, // "YYYY-MM-DD" day this instance was generated for
     status: "active",
     completed_at: null,
   }, overrides);
+}
+
+// ---------- Recurrence engine ----------
+// Each recurring task belongs to a "series" (tasks sharing series_id, or a lone task
+// keyed by its own id before any instance has regenerated). On its scheduled day, if
+// the series has no instance dated today yet — active or completed — a fresh active
+// instance is added. Existing instances (done or still open) are never touched here;
+// silently carrying over an incomplete task is an Evening Review decision, not this engine's.
+
+function todayISODate() {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+function dateOnly(isoTimestamp) {
+  return isoTimestamp ? isoTimestamp.slice(0, 10) : null;
+}
+
+function weekdayOfISODate(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d).getDay();
+}
+
+function generateRecurringInstances() {
+  const todayStr = todayISODate();
+  const series = new Map(); // seriesId -> tasks
+
+  tasks.forEach(t => {
+    if (t.recurrence === "none") return;
+    const key = t.series_id || t.id;
+    if (!series.has(key)) series.set(key, []);
+    series.get(key).push(t);
+  });
+
+  let changed = false;
+
+  series.forEach((seriesTasks, seriesId) => {
+    const alreadyHasToday = seriesTasks.some(t => (t.instance_date || dateOnly(t.created_at)) === todayStr);
+    if (alreadyHasToday) return;
+
+    const template = seriesTasks.reduce((latest, t) => (t.created_at > latest.created_at ? t : latest));
+
+    if (!folders.some(f => f.id === template.folder_id)) return; // folder was deleted, nowhere to place it
+
+    if (template.recurrence === "weekly") {
+      if (template.recurrence_weekday === null || template.recurrence_weekday === undefined) return;
+      if (weekdayOfISODate(todayStr) !== template.recurrence_weekday) return;
+    }
+
+    if (!template.series_id) template.series_id = seriesId;
+
+    const parentStillExists = template.parent_task_id && tasks.some(t => t.id === template.parent_task_id);
+
+    tasks.push(makeTask({
+      folder_id: template.folder_id,
+      parent_task_id: parentStillExists ? template.parent_task_id : null,
+      title: template.title,
+      notes: template.notes,
+      importance: template.importance,
+      recurrence: template.recurrence,
+      recurrence_weekday: template.recurrence_weekday,
+      series_id: seriesId,
+      instance_date: todayStr,
+    }));
+    changed = true;
+  });
+
+  if (changed) persist();
+  return changed;
 }
 
 let activeCategoryFilter = "all"; // "all" or a category id
@@ -254,7 +328,10 @@ function renderTaskRow(task) {
     titleLine.appendChild(makeBadge("High", "badge-high"));
   }
   if (task.recurrence !== "none") {
-    titleLine.appendChild(makeBadge(task.recurrence, "badge-recurring"));
+    const label = task.recurrence === "weekly" && task.recurrence_weekday != null
+      ? "weekly (" + WEEKDAY_LABELS[task.recurrence_weekday] + ")"
+      : task.recurrence;
+    titleLine.appendChild(makeBadge(label, "badge-recurring"));
   }
 
   main.appendChild(titleLine);
@@ -389,6 +466,15 @@ const taskModal = document.getElementById("task-modal");
 const taskForm = document.getElementById("task-form");
 const taskFolderSelect = document.getElementById("task-folder");
 const taskParentSelect = document.getElementById("task-parent");
+const taskRecurrenceSelect = document.getElementById("task-recurrence");
+const taskRecurrenceWeekdaySelect = document.getElementById("task-recurrence-weekday");
+const taskRecurrenceWeekdayLabel = document.getElementById("task-recurrence-weekday-label");
+
+function updateRecurrenceWeekdayVisibility() {
+  taskRecurrenceWeekdayLabel.hidden = taskRecurrenceSelect.value !== "weekly";
+}
+
+taskRecurrenceSelect.addEventListener("change", updateRecurrenceWeekdayVisibility);
 
 function openTaskModal(prefillOrTask) {
   const isEdit = tasks.some(t => t.id === prefillOrTask.id);
@@ -402,7 +488,11 @@ function openTaskModal(prefillOrTask) {
   document.getElementById("task-notes").value = isEdit ? prefillOrTask.notes : "";
   document.getElementById("task-deadline").value = isEdit ? (prefillOrTask.deadline || "") : "";
   document.getElementById("task-importance").value = isEdit ? prefillOrTask.importance : "Low";
-  document.getElementById("task-recurrence").value = isEdit ? prefillOrTask.recurrence : "none";
+  taskRecurrenceSelect.value = isEdit ? prefillOrTask.recurrence : "none";
+  taskRecurrenceWeekdaySelect.value = isEdit && prefillOrTask.recurrence_weekday != null
+    ? prefillOrTask.recurrence_weekday
+    : new Date().getDay();
+  updateRecurrenceWeekdayVisibility();
   document.getElementById("task-urgent-flag").checked = isEdit ? prefillOrTask.manual_urgent_flag : false;
 
   taskFolderSelect.value = prefillOrTask.folder_id || folders[0]?.id || "";
@@ -464,7 +554,8 @@ taskForm.addEventListener("submit", e => {
     notes: document.getElementById("task-notes").value.trim(),
     deadline: document.getElementById("task-deadline").value || null,
     importance: document.getElementById("task-importance").value,
-    recurrence: document.getElementById("task-recurrence").value,
+    recurrence: taskRecurrenceSelect.value,
+    recurrence_weekday: taskRecurrenceSelect.value === "weekly" ? Number(taskRecurrenceWeekdaySelect.value) : null,
     manual_urgent_flag: document.getElementById("task-urgent-flag").checked,
   };
 
@@ -705,16 +796,18 @@ document.getElementById("gate-choose-btn").addEventListener("click", async () =>
 });
 
 async function syncFromFolder() {
-  let data;
+  let data = null;
   try {
     data = await storage.checkForExternalChanges();
   } catch (e) {
     console.error("Could not read folder changes", e);
+  }
+  if (data) {
+    loadState(data);
+    render();
     return;
   }
-  if (!data) return;
-  loadState(data);
-  render();
+  if (generateRecurringInstances()) render();
 }
 
 document.addEventListener("visibilitychange", () => {

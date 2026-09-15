@@ -38,7 +38,13 @@ file in an OneDrive-backed folder.
   importance" and High/Critical → "High importance" for quadrant placement,
   the same pattern urgency uses.
 - manual_urgent_flag: bool (ad-hoc fire override)
-- recurrence: none | daily | weekly(+weekday)
+- recurrence: none | daily | weekly(+weekday), stored as `recurrence` +
+  `recurrence_weekday` (0=Sun..6=Sat, set only when weekly)
+- series_id: links a recurring task to the other regenerated instances of
+  the same recurring task (a lone task is its own series until it first
+  regenerates)
+- instance_date: the "YYYY-MM-DD" day an instance was generated for, used
+  to avoid regenerating a duplicate for a day that already has one
 - status: active | done | dropped
 - completed_at (nullable)
 

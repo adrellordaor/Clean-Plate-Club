@@ -500,6 +500,10 @@ body {
   margin-bottom: 0.75rem;
 }
 
+.modal-content form label[hidden] {
+  display: none;
+}
+
 .modal-content input[type="text"],
 .modal-content input[type="date"],
 .modal-content textarea,
