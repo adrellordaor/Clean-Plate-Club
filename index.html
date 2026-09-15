@@ -4,11 +4,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Task Tracker</title>
+<script>
+  (function () {
+    var saved = localStorage.getItem("theme");
+    var theme = saved || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", theme);
+  })();
+</script>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header class="app-header">
-  <h1>Task Tracker</h1>
+  <div class="header-top">
+    <h1>Task Tracker</h1>
+    <button id="theme-toggle-btn" class="theme-toggle" type="button" aria-label="Toggle dark mode"></button>
+  </div>
   <nav id="folder-tabs" class="folder-tabs"></nav>
 </header>
 
@@ -54,7 +64,9 @@
         <label>Importance
           <select id="task-importance">
             <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
             <option value="High">High</option>
+            <option value="Critical">Critical</option>
           </select>
         </label>
       </div>

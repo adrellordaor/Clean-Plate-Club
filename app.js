@@ -6,6 +6,8 @@ function makeId() {
   return "id" + (nextId++);
 }
 
+const IMPORTANCE_VALUES = { Low: 25, Medium: 50, High: 75, Critical: 100 };
+
 let folders = [
   { id: "f-work", name: "Work", category: "Work" },
   { id: "f-errands", name: "Errands", category: "Errands" },
@@ -34,17 +36,18 @@ function makeTask(overrides) {
 }
 
 // Seed data so folder nesting/collapsing is visible on first load.
-tasks.push(makeTask({ folder_id: "f-work", title: "Finish Q3 budget review", importance: "High", deadline: null }));
+tasks.push(makeTask({ folder_id: "f-work", title: "Finish Q3 budget review", importance: "Critical", deadline: null }));
 let seedParent = makeTask({ folder_id: "f-work", title: "Prep quarterly presentation", importance: "High" });
 tasks.push(seedParent);
 tasks.push(makeTask({ folder_id: "f-work", parent_task_id: seedParent.id, title: "Draft slides" }));
 tasks.push(makeTask({ folder_id: "f-work", parent_task_id: seedParent.id, title: "Get feedback from manager" }));
 tasks.push(makeTask({ folder_id: "f-errands", title: "Pick up dry cleaning" }));
 tasks.push(makeTask({ folder_id: "f-errands", title: "Renew car registration", manual_urgent_flag: true }));
-tasks.push(makeTask({ folder_id: "f-recruiting", title: "Follow up with recruiter", recurrence: "weekly" }));
+tasks.push(makeTask({ folder_id: "f-recruiting", title: "Follow up with recruiter", recurrence: "weekly", importance: "Medium" }));
 
 let activeFolderFilter = "all"; // "all" or a folder id
 let collapsedFolders = new Set();
+let collapsedTasks = new Set();
 
 // ---------- Rendering ----------
 
@@ -171,6 +174,30 @@ function renderTaskRow(task) {
   const row = document.createElement("div");
   row.className = "task-row" + (task.status === "done" ? " done" : "");
 
+  const children = tasks.filter(t => t.parent_task_id === task.id);
+  const isCollapsed = collapsedTasks.has(task.id);
+
+  if (children.length > 0) {
+    const caret = document.createElement("button");
+    caret.type = "button";
+    caret.className = "task-caret" + (isCollapsed ? " collapsed" : "");
+    caret.textContent = "▼";
+    caret.setAttribute("aria-label", isCollapsed ? "Expand subtasks" : "Collapse subtasks");
+    caret.addEventListener("click", () => {
+      if (collapsedTasks.has(task.id)) {
+        collapsedTasks.delete(task.id);
+      } else {
+        collapsedTasks.add(task.id);
+      }
+      render();
+    });
+    row.appendChild(caret);
+  } else {
+    const spacer = document.createElement("span");
+    spacer.className = "task-caret-spacer";
+    row.appendChild(spacer);
+  }
+
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
   checkbox.checked = task.status === "done";
@@ -191,7 +218,9 @@ function renderTaskRow(task) {
   if (task.manual_urgent_flag) {
     titleLine.appendChild(makeBadge("Urgent", "badge-urgent"));
   }
-  if (task.importance === "High") {
+  if (task.importance === "Critical") {
+    titleLine.appendChild(makeBadge("Critical", "badge-critical"));
+  } else if (task.importance === "High") {
     titleLine.appendChild(makeBadge("High", "badge-high"));
   }
   if (task.recurrence !== "none") {
@@ -214,9 +243,11 @@ function renderTaskRow(task) {
     main.appendChild(notes);
   }
 
-  const children = tasks.filter(t => t.parent_task_id === task.id);
   if (children.length > 0) {
-    main.appendChild(renderTaskList(children));
+    const subtaskContainer = document.createElement("div");
+    subtaskContainer.className = "subtask-container" + (isCollapsed ? " collapsed" : "");
+    subtaskContainer.appendChild(renderTaskList(children));
+    main.appendChild(subtaskContainer);
   }
 
   const addSub = document.createElement("button");
@@ -425,6 +456,27 @@ document.getElementById("folder-cancel-btn").addEventListener("click", closeFold
 folderModal.addEventListener("click", e => {
   if (e.target === folderModal) closeFolderModal();
 });
+
+// ---------- Theme toggle ----------
+
+const themeToggleBtn = document.getElementById("theme-toggle-btn");
+
+function currentTheme() {
+  return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+}
+
+function applyThemeIcon() {
+  themeToggleBtn.textContent = currentTheme() === "dark" ? "☀️" : "\u{1F319}";
+}
+
+themeToggleBtn.addEventListener("click", () => {
+  const next = currentTheme() === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  localStorage.setItem("theme", next);
+  applyThemeIcon();
+});
+
+applyThemeIcon();
 
 // ---------- Init ----------
 

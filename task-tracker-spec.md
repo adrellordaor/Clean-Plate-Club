@@ -29,7 +29,10 @@ file in an OneDrive-backed folder.
 - title, notes
 - created_at, last_touched_at
 - deadline (nullable)
-- importance: Low | High (manual, user-set)
+- importance: Low | Medium | High | Critical (manual, user-set), mapped to
+  25 / 50 / 75 / 100 for scoring purposes. Bucketed as Low/Medium → "Low
+  importance" and High/Critical → "High importance" for quadrant placement,
+  the same pattern urgency uses.
 - manual_urgent_flag: bool (ad-hoc fire override)
 - recurrence: none | daily | weekly(+weekday)
 - status: active | done | dropped
@@ -70,6 +73,7 @@ stored).
 | staleness_low_days | 3 |
 | staleness_medium_days | 7 |
 | staleness_high_days | 8 |
+| near_extreme_threshold | 80 |
 
 `last_touched_at` updates whenever the task is edited, commented on, or
 manually "bumped" — this is what lets an important, deadline-less task
@@ -79,11 +83,11 @@ still climb the matrix if it's being ignored.
 
 | Importance \ Urgency | Low/Medium | High/Critical |
 |---|---|---|
-| **High** | Q2 — Plan | Q1 — Do Now |
-| **Low** | Q4 — Eliminate | Q3 — Delegate/Quick Win |
+| **High/Critical** | Q2 — Plan | Q1 — Do Now |
+| **Low/Medium** | Q4 — Eliminate | Q3 — Delegate/Quick Win |
 
-Quadrant is derived, not stored — it's recalculated from importance + current
-urgency score every time the matrix is rendered.
+Quadrant is derived, not stored — recalculated from importance (bucketed)
+and current urgency score every time the matrix is rendered.
 
 ## Daily Digest
 
@@ -115,6 +119,15 @@ The app has two views, not one combined screen:
   neutral gray). This carries the matrix concept into the view where you're
   actually working, instead of requiring a second screen to know what
   matters.
+- **Near-extreme flag** (independent of quadrant color): a task also gets a
+  distinct visual marker whenever *either* its urgency score or its
+  importance score alone crosses `near_extreme_threshold` (default 80),
+  regardless of the other axis. This catches the two cases a single
+  quadrant color hides: an urgent-but-unimportant task climbing toward
+  critical (easy to write off as "not important"), and an
+  important-but-not-urgent task sitting at high importance (easy to miss
+  because nothing feels time-pressured). One threshold, checked against
+  each axis independently, no combined logic needed.
 - **Top banner**: always-visible strip showing the top 3-5 most urgent/
   important tasks across all folders, regardless of which folder filter is
   active, so the highest-priority items are never scrolled out of view.
