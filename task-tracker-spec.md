@@ -91,7 +91,7 @@ stored).
 | staleness_low_days | 3 |
 | staleness_medium_days | 7 |
 | staleness_high_days | 8 |
-| near_extreme_threshold | 80 |
+| priority_importance_weight | 0.5 |
 | folder_count_display | active |
 | productivity_low_pct | 33 |
 | productivity_high_pct | 66 |
@@ -100,15 +100,26 @@ stored).
 manually "bumped" — this is what lets an important, deadline-less task
 still climb the matrix if it's being ignored.
 
-## Eisenhower Quadrant Mapping
+## Priority Score & Eisenhower Quadrant Mapping
+
+`priority_score = priority_importance_weight × importance + (1 -
+priority_importance_weight) × urgency`, both already 0-100 scales. Default
+weight 0.5 (equal), configurable in Settings as you live with the app,
+same pattern as every other threshold here. This is what solves the
+"cliff at the bucket boundary" problem: two tasks near each other in
+importance/urgency get near-identical scores even if they land in
+different quadrants.
+
+Quadrant (still bucketed, since it's answering a different question, "why
+is this a priority" rather than "how much"):
 
 | Importance \ Urgency | Low/Medium | High/Critical |
 |---|---|---|
-| **High/Critical** | Q2 — Plan | Q1 — Do Now |
-| **Low/Medium** | Q4 — Eliminate | Q3 — Delegate/Quick Win |
+| **High/Critical** | Don't Forget | Do Now |
+| **Low/Medium** | Backlog | Quick Win |
 
-Quadrant is derived, not stored — recalculated from importance (bucketed)
-and current urgency score every time the matrix is rendered.
+Quadrant and priority_score are both derived, not stored, recalculated
+every time the matrix or list renders.
 
 ## Daily Digest
 
@@ -149,23 +160,18 @@ The app has three views:
   subtasks ÷ total subtasks, rounded to the nearest whole number. Never
   shown on tasks with zero subtasks. Purely visual, no setting, no
   threshold, nothing to configure.
-- **Heat-map coloring**: each task row is tinted by its current quadrant
-  (e.g. Do Now = warm/coral, Plan = teal, Quick win = amber, low-priority =
-  neutral gray). This carries the matrix concept into the view where you're
-  actually working, instead of requiring a second screen to know what
-  matters.
-- **Near-extreme flag** (independent of quadrant color): a task also gets a
-  distinct visual marker whenever *either* its urgency score or its
-  importance score alone crosses `near_extreme_threshold` (default 80),
-  regardless of the other axis. This catches the two cases a single
-  quadrant color hides: an urgent-but-unimportant task climbing toward
-  critical (easy to write off as "not important"), and an
-  important-but-not-urgent task sitting at high importance (easy to miss
-  because nothing feels time-pressured). One threshold, checked against
-  each axis independently, no combined logic needed.
-- **Top banner**: always-visible strip showing the top 3-5 most urgent/
-  important tasks across all folders, regardless of which folder filter is
-  active, so the highest-priority items are never scrolled out of view.
+- **Heat-map coloring**: hue is set by quadrant (Do Now = red family, Don't
+  Forget = teal, Quick Win = amber, Backlog = gray), and saturation/
+  lightness within that hue is set continuously by `priority_score`, low
+  score → pale, high score → vivid. One task barely qualifying as "Do Now"
+  reads as soft red; a 95/95 task reads as vivid, alarming red. Backlog
+  works the same way with lightness alone (no hue), so a task climbing in
+  urgency visibly darkens well before it ever crosses into another
+  quadrant. Hue tells you *why* a task is prioritized, intensity tells you
+  *how much*, one formula drives both.
+- **Top banner**: always-visible strip showing the top 3-5 tasks by
+  `priority_score` across all folders, regardless of which folder filter
+  is active, so the highest-priority items are never scrolled out of view.
 - **Recurring habit boxes** (top right, entirely separate from the folder/
   matrix system below): two small boxes, Weekly on top and Daily below it.
   Within each box, RecurringTasks are grouped by Folder, collapsible, the

@@ -22,19 +22,14 @@
 
   --overlay: rgba(20, 20, 18, 0.35);
 
-  /* Heat-map quadrant tints (row background + left accent bar) */
-  --q1-bg: #fbe6e1;
-  --q1-accent: #d9705f;
-  --q2-bg: #dff0ed;
-  --q2-accent: #3f9a90;
-  --q3-bg: #fcefd6;
-  --q3-accent: #d9a13a;
-  --q4-bg: #f1f1ee;
-  --q4-accent: #b9b9b2;
-
-  /* Near-extreme marker: a hue none of the quadrants use */
-  --near-extreme-bg: #efe1f5;
-  --near-extreme-text: #7d3f9e;
+  /* Heat-map ramp: each quadrant has a fixed hue (see .quadrant-* below); a row's --p
+     (0 = pale, 1 = vivid, from priority_score) slides saturation and lightness between
+     these endpoints. Backlog uses the same ramp with chroma 0, so lightness alone. */
+  --tint-s0: 30%;  --tint-s1: 90%;   /* row background saturation */
+  --tint-l0: 96%;  --tint-l1: 80%;   /* row background lightness */
+  --acc-s0: 35%;   --acc-s1: 82%;    /* accent bar / label saturation */
+  --acc-l0: 80%;   --acc-l1: 46%;    /* accent bar / label lightness */
+  --gray-l1: 82%;  --gray-acc-l1: 50%;
 
   color-scheme: light;
 }
@@ -63,17 +58,11 @@
 
   --overlay: rgba(0, 0, 0, 0.55);
 
-  --q1-bg: #43302d;
-  --q1-accent: #e2948d;
-  --q2-bg: #223a37;
-  --q2-accent: #6fc2b7;
-  --q3-bg: #443921;
-  --q3-accent: #e8bd6f;
-  --q4-bg: #2b2c30;
-  --q4-accent: #66666a;
-
-  --near-extreme-bg: #3d2a48;
-  --near-extreme-text: #cfa6e6;
+  --tint-s0: 12%;  --tint-s1: 60%;
+  --tint-l0: 17%;  --tint-l1: 30%;
+  --acc-s0: 25%;   --acc-s1: 75%;
+  --acc-l0: 34%;   --acc-l1: 66%;
+  --gray-l1: 31%;  --gray-acc-l1: 62%;
 
   color-scheme: dark;
 }
@@ -221,23 +210,51 @@ body {
 }
 
 .legend-chip {
+  --p: 1;
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
   padding: 0.1rem 0.5rem;
   border-radius: 999px;
-  border-left: 3px solid transparent;
+  border-left: 3px solid var(--row-accent);
+  color: var(--text);
+  /* pale end → vivid end of this hue's ramp */
+  background: linear-gradient(90deg, var(--row-bg-pale), var(--row-bg-vivid));
 }
 
-.legend-q1 { background: var(--q1-bg); border-left-color: var(--q1-accent); }
-.legend-q2 { background: var(--q2-bg); border-left-color: var(--q2-accent); }
-.legend-q3 { background: var(--q3-bg); border-left-color: var(--q3-accent); }
-.legend-q4 { background: var(--q4-bg); border-left-color: var(--q4-accent); }
+.legend-note {
+  font-style: italic;
+}
 
-.legend-near-extreme {
-  background: var(--near-extreme-bg);
-  color: var(--near-extreme-text);
-  border-left: none;
+/* ---- Heat-map colour maths ----
+   Hue per quadrant is fixed; --chroma 0 turns Backlog into a pure lightness ramp.
+   Do Now keeps the coral family, Don't Forget the teal, Quick Win the amber. */
+.quadrant-q1 { --h: 8;   --chroma: 1; }
+.quadrant-q2 { --h: 173; --chroma: 1; }
+.quadrant-q3 { --h: 39;  --chroma: 1; }
+.quadrant-q4 { --h: 40;  --chroma: 0; }
+
+.quadrant-q1, .quadrant-q2, .quadrant-q3, .quadrant-q4 {
+  --tint-l1-eff: var(--tint-l1);
+  --acc-l1-eff: var(--acc-l1);
+  --row-bg: hsl(
+    var(--h)
+    calc(var(--chroma) * (var(--tint-s0) + (var(--tint-s1) - var(--tint-s0)) * var(--p)))
+    calc(var(--tint-l0) + (var(--tint-l1-eff) - var(--tint-l0)) * var(--p))
+  );
+  --row-accent: hsl(
+    var(--h)
+    calc(var(--chroma) * (var(--acc-s0) + (var(--acc-s1) - var(--acc-s0)) * var(--p)))
+    calc(var(--acc-l0) + (var(--acc-l1-eff) - var(--acc-l0)) * var(--p))
+  );
+  --row-bg-pale: hsl(var(--h) calc(var(--chroma) * var(--tint-s0)) var(--tint-l0));
+  --row-bg-vivid: hsl(var(--h) calc(var(--chroma) * var(--tint-s1)) var(--tint-l1-eff));
+}
+
+/* Gray has no saturation to lean on, so give its lightness ramp its own endpoints. */
+.quadrant-q4 {
+  --tint-l1-eff: var(--gray-l1);
+  --acc-l1-eff: var(--gray-acc-l1);
 }
 
 .main-layout {
@@ -460,11 +477,11 @@ body {
   background: var(--row-hover);
 }
 
-/* Heat-map: each active row is tinted by its live Eisenhower quadrant. */
-.task-row.quadrant-q1 { background: var(--q1-bg); border-left-color: var(--q1-accent); }
-.task-row.quadrant-q2 { background: var(--q2-bg); border-left-color: var(--q2-accent); }
-.task-row.quadrant-q3 { background: var(--q3-bg); border-left-color: var(--q3-accent); }
-.task-row.quadrant-q4 { background: var(--q4-bg); border-left-color: var(--q4-accent); }
+/* Heat-map: each active row is tinted by its live quadrant hue at its priority intensity. */
+.task-row[class*="quadrant-"] {
+  background: var(--row-bg);
+  border-left-color: var(--row-accent);
+}
 
 .task-row[class*="quadrant-"]:hover {
   box-shadow: inset 0 0 0 100vmax rgba(0, 0, 0, 0.04);
@@ -472,12 +489,6 @@ body {
 
 :root[data-theme="dark"] .task-row[class*="quadrant-"]:hover {
   box-shadow: inset 0 0 0 100vmax rgba(255, 255, 255, 0.04);
-}
-
-/* Near-extreme: a dashed outline in the marker's own hue, on top of whatever tint the row has. */
-.task-row.near-extreme {
-  outline: 1px dashed var(--near-extreme-text);
-  outline-offset: -1px;
 }
 
 .task-row input[type="checkbox"] {
@@ -561,14 +572,6 @@ body {
   color: var(--badge-recurring-text);
 }
 
-.badge-near-extreme {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
-  background: var(--near-extreme-bg);
-  color: var(--near-extreme-text);
-}
-
 .task-urgency-meta {
   display: flex;
   align-items: center;
@@ -576,14 +579,11 @@ body {
   gap: 0.25rem;
 }
 
+/* Label takes the row's accent colour, so it intensifies with the row. */
 .quadrant-label {
   font-weight: 600;
+  color: var(--row-accent, var(--text-muted));
 }
-
-.quadrant-label-q1 { color: var(--q1-accent); }
-.quadrant-label-q2 { color: var(--q2-accent); }
-.quadrant-label-q3 { color: var(--q3-accent); }
-.quadrant-label-q4 { color: var(--text-muted); }
 
 .subtask-progress {
   display: flex;

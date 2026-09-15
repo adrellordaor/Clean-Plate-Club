@@ -219,13 +219,13 @@
       </fieldset>
 
       <fieldset class="settings-group">
-        <legend>Near-extreme flag</legend>
+        <legend>Priority score</legend>
         <div class="form-row">
-          <label>Threshold (score 0–100)
-            <input type="number" id="setting-near-extreme" min="0" max="100" step="1" required>
+          <label>Importance weight (0–1)
+            <input type="number" id="setting-priority-weight" min="0" max="1" step="0.05" required>
           </label>
         </div>
-        <p class="settings-hint">A task is marked when its urgency score or its importance score (Low 25 · Medium 50 · High 75 · Critical 100) reaches this on its own.</p>
+        <p class="settings-hint">priority = weight × importance (Low 25 · Medium 50 · High 75 · Critical 100) + (1 − weight) × urgency. 0.5 weighs both equally; the score sets how vivid each row's colour is.</p>
       </fieldset>
 
       <p id="settings-error" class="settings-error" aria-live="polite"></p>

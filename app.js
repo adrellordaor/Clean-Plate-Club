@@ -21,7 +21,6 @@ const ICONS = {
   moon: `<svg ${SVG_ATTRS}><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>`,
   gear: `<svg ${SVG_ATTRS}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
   bump: `<svg ${SVG_ATTRS}><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>`,
-  zap: `<svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" stroke="none"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>`,
 };
 
 let categories = []; // Category: top-level grouping, drives the tabs.
@@ -182,21 +181,22 @@ function render() {
   renderRecurringSidebar();
 }
 
-// Small key for the heat-map row colours and the near-extreme marker.
+// Small key for the heat-map: one chip per quadrant hue, each drawn as its pale→vivid ramp.
 function renderHeatMapLegend() {
   const legend = document.getElementById("heatmap-legend");
   legend.innerHTML = "";
   Object.values(QUADRANTS).forEach(q => {
     const chip = document.createElement("span");
-    chip.className = "legend-chip legend-" + q.key;
+    chip.className = "legend-chip quadrant-" + q.key;
     chip.textContent = q.label;
+    const range = priorityRangeFor(q, settings);
+    chip.title = "priority " + Math.round(range.min) + "–" + Math.round(range.max) + ": pale → vivid";
     legend.appendChild(chip);
   });
-  const near = document.createElement("span");
-  near.className = "legend-chip legend-near-extreme";
-  near.innerHTML = ICONS.zap;
-  near.appendChild(document.createTextNode("Near-extreme (≥ " + settings.near_extreme_threshold + " on either axis)"));
-  legend.appendChild(near);
+  const note = document.createElement("span");
+  note.className = "legend-note";
+  note.textContent = "hue = quadrant, intensity = priority";
+  legend.appendChild(note);
 }
 
 function renderCategoryTabs() {
@@ -328,11 +328,13 @@ function renderTaskRow(task) {
   const row = document.createElement("div");
   row.className = "task-row" + (task.status === "done" ? " done" : "");
 
-  // Heat-map tint + near-extreme marker only apply to live tasks; done/dropped rows stay neutral.
+  // Heat-map tint only applies to live tasks; done/dropped rows stay neutral. The quadrant
+  // class picks the hue, --p (0-1 intensity from priority_score) drives saturation/lightness
+  // in CSS, so the colour maths stays theme-aware without a re-render on theme toggle.
   const assessment = task.status === "active" ? assessTask(task, settings, todayISODate()) : null;
   if (assessment) {
     row.classList.add("quadrant-" + assessment.quadrant.key);
-    if (assessment.nearExtreme.any) row.classList.add("near-extreme");
+    row.style.setProperty("--p", assessment.intensity.toFixed(3));
   }
 
   const children = tasks.filter(t => t.parent_task_id === task.id);
@@ -376,9 +378,6 @@ function renderTaskRow(task) {
   title.textContent = task.title;
   titleLine.appendChild(title);
 
-  if (assessment && assessment.nearExtreme.any) {
-    titleLine.appendChild(makeNearExtremeMarker(assessment));
-  }
   if (task.manual_urgent_flag) {
     titleLine.appendChild(makeBadge("Urgent", "badge-urgent"));
   }
@@ -472,30 +471,20 @@ function makeBadge(text, cssClass) {
   return span;
 }
 
-// Independent of the quadrant colour: fires when either axis alone crosses near_extreme_threshold.
-function makeNearExtremeMarker(assessment) {
-  const span = document.createElement("span");
-  span.className = "task-badge badge-near-extreme";
-  span.innerHTML = ICONS.zap;
-  span.appendChild(document.createTextNode("Near-extreme"));
-  const axes = [];
-  if (assessment.nearExtreme.urgency) axes.push("urgency " + assessment.urgency.score);
-  if (assessment.nearExtreme.importance) axes.push("importance " + assessment.importanceScore);
-  span.title = axes.join(", ") + " ≥ " + settings.near_extreme_threshold;
-  return span;
-}
-
-// One line under the title: quadrant, urgency score and the reason behind it.
+// One line under the title: quadrant, priority score, urgency and the reason behind it.
 function renderUrgencyMeta(task, assessment) {
   const meta = document.createElement("div");
   meta.className = "task-meta task-urgency-meta";
 
   const quadrant = document.createElement("span");
-  quadrant.className = "quadrant-label quadrant-label-" + assessment.quadrant.key;
+  quadrant.className = "quadrant-label";
   quadrant.textContent = assessment.quadrant.label;
   meta.appendChild(quadrant);
 
-  const parts = ["urgency " + assessment.urgency.score + " (" + assessment.urgency.reason + ")"];
+  const parts = [
+    "priority " + assessment.priorityScore,
+    "urgency " + assessment.urgency.score + " (" + assessment.urgency.reason + ")",
+  ];
   if (task.deadline) parts.push("due " + task.deadline);
   meta.appendChild(document.createTextNode(" · " + parts.join(" · ")));
   return meta;
@@ -1023,7 +1012,7 @@ const SETTINGS_FIELDS = {
   staleness_low_days: "setting-staleness-low",
   staleness_medium_days: "setting-staleness-medium",
   staleness_high_days: "setting-staleness-high",
-  near_extreme_threshold: "setting-near-extreme",
+  priority_importance_weight: "setting-priority-weight",
 };
 
 function fillSettingsForm(values) {
@@ -1043,14 +1032,14 @@ function readSettingsForm() {
 
 function validateSettings(v) {
   const allNumbers = Object.values(v).every(n => Number.isFinite(n) && n >= 0);
-  if (!allNumbers) return "All values must be whole numbers of 0 or more.";
+  if (!allNumbers) return "All values must be numbers of 0 or more.";
   if (!(v.deadline_low_days >= v.deadline_medium_days && v.deadline_medium_days >= v.deadline_high_days)) {
     return "Deadline days must run low ≥ medium ≥ high (e.g. 14 / 7 / 3).";
   }
   if (!(v.staleness_low_days <= v.staleness_medium_days && v.staleness_medium_days <= v.staleness_high_days)) {
     return "Staleness days must run low ≤ medium ≤ high (e.g. 3 / 7 / 8).";
   }
-  if (v.near_extreme_threshold > 100) return "Near-extreme threshold is a score from 0 to 100.";
+  if (v.priority_importance_weight > 1) return "Importance weight is a fraction from 0 to 1.";
   return null;
 }
 

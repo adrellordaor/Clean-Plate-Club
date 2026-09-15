@@ -1,7 +1,7 @@
-// Urgency engine: pure functions shared by the List view (heat-map rows, near-extreme
-// flag) and, later, the Matrix/Digest view. Nothing here touches the DOM or storage.
+// Urgency engine: pure functions shared by the List view (heat-map rows) and, later, the
+// Matrix/Digest view and top banner. Nothing here touches the DOM or storage.
 // Every threshold is read from the settings object passed in (see DEFAULT_SETTINGS for
-// the keys); urgency, quadrant and the near-extreme flag are always derived, never stored.
+// the keys); urgency, priority score and quadrant are always derived, never stored.
 //
 // Only regular Tasks go through this engine. RecurringTasks live outside the matrix and
 // are never scored.
@@ -13,20 +13,29 @@ const DEFAULT_SETTINGS = Object.freeze({
   staleness_low_days: 3,
   staleness_medium_days: 7,
   staleness_high_days: 8,
-  near_extreme_threshold: 80,
+  priority_importance_weight: 0.5, // 0 = urgency only, 1 = importance only
   productivity_low_pct: 33,
   productivity_high_pct: 66,
 });
 
 const SETTINGS_KEYS = Object.keys(DEFAULT_SETTINGS);
 
-// Fill gaps with defaults and coerce to non-negative numbers, so an older data file or a
+// Settings that are a 0-1 fraction rather than a day count / percentage.
+const FRACTION_SETTINGS = new Set(["priority_importance_weight"]);
+
+// Fill gaps with defaults and coerce to sane numbers, so an older data file or a
 // hand-edited one can't break the engine.
 function normalizeSettings(raw) {
   const out = {};
   SETTINGS_KEYS.forEach(key => {
     const value = raw && raw[key] !== undefined && raw[key] !== null ? Number(raw[key]) : NaN;
-    out[key] = Number.isFinite(value) && value >= 0 ? value : DEFAULT_SETTINGS[key];
+    if (!Number.isFinite(value) || value < 0) {
+      out[key] = DEFAULT_SETTINGS[key];
+    } else if (FRACTION_SETTINGS.has(key)) {
+      out[key] = Math.min(1, value);
+    } else {
+      out[key] = value;
+    }
   });
   return out;
 }
@@ -37,11 +46,12 @@ const IMPORTANCE_SCORES = Object.freeze({ Low: 25, Medium: 50, High: 75, Critica
 // interpolated so it creeps a little every day instead of jumping in steps.
 const URGENCY_LEVEL_SCORES = Object.freeze({ Low: 10, Medium: 40, High: 75, Critical: 100 });
 
+// Hue is fixed per quadrant ("why is this a priority"); intensity comes from priority_score.
 const QUADRANTS = Object.freeze({
-  q1: Object.freeze({ key: "q1", label: "Do Now" }),
-  q2: Object.freeze({ key: "q2", label: "Plan" }),
-  q3: Object.freeze({ key: "q3", label: "Quick Win" }),
-  q4: Object.freeze({ key: "q4", label: "Eliminate" }),
+  q1: Object.freeze({ key: "q1", label: "Do Now", importance: "high", urgency: "high" }),
+  q2: Object.freeze({ key: "q2", label: "Don't Forget", importance: "high", urgency: "low" }),
+  q3: Object.freeze({ key: "q3", label: "Quick Win", importance: "low", urgency: "high" }),
+  q4: Object.freeze({ key: "q4", label: "Backlog", importance: "low", urgency: "low" }),
 });
 
 const MS_PER_DAY = 86400000;
@@ -171,22 +181,56 @@ function quadrantFor(impBucket, urgBucket) {
   return urgBucket === "high" ? QUADRANTS.q3 : QUADRANTS.q4;
 }
 
+// ---------- Priority score ----------
+
+// priority_score = w × importance + (1 − w) × urgency, both on 0-100 scales. Continuous, so
+// two tasks that sit near each other in importance/urgency get near-identical scores even
+// when the bucketing drops them into different quadrants.
+function priorityScore(impScore, urgencyScore, settings) {
+  const w = settings.priority_importance_weight;
+  return w * impScore + (1 - w) * urgencyScore;
+}
+
+// The lowest and highest priority_score a task can have while sitting in this quadrant,
+// given the current weight. Importance buckets are the discrete label scores; urgency
+// buckets are the continuous level ranges (low: 10 up to just under 75, high: 75-100).
+function priorityRangeFor(quadrant, settings) {
+  const imp = quadrant.importance === "high"
+    ? [IMPORTANCE_SCORES.High, IMPORTANCE_SCORES.Critical]
+    : [IMPORTANCE_SCORES.Low, IMPORTANCE_SCORES.Medium];
+  const urg = quadrant.urgency === "high"
+    ? [URGENCY_LEVEL_SCORES.High, URGENCY_LEVEL_SCORES.Critical]
+    : [URGENCY_LEVEL_SCORES.Low, URGENCY_LEVEL_SCORES.High];
+  return {
+    min: priorityScore(imp[0], urg[0], settings),
+    max: priorityScore(imp[1], urg[1], settings),
+  };
+}
+
+// Where this task's priority_score falls inside its quadrant's attainable range, 0-1.
+// Drives the heat-map intensity: a task that barely qualifies for "Do Now" is pale, a
+// 100/100 task is vivid, and a Backlog task visibly darkens as it climbs toward the edge.
+function priorityIntensity(score, quadrant, settings) {
+  const { min, max } = priorityRangeFor(quadrant, settings);
+  if (max <= min) return 1;
+  return Math.min(1, Math.max(0, (score - min) / (max - min)));
+}
+
 // Everything the views need for one task, computed together:
-// { urgency, importanceScore, quadrant, nearExtreme: { urgency, importance, any } }
+// { urgency, importanceScore, priorityScore (0-100 integer), intensity (0-1), quadrant }
 function assessTask(task, settings, today) {
   const day = today || localDateString(new Date());
   const urgency = computeUrgency(task, settings, day);
   const impScore = importanceScore(task.importance);
   const quadrant = quadrantFor(importanceBucket(task.importance), urgencyBucket(urgency.level));
-  const threshold = settings.near_extreme_threshold;
-  // Checked per axis on its own, on purpose: this is what catches an urgent-but-unimportant
-  // task racing toward critical, and a Critical-importance task that isn't urgent yet.
-  const nearExtreme = {
-    urgency: urgency.score >= threshold,
-    importance: impScore >= threshold,
+  const priority = priorityScore(impScore, urgency.score, settings);
+  return {
+    urgency,
+    importanceScore: impScore,
+    priorityScore: Math.round(priority),
+    intensity: priorityIntensity(priority, quadrant, settings),
+    quadrant,
   };
-  nearExtreme.any = nearExtreme.urgency || nearExtreme.importance;
-  return { urgency, importanceScore: impScore, quadrant, nearExtreme };
 }
 
 if (typeof module !== "undefined" && module.exports) {
@@ -194,6 +238,7 @@ if (typeof module !== "undefined" && module.exports) {
     DEFAULT_SETTINGS, SETTINGS_KEYS, normalizeSettings, IMPORTANCE_SCORES, URGENCY_LEVEL_SCORES,
     QUADRANTS, localDateString, toLocalDateString, calendarDaysBetween, interpolate,
     deadlineUrgencyScore, stalenessUrgencyScore, urgencyLevel, computeUrgency,
-    importanceScore, importanceBucket, urgencyBucket, quadrantFor, assessTask,
+    importanceScore, importanceBucket, urgencyBucket, quadrantFor,
+    priorityScore, priorityRangeFor, priorityIntensity, assessTask,
   };
 }
