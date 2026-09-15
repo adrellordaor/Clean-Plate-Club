@@ -17,7 +17,10 @@
 <header class="app-header">
   <div class="header-top">
     <h1>Task Tracker</h1>
-    <button id="theme-toggle-btn" class="theme-toggle" type="button" aria-label="Toggle dark mode"></button>
+    <div class="header-actions">
+      <button id="settings-btn" class="theme-toggle" type="button" aria-label="Settings" title="Settings"></button>
+      <button id="theme-toggle-btn" class="theme-toggle" type="button" aria-label="Toggle dark mode"></button>
+    </div>
   </div>
   <div id="storage-bar" class="storage-bar"></div>
   <nav id="folder-tabs" class="folder-tabs"></nav>
@@ -25,6 +28,7 @@
 
 <main class="app-main">
   <div class="toolbar">
+    <div id="heatmap-legend" class="heatmap-legend"></div>
     <button id="add-category-btn" class="btn btn-secondary">+ Category</button>
     <button id="add-folder-btn" class="btn btn-secondary">+ Folder</button>
     <button id="add-task-btn" class="btn btn-primary">+ Task</button>
@@ -175,6 +179,66 @@
   </div>
 </div>
 
+<!-- Settings modal: urgency engine thresholds -->
+<div id="settings-modal" class="modal hidden">
+  <div class="modal-content modal-content-wide">
+    <h2>Settings</h2>
+    <form id="settings-form">
+      <p class="settings-help">Urgency is recalculated every day from these thresholds. Changing one re-scores every task straight away.</p>
+
+      <fieldset class="settings-group">
+        <legend>Deadline urgency (days before the deadline)</legend>
+        <div class="form-row">
+          <label>Low (score 10)
+            <input type="number" id="setting-deadline-low" min="0" step="1" required>
+          </label>
+          <label>Medium (score 40)
+            <input type="number" id="setting-deadline-medium" min="0" step="1" required>
+          </label>
+          <label>High (score 75)
+            <input type="number" id="setting-deadline-high" min="0" step="1" required>
+          </label>
+        </div>
+        <p class="settings-hint">The score climbs between these points and hits 100 on the day or when overdue.</p>
+      </fieldset>
+
+      <fieldset class="settings-group">
+        <legend>Staleness urgency (days since last touched, for tasks with no deadline)</legend>
+        <div class="form-row">
+          <label>Low until (score 40)
+            <input type="number" id="setting-staleness-low" min="0" step="1" required>
+          </label>
+          <label>Medium until (score 75)
+            <input type="number" id="setting-staleness-medium" min="0" step="1" required>
+          </label>
+          <label>High at (score 100)
+            <input type="number" id="setting-staleness-high" min="0" step="1" required>
+          </label>
+        </div>
+        <p class="settings-hint">Editing, checking off or bumping a task resets its clock.</p>
+      </fieldset>
+
+      <fieldset class="settings-group">
+        <legend>Near-extreme flag</legend>
+        <div class="form-row">
+          <label>Threshold (score 0–100)
+            <input type="number" id="setting-near-extreme" min="0" max="100" step="1" required>
+          </label>
+        </div>
+        <p class="settings-hint">A task is marked when its urgency score or its importance score (Low 25 · Medium 50 · High 75 · Critical 100) reaches this on its own.</p>
+      </fieldset>
+
+      <p id="settings-error" class="settings-error" aria-live="polite"></p>
+
+      <div class="modal-actions">
+        <button type="button" id="settings-reset-btn" class="btn btn-secondary settings-reset">Reset to defaults</button>
+        <button type="button" id="settings-cancel-btn" class="btn btn-secondary">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- Shown when a previously chosen folder needs a click to re-grant access after reload -->
 <div id="storage-gate" class="modal hidden">
   <div class="modal-content">
@@ -189,6 +253,7 @@
 </div>
 
 <script src="storage.js"></script>
+<script src="urgency.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

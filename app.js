@@ -8,10 +8,9 @@ function makeId() {
     : Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
 }
 
-const IMPORTANCE_VALUES = { Low: 25, Medium: 50, High: 75, Critical: 100 };
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-const DATA_VERSION = 2;
+const DATA_VERSION = 3; // v3: adds the settings object (urgency thresholds)
 
 // Minimalist outline icons (stroke = currentColor, so they inherit button text color).
 const SVG_ATTRS = 'viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
@@ -20,6 +19,9 @@ const ICONS = {
   trash: `<svg ${SVG_ATTRS}><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>`,
   sun: `<svg ${SVG_ATTRS}><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M4.93 4.93l1.41 1.41"/><path d="M17.66 17.66l1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M6.34 17.66l-1.41 1.41"/><path d="M19.07 4.93l-1.41 1.41"/></svg>`,
   moon: `<svg ${SVG_ATTRS}><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>`,
+  gear: `<svg ${SVG_ATTRS}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
+  bump: `<svg ${SVG_ATTRS}><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>`,
+  zap: `<svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor" stroke="none"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>`,
 };
 
 let categories = []; // Category: top-level grouping, drives the tabs.
@@ -27,6 +29,7 @@ let folders = [];    // Folder: a named grouping within a category (e.g. "Financ
 let tasks = [];
 let recurringTasks = []; // RecurringTask: singular, resets on schedule, outside the Eisenhower matrix.
 let completionLog = [];  // CompletionLog: one row per recurring-task check-off, feeds future history views.
+let settings = normalizeSettings(null); // Urgency thresholds etc. (see urgency.js); synced with the data file.
 
 function seedDefaults() {
   categories = [
@@ -43,6 +46,7 @@ function seedDefaults() {
   tasks = [];
   recurringTasks = [];
   completionLog = [];
+  settings = normalizeSettings(null);
 }
 
 function loadState(data) {
@@ -56,12 +60,14 @@ function loadState(data) {
   tasks = data.tasks || [];
   recurringTasks = data.recurringTasks || [];
   completionLog = data.completionLog || [];
+  settings = normalizeSettings(data.settings); // older files without settings get the defaults
 }
 
 function serializeState() {
   return {
     version: DATA_VERSION,
     saved_at: new Date().toISOString(),
+    settings,
     categories,
     folders,
     tasks,
@@ -171,8 +177,26 @@ function toggleFolderCountDisplay() {
 
 function render() {
   renderCategoryTabs();
+  renderHeatMapLegend();
   renderFolderList();
   renderRecurringSidebar();
+}
+
+// Small key for the heat-map row colours and the near-extreme marker.
+function renderHeatMapLegend() {
+  const legend = document.getElementById("heatmap-legend");
+  legend.innerHTML = "";
+  Object.values(QUADRANTS).forEach(q => {
+    const chip = document.createElement("span");
+    chip.className = "legend-chip legend-" + q.key;
+    chip.textContent = q.label;
+    legend.appendChild(chip);
+  });
+  const near = document.createElement("span");
+  near.className = "legend-chip legend-near-extreme";
+  near.innerHTML = ICONS.zap;
+  near.appendChild(document.createTextNode("Near-extreme (≥ " + settings.near_extreme_threshold + " on either axis)"));
+  legend.appendChild(near);
 }
 
 function renderCategoryTabs() {
@@ -304,6 +328,13 @@ function renderTaskRow(task) {
   const row = document.createElement("div");
   row.className = "task-row" + (task.status === "done" ? " done" : "");
 
+  // Heat-map tint + near-extreme marker only apply to live tasks; done/dropped rows stay neutral.
+  const assessment = task.status === "active" ? assessTask(task, settings, todayISODate()) : null;
+  if (assessment) {
+    row.classList.add("quadrant-" + assessment.quadrant.key);
+    if (assessment.nearExtreme.any) row.classList.add("near-extreme");
+  }
+
   const children = tasks.filter(t => t.parent_task_id === task.id);
   const isCollapsed = collapsedTasks.has(task.id);
 
@@ -345,6 +376,9 @@ function renderTaskRow(task) {
   title.textContent = task.title;
   titleLine.appendChild(title);
 
+  if (assessment && assessment.nearExtreme.any) {
+    titleLine.appendChild(makeNearExtremeMarker(assessment));
+  }
   if (task.manual_urgent_flag) {
     titleLine.appendChild(makeBadge("Urgent", "badge-urgent"));
   }
@@ -360,7 +394,9 @@ function renderTaskRow(task) {
     main.appendChild(renderSubtaskProgress(children));
   }
 
-  if (task.deadline) {
+  if (assessment) {
+    main.appendChild(renderUrgencyMeta(task, assessment));
+  } else if (task.deadline) {
     const meta = document.createElement("div");
     meta.className = "task-meta";
     meta.textContent = "Due " + task.deadline;
@@ -402,6 +438,17 @@ function renderTaskRow(task) {
   editBtn.addEventListener("click", () => openTaskModal(task));
   actions.appendChild(editBtn);
 
+  if (task.status === "active") {
+    const bumpBtn = document.createElement("button");
+    bumpBtn.type = "button";
+    bumpBtn.className = "btn-icon";
+    bumpBtn.innerHTML = ICONS.bump;
+    bumpBtn.setAttribute("aria-label", "Bump task (mark as touched today)");
+    bumpBtn.title = "Bump: reset staleness to today";
+    bumpBtn.addEventListener("click", () => bumpTask(task));
+    actions.appendChild(bumpBtn);
+  }
+
   const delBtn = document.createElement("button");
   delBtn.type = "button";
   delBtn.className = "btn-icon";
@@ -423,6 +470,35 @@ function makeBadge(text, cssClass) {
   span.className = "task-badge " + cssClass;
   span.textContent = text;
   return span;
+}
+
+// Independent of the quadrant colour: fires when either axis alone crosses near_extreme_threshold.
+function makeNearExtremeMarker(assessment) {
+  const span = document.createElement("span");
+  span.className = "task-badge badge-near-extreme";
+  span.innerHTML = ICONS.zap;
+  span.appendChild(document.createTextNode("Near-extreme"));
+  const axes = [];
+  if (assessment.nearExtreme.urgency) axes.push("urgency " + assessment.urgency.score);
+  if (assessment.nearExtreme.importance) axes.push("importance " + assessment.importanceScore);
+  span.title = axes.join(", ") + " ≥ " + settings.near_extreme_threshold;
+  return span;
+}
+
+// One line under the title: quadrant, urgency score and the reason behind it.
+function renderUrgencyMeta(task, assessment) {
+  const meta = document.createElement("div");
+  meta.className = "task-meta task-urgency-meta";
+
+  const quadrant = document.createElement("span");
+  quadrant.className = "quadrant-label quadrant-label-" + assessment.quadrant.key;
+  quadrant.textContent = assessment.quadrant.label;
+  meta.appendChild(quadrant);
+
+  const parts = ["urgency " + assessment.urgency.score + " (" + assessment.urgency.reason + ")"];
+  if (task.deadline) parts.push("due " + task.deadline);
+  meta.appendChild(document.createTextNode(" · " + parts.join(" · ")));
+  return meta;
 }
 
 function renderSubtaskProgress(subtasks) {
@@ -631,6 +707,13 @@ function toggleTaskDone(task) {
     task.status = "done";
     task.completed_at = new Date().toISOString();
   }
+  task.last_touched_at = new Date().toISOString();
+  persist();
+  render();
+}
+
+// Manual "bump": resets the staleness clock without editing anything else.
+function bumpTask(task) {
   task.last_touched_at = new Date().toISOString();
   persist();
   render();
@@ -925,6 +1008,83 @@ categoryModal.addEventListener("click", e => {
   if (e.target === categoryModal) closeCategoryModal();
 });
 
+// ---------- Settings modal ----------
+// Thresholds live in the synced data file. Saving re-renders immediately, which is all a
+// "recalculation" needs since urgency is derived at render time and never stored.
+
+const settingsModal = document.getElementById("settings-modal");
+const settingsForm = document.getElementById("settings-form");
+const settingsError = document.getElementById("settings-error");
+
+const SETTINGS_FIELDS = {
+  deadline_low_days: "setting-deadline-low",
+  deadline_medium_days: "setting-deadline-medium",
+  deadline_high_days: "setting-deadline-high",
+  staleness_low_days: "setting-staleness-low",
+  staleness_medium_days: "setting-staleness-medium",
+  staleness_high_days: "setting-staleness-high",
+  near_extreme_threshold: "setting-near-extreme",
+};
+
+function fillSettingsForm(values) {
+  Object.entries(SETTINGS_FIELDS).forEach(([key, inputId]) => {
+    document.getElementById(inputId).value = values[key];
+  });
+  settingsError.textContent = "";
+}
+
+function readSettingsForm() {
+  const values = {};
+  Object.entries(SETTINGS_FIELDS).forEach(([key, inputId]) => {
+    values[key] = Number(document.getElementById(inputId).value);
+  });
+  return values;
+}
+
+function validateSettings(v) {
+  const allNumbers = Object.values(v).every(n => Number.isFinite(n) && n >= 0);
+  if (!allNumbers) return "All values must be whole numbers of 0 or more.";
+  if (!(v.deadline_low_days >= v.deadline_medium_days && v.deadline_medium_days >= v.deadline_high_days)) {
+    return "Deadline days must run low ≥ medium ≥ high (e.g. 14 / 7 / 3).";
+  }
+  if (!(v.staleness_low_days <= v.staleness_medium_days && v.staleness_medium_days <= v.staleness_high_days)) {
+    return "Staleness days must run low ≤ medium ≤ high (e.g. 3 / 7 / 8).";
+  }
+  if (v.near_extreme_threshold > 100) return "Near-extreme threshold is a score from 0 to 100.";
+  return null;
+}
+
+function openSettingsModal() {
+  fillSettingsForm(settings);
+  settingsModal.classList.remove("hidden");
+  document.getElementById(SETTINGS_FIELDS.deadline_low_days).focus();
+}
+
+function closeSettingsModal() {
+  settingsModal.classList.add("hidden");
+}
+
+settingsForm.addEventListener("submit", e => {
+  e.preventDefault();
+  const values = readSettingsForm();
+  const error = validateSettings(values);
+  if (error) {
+    settingsError.textContent = error;
+    return;
+  }
+  settings = normalizeSettings(Object.assign({}, settings, values));
+  closeSettingsModal();
+  persist();
+  render();
+});
+
+document.getElementById("settings-btn").addEventListener("click", openSettingsModal);
+document.getElementById("settings-cancel-btn").addEventListener("click", closeSettingsModal);
+document.getElementById("settings-reset-btn").addEventListener("click", () => fillSettingsForm(DEFAULT_SETTINGS));
+settingsModal.addEventListener("click", e => {
+  if (e.target === settingsModal) closeSettingsModal();
+});
+
 // ---------- Theme toggle ----------
 
 const themeToggleBtn = document.getElementById("theme-toggle-btn");
@@ -945,6 +1105,7 @@ themeToggleBtn.addEventListener("click", () => {
 });
 
 applyThemeIcon();
+document.getElementById("settings-btn").innerHTML = ICONS.gear;
 
 // ---------- Storage UI ----------
 
@@ -1065,6 +1226,18 @@ document.addEventListener("visibilitychange", () => {
 });
 window.addEventListener("focus", syncFromFolder);
 setInterval(syncFromFolder, 30000);
+
+// Daily recalculation: urgency is derived from "today" at render time, so a re-render just
+// after local midnight is all it takes for scores, quadrants and tints to roll over.
+function scheduleMidnightRender() {
+  const now = new Date();
+  const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 1);
+  setTimeout(() => {
+    render();
+    scheduleMidnightRender();
+  }, next - now);
+}
+scheduleMidnightRender();
 
 // ---------- Init ----------
 

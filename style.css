@@ -22,6 +22,20 @@
 
   --overlay: rgba(20, 20, 18, 0.35);
 
+  /* Heat-map quadrant tints (row background + left accent bar) */
+  --q1-bg: #fbe6e1;
+  --q1-accent: #d9705f;
+  --q2-bg: #dff0ed;
+  --q2-accent: #3f9a90;
+  --q3-bg: #fcefd6;
+  --q3-accent: #d9a13a;
+  --q4-bg: #f1f1ee;
+  --q4-accent: #b9b9b2;
+
+  /* Near-extreme marker: a hue none of the quadrants use */
+  --near-extreme-bg: #efe1f5;
+  --near-extreme-text: #7d3f9e;
+
   color-scheme: light;
 }
 
@@ -48,6 +62,18 @@
   --badge-recurring-text: #b0afaa;
 
   --overlay: rgba(0, 0, 0, 0.55);
+
+  --q1-bg: #43302d;
+  --q1-accent: #e2948d;
+  --q2-bg: #223a37;
+  --q2-accent: #6fc2b7;
+  --q3-bg: #443921;
+  --q3-accent: #e8bd6f;
+  --q4-bg: #2b2c30;
+  --q4-accent: #66666a;
+
+  --near-extreme-bg: #3d2a48;
+  --near-extreme-text: #cfa6e6;
 
   color-scheme: dark;
 }
@@ -84,6 +110,11 @@ body {
 .app-header h1 {
   margin: 0;
   font-size: 1.4rem;
+}
+
+.header-actions {
+  display: flex;
+  gap: 0.4rem;
 }
 
 .theme-toggle {
@@ -172,9 +203,41 @@ body {
 
 .toolbar {
   display: flex;
+  align-items: center;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 0.5rem;
   margin-bottom: 1rem;
+}
+
+.heatmap-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-right: auto;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  border-left: 3px solid transparent;
+}
+
+.legend-q1 { background: var(--q1-bg); border-left-color: var(--q1-accent); }
+.legend-q2 { background: var(--q2-bg); border-left-color: var(--q2-accent); }
+.legend-q3 { background: var(--q3-bg); border-left-color: var(--q3-accent); }
+.legend-q4 { background: var(--q4-bg); border-left-color: var(--q4-accent); }
+
+.legend-near-extreme {
+  background: var(--near-extreme-bg);
+  color: var(--near-extreme-text);
+  border-left: none;
 }
 
 .main-layout {
@@ -387,12 +450,34 @@ body {
   display: flex;
   align-items: flex-start;
   gap: 0.4rem;
-  padding: 0.45rem 0.25rem;
+  padding: 0.45rem 0.25rem 0.45rem 0.4rem;
   border-radius: 6px;
+  border-left: 3px solid transparent;
+  margin-bottom: 2px;
 }
 
 .task-row:hover {
   background: var(--row-hover);
+}
+
+/* Heat-map: each active row is tinted by its live Eisenhower quadrant. */
+.task-row.quadrant-q1 { background: var(--q1-bg); border-left-color: var(--q1-accent); }
+.task-row.quadrant-q2 { background: var(--q2-bg); border-left-color: var(--q2-accent); }
+.task-row.quadrant-q3 { background: var(--q3-bg); border-left-color: var(--q3-accent); }
+.task-row.quadrant-q4 { background: var(--q4-bg); border-left-color: var(--q4-accent); }
+
+.task-row[class*="quadrant-"]:hover {
+  box-shadow: inset 0 0 0 100vmax rgba(0, 0, 0, 0.04);
+}
+
+:root[data-theme="dark"] .task-row[class*="quadrant-"]:hover {
+  box-shadow: inset 0 0 0 100vmax rgba(255, 255, 255, 0.04);
+}
+
+/* Near-extreme: a dashed outline in the marker's own hue, on top of whatever tint the row has. */
+.task-row.near-extreme {
+  outline: 1px dashed var(--near-extreme-text);
+  outline-offset: -1px;
 }
 
 .task-row input[type="checkbox"] {
@@ -475,6 +560,30 @@ body {
   background: var(--badge-recurring-bg);
   color: var(--badge-recurring-text);
 }
+
+.badge-near-extreme {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  background: var(--near-extreme-bg);
+  color: var(--near-extreme-text);
+}
+
+.task-urgency-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.quadrant-label {
+  font-weight: 600;
+}
+
+.quadrant-label-q1 { color: var(--q1-accent); }
+.quadrant-label-q2 { color: var(--q2-accent); }
+.quadrant-label-q3 { color: var(--q3-accent); }
+.quadrant-label-q4 { color: var(--text-muted); }
 
 .subtask-progress {
   display: flex;
@@ -587,8 +696,49 @@ body {
   display: none;
 }
 
+.modal-content-wide {
+  max-width: 560px;
+}
+
+.settings-help {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0 0 1rem;
+}
+
+.settings-group {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem 0.2rem;
+  margin: 0 0 0.9rem;
+}
+
+.settings-group legend {
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0 0.3rem;
+}
+
+.settings-hint {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  margin: -0.25rem 0 0.6rem;
+}
+
+.settings-error {
+  color: var(--danger);
+  font-size: 0.82rem;
+  min-height: 1.2rem;
+  margin: 0 0 0.25rem;
+}
+
+.settings-reset {
+  margin-right: auto;
+}
+
 .modal-content input[type="text"],
 .modal-content input[type="date"],
+.modal-content input[type="number"],
 .modal-content textarea,
 .modal-content select {
   display: block;
