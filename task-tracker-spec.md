@@ -130,21 +130,25 @@ every time the matrix or list renders.
 Generated fresh each day, entirely mechanical — no AI/API call, no ongoing
 cost, works offline. Two parts:
 1. **Current snapshot:** tasks grouped by quadrant, right now.
-2. **What changed since yesterday**, split into two tiers. Store each
-   task's `deadline`, `importance`, `manual_urgent_flag`, `last_touched_at`,
-   quadrant, and `priority_score` at the end of each day, then compare:
-   - **Primary (automatic drift)**: quadrant/score shifted since yesterday
-     while deadline/importance/manual_urgent_flag/last_touched_at are all
-     unchanged, meaning the shift came purely from time passing (a
-     deadline getting closer, or staleness ticking up). This is the
-     digest's core purpose, surfacing what moved while you weren't
-     looking, shown prominently with a one-line reason (e.g. "Do: deadline
-     in 2 days" / "Remember: untouched 9 days").
-   - **Secondary (you changed this)**: quadrant/score shifted, but one of
-     those fields changed too, meaning a manual edit caused it (or
-     contributed to it). Still shown, but de-emphasized (e.g. smaller
-     text, or collapsed by default), since you were already aware of the
-     edit when you made it.
+2. **What changed since yesterday**, split into two tiers, compared
+   against different snapshot pairs since the digest is meant to be
+   checked first thing each morning, before any edits happen that day.
+   Keep a rolling window of the last 2-3 daily snapshots (not unbounded
+   history), each recording `deadline`, `importance`, `manual_urgent_flag`,
+   `last_touched_at`, quadrant, and `priority_score` per task.
+   - **Primary (automatic drift)**: today's live computed values vs.
+     yesterday's stored snapshot. Quadrant/score shifted while all four
+     fields are unchanged, meaning the shift came purely from time
+     passing overnight. This is the digest's core purpose, shown
+     prominently with a one-line reason (e.g. "Do: deadline in 2 days" /
+     "Remember: untouched 9 days").
+   - **Secondary (what you edited yesterday)**: yesterday's snapshot vs.
+     the day-before-yesterday's snapshot. Any of the four fields differ,
+     meaning you made an edit during yesterday's session. Comparing
+     today's live values against yesterday's snapshot would miss this
+     entirely, yesterday's snapshot already bakes the edit in, so this
+     needs its own snapshot-to-snapshot comparison, not a live-vs-snapshot
+     one. Shown de-emphasized (e.g. smaller text, collapsed by default).
 
 Weekly digest = same idea, rolled up: what's trending toward Do, what's been
 sitting in Remember too long. Same primary/secondary split applies.

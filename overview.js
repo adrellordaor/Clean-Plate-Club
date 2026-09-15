@@ -557,7 +557,7 @@ function renderDigest(today) {
     digest.primary.length ? digest.primary.length + " automatic" : null,
     digest.entered.length ? digest.entered.length + " new" : null,
     digest.left.length ? digest.left.length + " finished" : null,
-    digest.secondary.length ? digest.secondary.length + " from edits" : null,
+    digest.secondary.length ? digest.secondary.length + " from edits yesterday" : null,
   ].filter(Boolean).join(" · ") + " · compared with the end of " + digest.baseline.date;
   container.appendChild(sub);
 
@@ -581,7 +581,7 @@ function renderDigest(today) {
     details.className = "digest-secondary";
 
     const summary = document.createElement("summary");
-    summary.textContent = digest.secondary.length + " more from edits you made";
+    summary.textContent = digest.secondary.length + " more from edits you made yesterday";
     details.appendChild(summary);
 
     const ul = document.createElement("ul");
