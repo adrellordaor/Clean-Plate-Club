@@ -471,7 +471,8 @@ function makeBadge(text, cssClass) {
   return span;
 }
 
-// One line under the title: quadrant, priority score, urgency and the reason behind it.
+// One line under the title showing just the quadrant label; the numbers behind it
+// (priority, urgency + reason, deadline) live in the tooltip.
 function renderUrgencyMeta(task, assessment) {
   const meta = document.createElement("div");
   meta.className = "task-meta task-urgency-meta";
@@ -479,14 +480,13 @@ function renderUrgencyMeta(task, assessment) {
   const quadrant = document.createElement("span");
   quadrant.className = "quadrant-label";
   quadrant.textContent = assessment.quadrant.label;
-  meta.appendChild(quadrant);
-
   const parts = [
     "priority " + assessment.priorityScore,
     "urgency " + assessment.urgency.score + " (" + assessment.urgency.reason + ")",
   ];
   if (task.deadline) parts.push("due " + task.deadline);
-  meta.appendChild(document.createTextNode(" · " + parts.join(" · ")));
+  quadrant.title = parts.join(" · ");
+  meta.appendChild(quadrant);
   return meta;
 }
 
