@@ -238,6 +238,10 @@ function renderTaskRow(task) {
 
   main.appendChild(titleLine);
 
+  if (children.length > 0) {
+    main.appendChild(renderSubtaskProgress(children));
+  }
+
   if (task.deadline) {
     const meta = document.createElement("div");
     meta.className = "task-meta";
@@ -297,6 +301,29 @@ function makeBadge(text, cssClass) {
   span.className = "task-badge " + cssClass;
   span.textContent = text;
   return span;
+}
+
+function renderSubtaskProgress(subtasks) {
+  const completed = subtasks.filter(t => t.status === "done").length;
+  const percent = Math.round((completed / subtasks.length) * 100);
+
+  const wrap = document.createElement("div");
+  wrap.className = "subtask-progress";
+
+  const bar = document.createElement("div");
+  bar.className = "subtask-progress-bar";
+  const fill = document.createElement("div");
+  fill.className = "subtask-progress-fill";
+  fill.style.width = percent + "%";
+  bar.appendChild(fill);
+  wrap.appendChild(bar);
+
+  const label = document.createElement("span");
+  label.className = "subtask-progress-text";
+  label.textContent = percent + "%";
+  wrap.appendChild(label);
+
+  return wrap;
 }
 
 // ---------- Task actions ----------
