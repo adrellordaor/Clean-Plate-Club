@@ -244,6 +244,26 @@ productivity view")
 - **Click a day** to expand a repository view: every task completed that
   day, regular and recurring, pulled from `completed_at` and CompletionLog
   respectively. No new storage, just a query against data already kept.
+- **Weekly Accomplishments panel**: a highlights reel, never a score,
+  covering the current (or selected) week:
+  - **What you cleared this week**: plain list of completed task titles,
+    regular and recurring, no framing, just the evidence.
+  - **Biggest win**: the single highest-`priority_score` task completed
+    that week, called out specifically, this is the important-but-not-
+    urgent task finally getting done, exactly the case this whole app
+    exists for.
+  - **Current streak**: consecutive days with at least one completion of
+    any kind. A broken streak doesn't erase prior days, it just restarts,
+    never a punitive reset.
+  - **Category breakdown**: descriptive counts only (e.g. "6 Work, 3
+    Errands, 2 Recruiting"), no judgment implied.
+  - **Day breakdown**: a plain count of the week's day-colors (e.g. "5
+    green, 1 yellow, 1 red"), never collapsed into a single categorical
+    verdict for the week, that would recreate the same hard-boundary
+    problem priority_score was built to avoid. The one exception: an
+    "All-green week" badge, shown only when every day that week qualifies
+    as green. No equivalent negative badge is ever generated, a rough
+    week just shows its honest breakdown, unnamed.
 
 ## Feature List (v1)
 
@@ -260,7 +280,8 @@ productivity view")
 - Weekly digest (trend view)
 - Simple daily log: completed / rolled over / dropped
 - Calendar view: color-coded by daily-recurring completion rate, with a
-  completed-task count badge and a click-through repository per day
+  completed-task count badge, a click-through repository per day, and a
+  Weekly Accomplishments panel (highlights, never a score)
 - Evening review: incomplete tasks require a conscious choice to roll to
   tomorrow, drop, or push to Someday/Maybe — never a silent auto-carry
 - Someday/Maybe list: undated, low-importance tasks that age via the same
@@ -309,7 +330,9 @@ Inbox category) for manual sorting.
    (top_n + flag_threshold rule), display-mode toggle to the existing
    quadrant-list style, with change-tracking since yesterday
 6. Calendar view: color-coded by daily-recurring completion rate, count
-   badge for regular task completions, click-through day repository
+   badge for regular task completions, click-through day repository,
+   Weekly Accomplishments panel (cleared list, biggest win, streak,
+   category breakdown, day-color breakdown with all-green badge)
 7. Polish pass (styling, keyboard shortcuts, quick-capture)
 
 Commit to git after each phase.
