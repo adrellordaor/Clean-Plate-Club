@@ -24,6 +24,7 @@
 
 <main class="app-main">
   <div class="toolbar">
+    <button id="add-category-btn" class="btn btn-secondary">+ Category</button>
     <button id="add-folder-btn" class="btn btn-secondary">+ Folder</button>
     <button id="add-task-btn" class="btn btn-primary">+ Task</button>
   </div>
@@ -103,15 +104,26 @@
         <input type="text" id="folder-name" required>
       </label>
       <label>Category
-        <select id="folder-category">
-          <option value="Work">Work</option>
-          <option value="Errands">Errands</option>
-          <option value="Recruiting">Recruiting</option>
-          <option value="Custom">Custom</option>
-        </select>
+        <select id="folder-category" required></select>
       </label>
       <div class="modal-actions">
         <button type="button" id="folder-cancel-btn" class="btn btn-secondary">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Category add modal -->
+<div id="category-modal" class="modal hidden">
+  <div class="modal-content">
+    <h2>Add Category</h2>
+    <form id="category-form">
+      <label>Name
+        <input type="text" id="category-name" required>
+      </label>
+      <div class="modal-actions">
+        <button type="button" id="category-cancel-btn" class="btn btn-secondary">Cancel</button>
         <button type="submit" class="btn btn-primary">Save</button>
       </div>
     </form>

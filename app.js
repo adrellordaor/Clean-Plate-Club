@@ -1,4 +1,4 @@
-// Phase 1: List view skeleton — folders, nested tasks, add/edit/delete, folder filter.
+// Phase 1: List view skeleton — categories, folders, nested tasks, add/edit/delete, category filter.
 // In-memory only. Storage (File System Access API / IndexedDB) lands in Phase 2.
 
 let nextId = 1;
@@ -8,10 +8,19 @@ function makeId() {
 
 const IMPORTANCE_VALUES = { Low: 25, Medium: 50, High: 75, Critical: 100 };
 
+// Category: top-level grouping, drives the tabs.
+let categories = [
+  { id: "c-work", name: "Work" },
+  { id: "c-errands", name: "Errands" },
+  { id: "c-recruiting", name: "Recruiting" },
+];
+
+// Folder: a named grouping within a category (e.g. "Finances" inside Errands).
 let folders = [
-  { id: "f-work", name: "Work", category: "Work" },
-  { id: "f-errands", name: "Errands", category: "Errands" },
-  { id: "f-recruiting", name: "Recruiting", category: "Recruiting" },
+  { id: "f-work", category_id: "c-work", name: "Work" },
+  { id: "f-errands-chores", category_id: "c-errands", name: "Chores" },
+  { id: "f-errands-finances", category_id: "c-errands", name: "Finances" },
+  { id: "f-recruiting", category_id: "c-recruiting", name: "Recruiting" },
 ];
 
 let tasks = [];
@@ -41,40 +50,40 @@ let seedParent = makeTask({ folder_id: "f-work", title: "Prep quarterly presenta
 tasks.push(seedParent);
 tasks.push(makeTask({ folder_id: "f-work", parent_task_id: seedParent.id, title: "Draft slides" }));
 tasks.push(makeTask({ folder_id: "f-work", parent_task_id: seedParent.id, title: "Get feedback from manager" }));
-tasks.push(makeTask({ folder_id: "f-errands", title: "Pick up dry cleaning" }));
-tasks.push(makeTask({ folder_id: "f-errands", title: "Renew car registration", manual_urgent_flag: true }));
+tasks.push(makeTask({ folder_id: "f-errands-chores", title: "Pick up dry cleaning" }));
+tasks.push(makeTask({ folder_id: "f-errands-finances", title: "Renew car registration", manual_urgent_flag: true }));
 tasks.push(makeTask({ folder_id: "f-recruiting", title: "Follow up with recruiter", recurrence: "weekly", importance: "Medium" }));
 
-let activeFolderFilter = "all"; // "all" or a folder id
+let activeCategoryFilter = "all"; // "all" or a category id
 let collapsedFolders = new Set();
 let collapsedTasks = new Set();
 
 // ---------- Rendering ----------
 
 function render() {
-  renderFolderTabs();
+  renderCategoryTabs();
   renderFolderList();
 }
 
-function renderFolderTabs() {
+function renderCategoryTabs() {
   const nav = document.getElementById("folder-tabs");
   nav.innerHTML = "";
 
   const allBtn = document.createElement("button");
-  allBtn.className = "folder-tab" + (activeFolderFilter === "all" ? " active" : "");
+  allBtn.className = "folder-tab" + (activeCategoryFilter === "all" ? " active" : "");
   allBtn.textContent = "All";
   allBtn.addEventListener("click", () => {
-    activeFolderFilter = "all";
+    activeCategoryFilter = "all";
     render();
   });
   nav.appendChild(allBtn);
 
-  folders.forEach(folder => {
+  categories.forEach(category => {
     const btn = document.createElement("button");
-    btn.className = "folder-tab" + (activeFolderFilter === folder.id ? " active" : "");
-    btn.textContent = folder.name;
+    btn.className = "folder-tab" + (activeCategoryFilter === category.id ? " active" : "");
+    btn.textContent = category.name;
     btn.addEventListener("click", () => {
-      activeFolderFilter = folder.id;
+      activeCategoryFilter = category.id;
       render();
     });
     nav.appendChild(btn);
@@ -85,9 +94,9 @@ function renderFolderList() {
   const container = document.getElementById("folder-list");
   container.innerHTML = "";
 
-  const visibleFolders = activeFolderFilter === "all"
+  const visibleFolders = activeCategoryFilter === "all"
     ? folders
-    : folders.filter(f => f.id === activeFolderFilter);
+    : folders.filter(f => f.category_id === activeCategoryFilter);
 
   visibleFolders.forEach(folder => {
     container.appendChild(renderFolderSection(folder));
@@ -129,7 +138,7 @@ function renderFolderSection(folder) {
   header.appendChild(name);
 
   const count = document.createElement("span");
-  const activeCount = tasks.filter(t => t.folder_id === folder.id && t.status === "active").length;
+  const activeCount = tasks.filter(t => t.folder_id === folder.id && t.status === "active" && !t.parent_task_id).length;
   count.className = "folder-count";
   count.textContent = activeCount + " active";
   header.appendChild(count);
@@ -360,11 +369,18 @@ function closeTaskModal() {
 
 function populateFolderSelect(selectedId) {
   taskFolderSelect.innerHTML = "";
-  folders.forEach(folder => {
-    const opt = document.createElement("option");
-    opt.value = folder.id;
-    opt.textContent = folder.name;
-    taskFolderSelect.appendChild(opt);
+  categories.forEach(category => {
+    const categoryFolders = folders.filter(f => f.category_id === category.id);
+    if (categoryFolders.length === 0) return;
+    const group = document.createElement("optgroup");
+    group.label = category.name;
+    categoryFolders.forEach(folder => {
+      const opt = document.createElement("option");
+      opt.value = folder.id;
+      opt.textContent = folder.name;
+      group.appendChild(opt);
+    });
+    taskFolderSelect.appendChild(group);
   });
   if (selectedId) taskFolderSelect.value = selectedId;
 }
@@ -418,7 +434,14 @@ taskForm.addEventListener("submit", e => {
 
 document.getElementById("task-cancel-btn").addEventListener("click", closeTaskModal);
 document.getElementById("add-task-btn").addEventListener("click", () => {
-  const folderId = activeFolderFilter !== "all" ? activeFolderFilter : folders[0]?.id;
+  if (folders.length === 0) {
+    alert("Add a folder first.");
+    return;
+  }
+  const candidates = activeCategoryFilter !== "all"
+    ? folders.filter(f => f.category_id === activeCategoryFilter)
+    : folders;
+  const folderId = (candidates[0] || folders[0]).id;
   openTaskModal({ folder_id: folderId });
 });
 
@@ -430,9 +453,27 @@ taskModal.addEventListener("click", e => {
 
 const folderModal = document.getElementById("folder-modal");
 const folderForm = document.getElementById("folder-form");
+const folderCategorySelect = document.getElementById("folder-category");
+
+function populateFolderCategorySelect(selectedId) {
+  folderCategorySelect.innerHTML = "";
+  categories.forEach(category => {
+    const opt = document.createElement("option");
+    opt.value = category.id;
+    opt.textContent = category.name;
+    folderCategorySelect.appendChild(opt);
+  });
+  if (selectedId) folderCategorySelect.value = selectedId;
+}
 
 function openFolderModal() {
+  if (categories.length === 0) {
+    alert("Add a category first.");
+    return;
+  }
   folderForm.reset();
+  const defaultCategoryId = activeCategoryFilter !== "all" ? activeCategoryFilter : categories[0].id;
+  populateFolderCategorySelect(defaultCategoryId);
   folderModal.classList.remove("hidden");
   document.getElementById("folder-name").focus();
 }
@@ -444,9 +485,9 @@ function closeFolderModal() {
 folderForm.addEventListener("submit", e => {
   e.preventDefault();
   const name = document.getElementById("folder-name").value.trim();
-  const category = document.getElementById("folder-category").value;
-  if (!name) return;
-  folders.push({ id: makeId(), name, category });
+  const categoryId = folderCategorySelect.value;
+  if (!name || !categoryId) return;
+  folders.push({ id: makeId(), category_id: categoryId, name });
   closeFolderModal();
   render();
 });
@@ -455,6 +496,38 @@ document.getElementById("add-folder-btn").addEventListener("click", openFolderMo
 document.getElementById("folder-cancel-btn").addEventListener("click", closeFolderModal);
 folderModal.addEventListener("click", e => {
   if (e.target === folderModal) closeFolderModal();
+});
+
+// ---------- Category modal ----------
+
+const categoryModal = document.getElementById("category-modal");
+const categoryForm = document.getElementById("category-form");
+
+function openCategoryModal() {
+  categoryForm.reset();
+  categoryModal.classList.remove("hidden");
+  document.getElementById("category-name").focus();
+}
+
+function closeCategoryModal() {
+  categoryModal.classList.add("hidden");
+}
+
+categoryForm.addEventListener("submit", e => {
+  e.preventDefault();
+  const name = document.getElementById("category-name").value.trim();
+  if (!name) return;
+  const category = { id: makeId(), name };
+  categories.push(category);
+  activeCategoryFilter = category.id;
+  closeCategoryModal();
+  render();
+});
+
+document.getElementById("add-category-btn").addEventListener("click", openCategoryModal);
+document.getElementById("category-cancel-btn").addEventListener("click", closeCategoryModal);
+categoryModal.addEventListener("click", e => {
+  if (e.target === categoryModal) closeCategoryModal();
 });
 
 // ---------- Theme toggle ----------
