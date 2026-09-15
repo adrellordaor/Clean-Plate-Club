@@ -115,8 +115,8 @@ is this a priority" rather than "how much"):
 
 | Importance \ Urgency | Low/Medium | High/Critical |
 |---|---|---|
-| **High/Critical** | Don't Forget | Do Now |
-| **Low/Medium** | Backlog | Quick Win |
+| **High/Critical** | Remember | Do |
+| **Low/Medium** | Backlog | Clear |
 
 Quadrant and priority_score are both derived, not stored, recalculated
 every time the matrix or list renders.
@@ -127,12 +127,12 @@ Generated fresh each day, entirely mechanical — no AI/API call, no ongoing
 cost, works offline. Two parts:
 1. **Current snapshot:** tasks grouped by quadrant, right now.
 2. **What changed since yesterday:** any task whose quadrant shifted, with a
-   one-line reason (e.g., "→ Do Now: deadline in 2 days" / "aging in Q2:
+   one-line reason (e.g., "→ Do: deadline in 2 days" / "aging in Remember:
    untouched 9 days"). Requires storing yesterday's quadrant per task to diff
    against.
 
-Weekly digest = same idea, rolled up: what's trending toward Q1, what's been
-sitting in Q2 too long.
+Weekly digest = same idea, rolled up: what's trending toward Do, what's been
+sitting in Remember too long.
 
 ## Views
 
@@ -160,10 +160,10 @@ The app has three views:
   subtasks ÷ total subtasks, rounded to the nearest whole number. Never
   shown on tasks with zero subtasks. Purely visual, no setting, no
   threshold, nothing to configure.
-- **Heat-map coloring**: hue is set by quadrant (Do Now = red family, Don't
-  Forget = teal, Quick Win = amber, Backlog = gray), and saturation/
+- **Heat-map coloring**: hue is set by quadrant (Do = red family, Remember =
+  teal, Clear = amber, Backlog = gray), and saturation/
   lightness within that hue is set continuously by `priority_score`, low
-  score → pale, high score → vivid. One task barely qualifying as "Do Now"
+  score → pale, high score → vivid. One task barely qualifying as "Do"
   reads as soft red; a 95/95 task reads as vivid, alarming red. Backlog
   works the same way with lightness alone (no hue), so a task climbing in
   urgency visibly darkens well before it ever crosses into another
@@ -255,7 +255,7 @@ Inbox category) for manual sorting.
 
 ## Build Phases (for Claude Code, one phase at a time)
 1. List view skeleton: folders, collapsible nested tasks, add/edit/delete,
-   folder filter + "All" top banner
+   category tabs (All plus one per category)
 2. Storage: File System Access API pointed at an OneDrive folder, with
    automatic IndexedDB fallback if unsupported
 3. Recurring habit checklist: RecurringTask + CompletionLog, the Weekly/

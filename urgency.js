@@ -48,9 +48,9 @@ const URGENCY_LEVEL_SCORES = Object.freeze({ Low: 10, Medium: 40, High: 75, Crit
 
 // Hue is fixed per quadrant ("why is this a priority"); intensity comes from priority_score.
 const QUADRANTS = Object.freeze({
-  q1: Object.freeze({ key: "q1", label: "Do Now", importance: "high", urgency: "high" }),
-  q2: Object.freeze({ key: "q2", label: "Don't Forget", importance: "high", urgency: "low" }),
-  q3: Object.freeze({ key: "q3", label: "Quick Win", importance: "low", urgency: "high" }),
+  q1: Object.freeze({ key: "q1", label: "Do", importance: "high", urgency: "high" }),
+  q2: Object.freeze({ key: "q2", label: "Remember", importance: "high", urgency: "low" }),
+  q3: Object.freeze({ key: "q3", label: "Clear", importance: "low", urgency: "high" }),
   q4: Object.freeze({ key: "q4", label: "Backlog", importance: "low", urgency: "low" }),
 });
 
@@ -208,7 +208,7 @@ function priorityRangeFor(quadrant, settings) {
 }
 
 // Where this task's priority_score falls inside its quadrant's attainable range, 0-1.
-// Drives the heat-map intensity: a task that barely qualifies for "Do Now" is pale, a
+// Drives the heat-map intensity: a task that barely qualifies for "Do" is pale, a
 // 100/100 task is vivid, and a Backlog task visibly darkens as it climbs toward the edge.
 function priorityIntensity(score, quadrant, settings) {
   const { min, max } = priorityRangeFor(quadrant, settings);

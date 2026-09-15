@@ -325,7 +325,7 @@ body {
 
 /* ---- Heat-map colour maths ----
    Hue per quadrant is fixed; --chroma 0 turns Backlog into a pure lightness ramp.
-   Do Now keeps the coral family, Don't Forget the teal, Quick Win the amber. */
+   Do keeps the coral family, Remember the teal, Clear the amber. */
 .quadrant-q1 { --h: 8;   --chroma: 1; }
 .quadrant-q2 { --h: 173; --chroma: 1; }
 .quadrant-q3 { --h: 39;  --chroma: 1; }
