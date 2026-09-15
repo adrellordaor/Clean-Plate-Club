@@ -176,9 +176,77 @@ function toggleFolderCountDisplay() {
 
 function render() {
   renderCategoryTabs();
+  renderTopBanner();
   renderHeatMapLegend();
   renderFolderList();
   renderRecurringSidebar();
+}
+
+// Top priority banner: top 3-5 tasks by priority_score across ALL folders/categories,
+// independent of activeCategoryFilter, so the highest-priority items are never scrolled
+// out of view or hidden by whichever tab happens to be selected. Lives in the sticky
+// header so it stays visible while scrolling the list below. Recurring tasks never
+// appear here — only regular Tasks carry a priority_score.
+const TOP_BANNER_MAX = 5;
+
+function renderTopBanner() {
+  const banner = document.getElementById("top-banner");
+  banner.innerHTML = "";
+
+  const ranked = tasks
+    .filter(t => t.status === "active")
+    .map(task => ({ task, assessment: assessTask(task, settings, todayISODate()) }))
+    .sort((a, b) => b.assessment.priorityScore - a.assessment.priorityScore)
+    .slice(0, TOP_BANNER_MAX);
+
+  banner.classList.toggle("has-items", ranked.length > 0);
+  // With fewer than 3-5 active tasks total there's no real "top" to distinguish from the
+  // rest; show whatever exists rather than an empty strip, and skip the banner entirely
+  // once there are zero active tasks.
+  if (ranked.length === 0) return;
+
+  const label = document.createElement("span");
+  label.className = "top-banner-label";
+  label.textContent = "Top priority";
+  banner.appendChild(label);
+
+  const strip = document.createElement("div");
+  strip.className = "top-banner-strip";
+  ranked.forEach(({ task, assessment }) => strip.appendChild(renderTopBannerCard(task, assessment)));
+  banner.appendChild(strip);
+}
+
+function renderTopBannerCard(task, assessment) {
+  const folder = folders.find(f => f.id === task.folder_id);
+
+  const card = document.createElement("button");
+  card.type = "button";
+  card.className = "top-banner-card quadrant-" + assessment.quadrant.key;
+  card.style.setProperty("--p", assessment.intensity.toFixed(3));
+  card.title = [
+    assessment.quadrant.label,
+    "priority " + assessment.priorityScore,
+    "urgency " + assessment.urgency.score + " (" + assessment.urgency.reason + ")",
+    task.deadline ? "due " + task.deadline : null,
+  ].filter(Boolean).join(" · ");
+  card.addEventListener("click", () => openTaskModal(task));
+
+  const title = document.createElement("span");
+  title.className = "top-banner-title";
+  title.textContent = task.title;
+  card.appendChild(title);
+
+  const meta = document.createElement("span");
+  meta.className = "top-banner-meta";
+  meta.textContent = (folder ? folder.name + " · " : "") + assessment.quadrant.label;
+  card.appendChild(meta);
+
+  const score = document.createElement("span");
+  score.className = "top-banner-score";
+  score.textContent = "priority " + assessment.priorityScore;
+  card.appendChild(score);
+
+  return card;
 }
 
 // Small key for the heat-map: one chip per quadrant hue, each drawn as its pale→vivid ramp.
