@@ -89,11 +89,15 @@ function setOverviewDisplayMode(mode) {
 
 const SCATTER = Object.freeze({
   width: 640,
-  height: 430,
+  height: 480,
   margin: Object.freeze({ top: 24, right: 18, bottom: 46, left: 92 }),
-  inset: 16, // the 0-100 scale stops this far inside the plot edges so edge dots aren't clipped
-  dotRadius: 7,
-  clusterRadius: 9, // dots sharing exact coordinates fan out on a ring this far from the point
+  inset: 18, // the 0-100 scale stops this far inside the plot edges so edge dots aren't clipped
+  dotRadius: 6,
+  summaryDotRadius: 8, // tasks in the priority panel are drawn bigger, with their rank inside
+  clusterRadius: 10, // dots sharing exact coordinates fan out on a ring this far from the point
+  labelHeight: 13,
+  labelGap: 4, // space between a dot's edge and its title label
+  labelMaxChars: 28,
 });
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -186,7 +190,7 @@ function renderScatter(ranked, summaryIds) {
     clusters.get(key).push(entry);
   });
 
-  const dots = svgEl("g", { class: "scatter-dots" });
+  const placedDots = []; // { entry, x, y, r } in priority order, for the label pass
   clusters.forEach(entries => {
     const cx = xFor(entries[0].assessment.urgency.score);
     const cy = yFor(entries[0].assessment.importanceScore);
@@ -200,12 +204,20 @@ function renderScatter(ranked, summaryIds) {
         x = cx + radius * Math.cos(angle);
         y = cy + radius * Math.sin(angle);
       }
-      dots.appendChild(renderScatterDot(entry, x, y, summaryIds.has(entry.task.id)));
+      const inSummary = summaryIds.has(entry.task.id);
+      placedDots.push({ entry, x, y, r: inSummary ? SCATTER.summaryDotRadius : SCATTER.dotRadius, inSummary });
     });
   });
+  placedDots.sort((a, b) => a.entry.rank - b.entry.rank);
+
+  const dots = svgEl("g", { class: "scatter-dots" });
+  placedDots.forEach(d => dots.appendChild(renderScatterDot(d.entry, d.x, d.y, d.r, d.inSummary)));
   svg.appendChild(dots);
 
+  // The svg has to be in the document before label widths can be measured.
   container.appendChild(svg);
+  const bounds = { left: margin.left, top: margin.top, right, bottom };
+  const hiddenLabels = renderScatterLabels(svg, placedDots, bounds);
 
   if (ranked.length === 0) {
     const empty = document.createElement("div");
@@ -216,11 +228,12 @@ function renderScatter(ranked, summaryIds) {
 
   const legend = document.createElement("p");
   legend.className = "scatter-legend";
-  legend.textContent = "One dot per task at its exact urgency × importance. Hue = quadrant, intensity = priority. Numbered dots are in the priority panel. Hover a dot for details.";
+  legend.textContent = "One dot per task at its exact urgency × importance. Hue = quadrant, intensity = priority. Numbered dots are in the priority panel. Hover a dot for the full details."
+    + (hiddenLabels > 0 ? " " + hiddenLabels + " title" + (hiddenLabels === 1 ? "" : "s") + " hidden where there was no room — hover those dots." : "");
   container.appendChild(legend);
 }
 
-function renderScatterDot(entry, x, y, inSummary) {
+function renderScatterDot(entry, x, y, radius, inSummary) {
   const { task, assessment } = entry;
   const g = svgEl("g", { class: "scatter-dot-group quadrant-" + assessment.quadrant.key, tabindex: "0" });
   g.style.setProperty("--p", assessment.intensity.toFixed(3));
@@ -230,11 +243,71 @@ function renderScatterDot(entry, x, y, inSummary) {
     assessment.quadrant.label + " · priority " + assessment.priorityScore,
     "urgency " + assessment.urgency.score + " (" + assessment.urgency.reason + ") · importance " + task.importance,
   ].filter(Boolean).join("\n")));
-  g.appendChild(svgEl("circle", { cx: x, cy: y, r: SCATTER.dotRadius, class: "scatter-dot" }));
+  g.appendChild(svgEl("circle", { cx: x, cy: y, r: radius, class: "scatter-dot" }));
   if (inSummary) {
     g.appendChild(svgEl("text", { x, y, class: "scatter-dot-rank" }, entry.rank));
   }
   return g;
+}
+
+// Always-visible title labels, so the plot reads at a glance without hovering. Each label
+// tries a ring of positions around its dot (right, left, above, below, then diagonals) and
+// takes the first that stays inside the plot and clears every dot and label already placed.
+// Dots are processed in priority order, so when space runs out it's the low-priority
+// titles that fall back to the hover tooltip. Returns how many were skipped.
+function renderScatterLabels(svg, placedDots, bounds) {
+  const { labelHeight: h, labelGap: gap } = SCATTER;
+  const occupied = placedDots.map(d => ({ x: d.x - d.r, y: d.y - d.r, w: d.r * 2, h: d.r * 2 }));
+  const labels = svgEl("g", { class: "scatter-labels" });
+  svg.appendChild(labels);
+  let hidden = 0;
+
+  placedDots.forEach(d => {
+    const text = truncateTitle(d.entry.task.title);
+    const el = svgEl("text", { class: "scatter-label" + (d.inSummary ? " scatter-label-summary" : "") }, text);
+    labels.appendChild(el); // attach first so the width can be measured
+    let w = 0;
+    try { w = el.getComputedTextLength(); } catch (e) { w = 0; }
+    if (!(w > 0)) w = text.length * 6.2; // estimate if the plot isn't laid out yet
+    w += 4;
+
+    const near = d.r + gap;
+    const candidates = [
+      { x: d.x + near, y: d.y - h / 2, anchor: "start" },
+      { x: d.x - near - w, y: d.y - h / 2, anchor: "end" },
+      { x: d.x - w / 2, y: d.y - near - h, anchor: "middle" },
+      { x: d.x - w / 2, y: d.y + near, anchor: "middle" },
+      { x: d.x + near * 0.8, y: d.y - near * 0.8 - h, anchor: "start" },
+      { x: d.x - near * 0.8 - w, y: d.y - near * 0.8 - h, anchor: "end" },
+      { x: d.x + near * 0.8, y: d.y + near * 0.8, anchor: "start" },
+      { x: d.x - near * 0.8 - w, y: d.y + near * 0.8, anchor: "end" },
+    ];
+    const spot = candidates.find(c =>
+      c.x >= bounds.left && c.x + w <= bounds.right && c.y >= bounds.top && c.y + h <= bounds.bottom
+      && !occupied.some(o => rectsOverlap(o, { x: c.x, y: c.y, w, h }))
+    );
+    if (!spot) {
+      labels.removeChild(el);
+      hidden++;
+      return;
+    }
+    occupied.push({ x: spot.x, y: spot.y, w, h });
+    const anchorX = spot.anchor === "start" ? spot.x + 2 : spot.anchor === "end" ? spot.x + w - 2 : spot.x + w / 2;
+    el.setAttribute("x", anchorX);
+    el.setAttribute("y", spot.y + h - 3);
+    el.setAttribute("text-anchor", spot.anchor);
+  });
+
+  return hidden;
+}
+
+function rectsOverlap(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function truncateTitle(title) {
+  const max = SCATTER.labelMaxChars;
+  return title.length > max ? title.slice(0, max - 1).trimEnd() + "…" : title;
 }
 
 // ---------- Quadrant list (alternate display mode) ----------
