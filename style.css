@@ -216,7 +216,8 @@ body {
   background: transparent;
   border: none;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
+  line-height: 1;
   color: var(--text-muted);
   padding: 0.2rem 0.4rem;
 }
@@ -269,8 +270,19 @@ body {
 }
 
 .folder-count {
+  background: transparent;
+  border: none;
   color: var(--text-muted);
   font-size: 0.82rem;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+}
+
+.folder-count:hover {
+  background: var(--row-hover);
+  color: var(--text);
 }
 
 .folder-body {

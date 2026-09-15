@@ -153,6 +153,16 @@ let activeCategoryFilter = "all"; // "all" or a category id
 let collapsedFolders = new Set();
 let collapsedTasks = new Set();
 
+// folder_count_display setting: "active" -> "X active", "done" -> "X of Y done".
+// A per-device display preference (like theme), not synced task data.
+let folderCountDisplay = localStorage.getItem("folderCountDisplay") === "done" ? "done" : "active";
+
+function toggleFolderCountDisplay() {
+  folderCountDisplay = folderCountDisplay === "active" ? "done" : "active";
+  localStorage.setItem("folderCountDisplay", folderCountDisplay);
+  render();
+}
+
 // ---------- Rendering ----------
 
 function render() {
@@ -232,10 +242,21 @@ function renderFolderSection(folder) {
   name.textContent = folder.name;
   header.appendChild(name);
 
-  const count = document.createElement("span");
-  const activeCount = tasks.filter(t => t.folder_id === folder.id && t.status === "active" && !t.parent_task_id).length;
+  const count = document.createElement("button");
+  count.type = "button";
   count.className = "folder-count";
-  count.textContent = activeCount + " active";
+  count.title = "Click to toggle count display";
+  if (folderCountDisplay === "done") {
+    const doneCount = topLevelTasks.filter(t => t.status === "done").length;
+    count.textContent = doneCount + " of " + topLevelTasks.length + " done";
+  } else {
+    const activeCount = topLevelTasks.filter(t => t.status === "active").length;
+    count.textContent = activeCount + " active";
+  }
+  count.addEventListener("click", e => {
+    e.stopPropagation();
+    toggleFolderCountDisplay();
+  });
   header.appendChild(count);
 
   section.appendChild(header);
@@ -376,7 +397,9 @@ function renderTaskRow(task) {
   const editBtn = document.createElement("button");
   editBtn.type = "button";
   editBtn.className = "btn-icon";
-  editBtn.textContent = "Edit";
+  editBtn.textContent = "✏️";
+  editBtn.setAttribute("aria-label", "Edit task");
+  editBtn.title = "Edit";
   editBtn.addEventListener("click", () => openTaskModal(task));
   actions.appendChild(editBtn);
 
@@ -384,7 +407,9 @@ function renderTaskRow(task) {
   delBtn.type = "button";
   delBtn.className = "btn-icon";
   delBtn.style.color = "var(--danger)";
-  delBtn.textContent = "Delete";
+  delBtn.textContent = "🗑️";
+  delBtn.setAttribute("aria-label", "Delete task");
+  delBtn.title = "Delete";
   delBtn.addEventListener("click", () => deleteTask(task.id));
   actions.appendChild(delBtn);
 
