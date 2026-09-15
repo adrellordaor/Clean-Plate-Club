@@ -198,11 +198,13 @@ function toggleFolderCountDisplay() {
 // "list" is where work happens; "overview" is the read-only orientation glance. Which one is
 // showing is a per-device preference (like theme), not synced task data.
 
+const VALID_VIEWS = new Set(["overview", "list", "calendar"]);
 const savedView = localStorage.getItem("view");
-let activeView = savedView === "overview" || savedView === "matrix" ? "overview" : "list"; // "matrix" = pre-rename value
+let activeView = savedView === "matrix" ? "overview" // pre-rename value
+  : VALID_VIEWS.has(savedView) ? savedView : "list";
 
 function setActiveView(view) {
-  activeView = view === "overview" ? "overview" : "list";
+  activeView = VALID_VIEWS.has(view) ? view : "list";
   localStorage.setItem("view", activeView);
   render();
 }
@@ -221,7 +223,8 @@ function renderViewSwitch() {
   document.getElementById("list-view").hidden = !isList;
   document.getElementById("folder-tabs").hidden = !isList;
   document.getElementById("top-banner").hidden = !isList;
-  document.getElementById("overview-view").hidden = isList;
+  document.getElementById("overview-view").hidden = activeView !== "overview";
+  document.getElementById("calendar-view").hidden = activeView !== "calendar";
 }
 
 // ---------- Rendering ----------
@@ -234,6 +237,7 @@ function render() {
   renderFolderList();
   renderRecurringSidebar();
   renderOverview();
+  renderCalendar();
 }
 
 // Top priority banner: top 3-5 tasks by priority_score across ALL folders/categories,

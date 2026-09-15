@@ -20,6 +20,7 @@
     <div id="view-switch" class="view-switch" role="tablist" aria-label="View">
       <button type="button" class="view-switch-btn" data-view="overview" role="tab">Overview</button>
       <button type="button" class="view-switch-btn" data-view="list" role="tab">Checklist</button>
+      <button type="button" class="view-switch-btn" data-view="calendar" role="tab">Calendar</button>
     </div>
     <div class="header-actions">
       <button id="settings-btn" class="theme-toggle" type="button" aria-label="Settings" title="Settings"></button>
@@ -46,6 +47,28 @@
       <aside id="overview-panel" class="overview-panel" aria-label="Priority summary"></aside>
     </div>
     <section id="digest" class="digest" aria-live="polite"></section>
+  </section>
+
+  <!-- Calendar: retrospective view. Monthly grid colored by daily-recurring completion
+       rate, a completed-task count badge, a click-through day repository, and a Weekly
+       Accomplishments panel. Read-only, like Overview. -->
+  <section id="calendar-view" class="calendar-view" hidden>
+    <div class="calendar-toolbar">
+      <div class="calendar-nav">
+        <button type="button" id="calendar-prev-btn" class="btn-icon" aria-label="Previous month">&lsaquo;</button>
+        <h2 id="calendar-month-label" class="calendar-month-label"></h2>
+        <button type="button" id="calendar-next-btn" class="btn-icon" aria-label="Next month">&rsaquo;</button>
+      </div>
+      <button type="button" id="calendar-today-btn" class="link-btn">Today</button>
+      <div id="calendar-legend" class="calendar-legend"></div>
+    </div>
+    <div class="calendar-layout">
+      <div class="calendar-main">
+        <div id="calendar-grid" class="calendar-grid"></div>
+        <div id="calendar-day-repo" class="calendar-day-repo" hidden></div>
+      </div>
+      <aside id="calendar-weekly-panel" class="calendar-weekly-panel" aria-label="Weekly accomplishments"></aside>
+    </div>
   </section>
 
   <div id="list-view">
@@ -272,7 +295,7 @@
             </select>
           </label>
         </div>
-        <p class="settings-hint">The split is the boundary between low and high on both axes (62.5 sits between Medium 50 and High 75), so it decides which quadrant a task belongs to everywhere. The panel lists the top N tasks plus anything at or above the flag score.</p>
+        <p class="settings-hint">The split is the boundary between low and high on both axes (62.5 sits between Medium 50 and High 75), so it decides which quadrant a task belongs to everywhere, including the Calendar's Red rule and gold glow. The panel lists the top N tasks plus anything at or above the flag score; the Calendar reuses that same rule for its accented upcoming-deadline marker.</p>
       </fieldset>
 
       <p id="settings-error" class="settings-error" aria-live="polite"></p>
@@ -302,6 +325,7 @@
 <script src="storage.js"></script>
 <script src="urgency.js"></script>
 <script src="digest.js"></script>
+<script src="calendar.js"></script>
 <script src="overview.js"></script>
 <script src="app.js"></script>
 </body>

@@ -14,8 +14,6 @@ const DEFAULT_SETTINGS = Object.freeze({
   staleness_medium_days: 7,
   staleness_high_days: 8,
   priority_importance_weight: 0.5, // 0 = urgency only, 1 = importance only
-  productivity_low_pct: 33,
-  productivity_high_pct: 66,
   quadrant_split_score: 62.5,     // 0-100 boundary between the low and high bucket on BOTH axes
   overview_top_n: 3,              // priority panel: always show at least this many
   overview_flag_threshold: 80,    // priority panel: and anything scoring at or above this
@@ -28,7 +26,7 @@ const SETTINGS_KEYS = Object.keys(DEFAULT_SETTINGS);
 const FRACTION_SETTINGS = new Set(["priority_importance_weight"]);
 
 // Settings on a 0-100 score scale (clamped at 100).
-const SCORE_SETTINGS = new Set(["quadrant_split_score", "overview_flag_threshold", "productivity_low_pct", "productivity_high_pct"]);
+const SCORE_SETTINGS = new Set(["quadrant_split_score", "overview_flag_threshold"]);
 
 // Settings that are a choice between fixed strings rather than a number.
 const CHOICE_SETTINGS = Object.freeze({ overview_display_mode: ["scatter", "list"] });

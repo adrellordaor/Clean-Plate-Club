@@ -93,12 +93,14 @@ stored).
 | staleness_high_days | 8 |
 | priority_importance_weight | 0.5 |
 | folder_count_display | active |
-| productivity_low_pct | 33 |
-| productivity_high_pct | 66 |
 | quadrant_split_score | 62.5 |
 | overview_top_n | 3 |
 | overview_flag_threshold | 80 |
 | overview_display_mode | scatter |
+| staleness_reminder_interval_days | 7 |
+| staleness_reminder_low_days | 7 |
+| staleness_reminder_medium_days | 14 |
+| staleness_reminder_high_days | 28 |
 
 `last_touched_at` updates whenever the task is edited, commented on, or
 manually "bumped" — this is what lets an important, deadline-less task
@@ -152,6 +154,28 @@ cost, works offline. Two parts:
 
 Weekly digest = same idea, rolled up: what's trending toward Do, what's been
 sitting in Remember too long. Same primary/secondary split applies.
+
+**Staleness check-ins** (undated tasks only, softer tone than the drift
+tiers above): the primary-drift tier only fires once, when a task first
+crosses into "high" urgency around day 7-8, staleness has nowhere higher
+to go after that, so a task ignored for 30 days would otherwise go quiet
+after its one initial flag. To fix this, compare days-untouched today vs.
+yesterday (same technique as the drift diff above) and flag the task again
+whenever that count crosses a new multiple of `staleness_reminder_interval_
+days` (default 7). Message stays low-key, e.g. "Just so you know: untouched
+for 21 days", not escalating language. Deadline tasks are excluded, their
+urgency is already actively climbing toward the deadline and they're
+covered by the Overdue callout once it passes.
+
+Each check-in is also color-tiered by days-untouched, separate from the
+urgency engine's own staleness thresholds (which run on a faster 3/7/8-day
+cadence for scoring purposes, not display):
+- `staleness_reminder_low_days` (7) → mild color
+- `staleness_reminder_medium_days` (14) → medium color
+- `staleness_reminder_high_days` (28) → strong color
+The reminder still fires every `staleness_reminder_interval_days`, the
+color just reflects which of these three bands the task currently sits in
+at the time it fires.
 
 ## Views
 
@@ -209,6 +233,14 @@ The app has three views:
   urgency visibly darkens well before it ever crosses into another
   quadrant. Hue tells you *why* a task is prioritized, intensity tells you
   *how much*, one formula drives both.
+- **Overdue callout**: separate from the Top banner, since it answers a
+  different question ("act on this exact task right now" vs. "here's
+  today's ranking"). Membership-based, not ranked: a task qualifies if its
+  `deadline` has passed, or `manual_urgent_flag` is true. No new fields or
+  scoring, just a filter on data already tracked. A stale, undated task
+  climbing toward "high" urgency does not qualify here, staleness alone
+  never reaches critical, only an actual missed deadline or a declared
+  fire does.
 - **Top banner**: always-visible strip showing the top 3-5 tasks by
   `priority_score` across all folders, regardless of which folder filter
   is active, so the highest-priority items are never scrolled out of view.
@@ -233,14 +265,45 @@ to that prioritization flow.
 **3. Calendar view** (retrospective, replaces the earlier vague "basic
 productivity view")
 - Monthly grid, one cell per day
-- **Color** driven by that day's daily-recurring completion rate (completed
-  ÷ scheduled daily RecurringTasks), bucketed via `productivity_low_pct` /
-  `productivity_high_pct` into red / yellow / green. A day with no daily
-  recurring tasks scheduled shows neutral gray, not red.
-- **Secondary count badge** on each cell: number of regular (non-recurring)
-  tasks completed that day. Shown alongside the color, never blended into
-  it, one clean signal per indicator, same principle as the near-extreme
-  flag.
+- **Color reflects overall pace**, not just habits, in strict priority
+  order (matches the override pattern already used for
+  manual_urgent_flag):
+  1. **Red**: something **High/Critical importance** is overdue as of
+     that day — a regular task bucketed High importance (same bucket as
+     quadrant placement) with a `deadline` before that day that was still
+     open past it (`completed_at` null or later). A Low/Medium importance
+     overdue task does not trigger this, see the ring indicator below
+     instead.
+  2. **Green**: nothing High-importance overdue, and everything due that
+     day (RecurringTasks scheduled that day, plus regular Tasks with
+     `deadline` exactly that day) got done.
+  3. **Blue**: nothing High-importance overdue, but only some of what was
+     due got done.
+  4. **Gray**: nothing was due at all that day, same "no obligation, not a
+     failure" principle as before.
+  All of this is derived live from existing fields (deadline,
+  completed_at, cadence, importance), no new snapshot storage needed, even
+  for past days.
+- **Overdue ring** (independent overlay, separate from the base fill
+  color): a thin outline on the cell when a Low/Medium importance task is
+  overdue as of that day, without forcing Red. Keeps minor overdue items
+  visible without giving them veto power over the day's actual color.
+- **Gold glow** (independent overlay, layers on any base color): fires
+  when a High/Critical importance task got completed that day (same
+  importance bucket as the Red rule above, no new setting). A red day can
+  still glow gold if something important also got cleared.
+- **Secondary count badge**: number of regular (non-recurring) tasks
+  completed that day, regardless of whether they were "due" that day,
+  raw context alongside the color, never blended into it.
+- **Future due-date markers**: the pace coloring above only applies to
+  past/today, a future day hasn't happened yet so there's nothing to
+  evaluate. Instead, any regular Task with `deadline` on a future date
+  shows a small marker on that cell, a live read of the `deadline` field,
+  nothing new stored. Tasks meeting the same inclusion rule as the
+  Overview's priority summary panel (rank within `overview_top_n` OR score
+  ≥ `overview_flag_threshold`, same definition of "top priority" used
+  everywhere else in the app) get a visually distinct marker, larger or
+  accented, versus a plain dot for other upcoming deadlines.
 - **Click a day** to expand a repository view: every task completed that
   day, regular and recurring, pulled from `completed_at` and CompletionLog
   respectively. No new storage, just a query against data already kept.
@@ -252,18 +315,6 @@ productivity view")
     that week, called out specifically, this is the important-but-not-
     urgent task finally getting done, exactly the case this whole app
     exists for.
-  - **Current streak**: consecutive days with at least one completion of
-    any kind. A broken streak doesn't erase prior days, it just restarts,
-    never a punitive reset.
-  - **Category breakdown**: descriptive counts only (e.g. "6 Work, 3
-    Errands, 2 Recruiting"), no judgment implied.
-  - **Day breakdown**: a plain count of the week's day-colors (e.g. "5
-    green, 1 yellow, 1 red"), never collapsed into a single categorical
-    verdict for the week, that would recreate the same hard-boundary
-    problem priority_score was built to avoid. The one exception: an
-    "All-green week" badge, shown only when every day that week qualifies
-    as green. No equivalent negative badge is ever generated, a rough
-    week just shows its honest breakdown, unnamed.
 
 ## Feature List (v1)
 
@@ -279,8 +330,8 @@ productivity view")
 - Daily digest (snapshot + quadrant changes)
 - Weekly digest (trend view)
 - Simple daily log: completed / rolled over / dropped
-- Calendar view: color-coded by daily-recurring completion rate, with a
-  completed-task count badge, a click-through repository per day, and a
+- Calendar view: pace-based coloring across all tasks (not just habits),
+  gold glow for big wins, count badge, click-through repository, and a
   Weekly Accomplishments panel (highlights, never a score)
 - Evening review: incomplete tasks require a conscious choice to roll to
   tomorrow, drop, or push to Someday/Maybe — never a silent auto-carry
@@ -329,10 +380,10 @@ Inbox category) for manual sorting.
    backgrounds split at quadrant_split_score), priority summary panel
    (top_n + flag_threshold rule), display-mode toggle to the existing
    quadrant-list style, with change-tracking since yesterday
-6. Calendar view: color-coded by daily-recurring completion rate, count
-   badge for regular task completions, click-through day repository,
-   Weekly Accomplishments panel (cleared list, biggest win, streak,
-   category breakdown, day-color breakdown with all-green badge)
+6. Calendar view: pace-based coloring (red/green/blue/gray priority rules),
+   gold glow overlay for big wins, count badge for regular task
+   completions, click-through day repository, Weekly Accomplishments
+   panel (cleared list, biggest win only)
 7. Polish pass (styling, keyboard shortcuts, quick-capture)
 
 Commit to git after each phase.

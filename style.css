@@ -20,6 +20,27 @@
   --badge-recurring-bg: #ece9df;
   --badge-recurring-text: #767570;
 
+  /* Calendar day-color buckets: dedicated tokens (not reused from the badge system) so
+     the fill can be tuned to read as a vivid pace signal at full-cell size rather than
+     the subtler tone a small text badge wants. Red = high-importance overdue, green =
+     everything due done, blue = only some of it done, gray stays deliberately muted — it
+     means "nothing was due", not a low score. */
+  --day-green-bg: #cdeed0;
+  --day-green-text: #1f6b30;
+  --day-blue-bg: #cfe0f6;
+  --day-blue-text: #2a5a91;
+  --day-red-bg: #f3c9c4;
+  --day-red-text: #9c332b;
+  --day-gray-bg: #e4e2d8;
+  --day-gray-text: #6b6a64;
+  /* Overlays that layer on any base color: the thin ring for a Low/Medium overdue task
+     borrows red's text tone so it still reads as "overdue" without a red fill (and stays
+     visible on a red cell, where it's darker than the fill); the gold glow is its own hue,
+     used nowhere else in the app, so "something big got cleared" is unmistakable. */
+  --day-ring: var(--day-red-text);
+  --day-gold: #e0a616;
+  --day-gold-soft: rgba(224, 166, 22, 0.45);
+
   --overlay: rgba(20, 20, 18, 0.35);
 
   /* Heat-map ramp: each quadrant has a fixed hue (see .quadrant-* below); a row's --p
@@ -33,11 +54,17 @@
 
   /* Recurring habit boxes: a completely separate hue pair (violet/sky) from the four
      quadrant hues above, since these boxes are deliberately outside the Eisenhower
-     system — the color signals "different system," not a priority level. */
+     system — the color signals "different system," not a priority level. Reused app-wide
+     for anything else that's specifically daily- or weekly-scoped: the Calendar view's day
+     repository (sky, like the Daily habit box) and Weekly Accomplishments panel (violet,
+     like the Weekly habit box), so the same hue always means "daily" or "weekly" no matter
+     which screen it's on. The tint/body/acc percentages below are the hue-agnostic
+     "washed card" levels shared by all of them. */
   --weekly-h: 256;
   --daily-h: 199;
-  --recurring-tint-s: 45%;  --recurring-tint-l: 95%;
-  --recurring-acc-s: 50%;   --recurring-acc-l: 42%;
+  --recurring-body-s: 40%; --recurring-body-l: 97%;  /* whole-card wash, incl. nested sections */
+  --recurring-tint-s: 55%;  --recurring-tint-l: 93%;  /* header strip: a bit richer than the card */
+  --recurring-acc-s: 62%;   --recurring-acc-l: 40%;   /* border / title / fraction */
 
   color-scheme: light;
 }
@@ -64,6 +91,17 @@
   --badge-recurring-bg: #34353a;
   --badge-recurring-text: #b0afaa;
 
+  --day-green-bg: #1c4a2c;
+  --day-green-text: #8ff0a4;
+  --day-blue-bg: #1f3a5c;
+  --day-blue-text: #9cc4f5;
+  --day-red-bg: #5c231e;
+  --day-red-text: #ff9086;
+  --day-gray-bg: #3a3b40;
+  --day-gray-text: #c7c6c0;
+  --day-gold: #f0c14b;
+  --day-gold-soft: rgba(240, 193, 75, 0.5);
+
   --overlay: rgba(0, 0, 0, 0.55);
 
   --tint-s0: 12%;  --tint-s1: 60%;
@@ -72,8 +110,9 @@
   --acc-l0: 34%;   --acc-l1: 66%;
   --gray-l1: 31%;  --gray-acc-l1: 62%;
 
-  --recurring-tint-l: 23%;
-  --recurring-acc-l: 70%;
+  --recurring-body-s: 35%; --recurring-body-l: 16%;
+  --recurring-tint-s: 55%; --recurring-tint-l: 28%;
+  --recurring-acc-s: 68%;  --recurring-acc-l: 76%;
 
   color-scheme: dark;
 }
@@ -388,7 +427,7 @@ body {
 .recurring-box {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-top: 3px solid transparent;
+  border-top: 4px solid transparent;
   border-radius: 8px;
   overflow: hidden;
 }
@@ -414,13 +453,17 @@ body {
 
 /* Weekly/Daily each get their own hue (see :root --weekly-h / --daily-h) so the two
    boxes read as distinct at a glance, while staying visually separate from the
-   quadrant heat-map hues used in the main list — these tasks are outside that system. */
+   quadrant heat-map hues used in the main list — these tasks are outside that system.
+   The tint now washes the whole card (and the folder sections nested inside it), not just
+   the header strip, so the color reads as the box's identity rather than a thin accent. */
 #recurring-weekly {
   border-top-color: hsl(var(--weekly-h) var(--recurring-acc-s) var(--recurring-acc-l));
+  background: hsl(var(--weekly-h) var(--recurring-body-s) var(--recurring-body-l));
 }
 
 #recurring-daily {
   border-top-color: hsl(var(--daily-h) var(--recurring-acc-s) var(--recurring-acc-l));
+  background: hsl(var(--daily-h) var(--recurring-body-s) var(--recurring-body-l));
 }
 
 #recurring-weekly .recurring-box-header {
@@ -429,6 +472,14 @@ body {
 
 #recurring-daily .recurring-box-header {
   background: hsl(var(--daily-h) var(--recurring-tint-s) var(--recurring-tint-l));
+}
+
+#recurring-weekly .recurring-folder-section {
+  background: hsl(var(--weekly-h) var(--recurring-body-s) var(--recurring-body-l));
+}
+
+#recurring-daily .recurring-folder-section {
+  background: hsl(var(--daily-h) var(--recurring-body-s) var(--recurring-body-l));
 }
 
 #recurring-weekly .recurring-box-title,
@@ -1562,5 +1613,412 @@ body {
 
   .digest-text {
     flex-basis: 100%;
+  }
+}
+
+/* ---- Calendar (monthly grid, day repository, Weekly Accomplishments panel) ---- */
+.calendar-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.calendar-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.calendar-month-label {
+  margin: 0;
+  font-size: 1rem;
+  min-width: 9rem;
+  text-align: center;
+}
+
+.calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.calendar-legend-chip {
+  position: relative; /* the ring/glow overlay pseudo-elements below anchor to this */
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: help;
+}
+
+.calendar-layout {
+  display: flex;
+  gap: 1.25rem;
+  align-items: flex-start;
+}
+
+.calendar-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.calendar-weekday-head {
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding-bottom: 0.3rem;
+}
+
+.calendar-cell {
+  position: relative;
+  min-height: 52px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding: 0.3rem;
+}
+
+.calendar-cell-blank {
+  border-color: transparent;
+  background: transparent;
+  cursor: default;
+}
+
+.calendar-cell:hover:not(.calendar-cell-blank) {
+  box-shadow: inset 0 0 0 100vmax rgba(0, 0, 0, 0.05);
+}
+
+:root[data-theme="dark"] .calendar-cell:hover:not(.calendar-cell-blank) {
+  box-shadow: inset 0 0 0 100vmax rgba(255, 255, 255, 0.05);
+}
+
+/* Day-color buckets: solid fills, not the continuous heat-map ramp the quadrant hues use —
+   this is a discrete pace signal (red / green / blue / gray, strict priority order, see
+   computeDayStats), not a priority intensity. Dedicated tokens (see :root) rather than the
+   badge palette, tuned to stay vivid at full-cell size instead of the subtler tone a small
+   text badge wants. Gray stays deliberately muted — "nothing was due", not a low score. */
+.calendar-day-red, .calendar-legend-chip.calendar-day-red {
+  background: var(--day-red-bg);
+  color: var(--day-red-text);
+}
+
+.calendar-day-green, .calendar-legend-chip.calendar-day-green {
+  background: var(--day-green-bg);
+  color: var(--day-green-text);
+}
+
+.calendar-day-blue, .calendar-legend-chip.calendar-day-blue {
+  background: var(--day-blue-bg);
+  color: var(--day-blue-text);
+}
+
+.calendar-day-gray, .calendar-legend-chip.calendar-day-gray {
+  background: var(--day-gray-bg);
+  color: var(--day-gray-text);
+}
+
+/* A day strictly after today has no pace to show — it keeps the plain surface with a
+   dashed edge and muted number, so it can't be confused with any of the four scored
+   fills, and only its due-date markers (below) carry information. */
+.calendar-day-upcoming, .calendar-legend-chip.calendar-day-upcoming {
+  background: var(--surface);
+  color: var(--text-muted);
+  border: 1px dashed var(--border);
+}
+
+/* ---- Overlays: independent of the base fill, drawn as pseudo-elements so they never
+   compete with the cell's own box-shadow (today / selected week / open / hover rings). ---- */
+
+/* Overdue ring: a Low/Medium-importance task is overdue as of this day. Thin, inset, and
+   visible on every fill — it flags a minor overdue item without giving it veto power over
+   the day's actual color (only High/Critical overdue turns the fill red). */
+.calendar-cell-overdue-ring::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border: 1.5px solid var(--day-ring);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+/* Gold glow: a High/Critical-importance task got completed this day. An inset glow (edge
+   inward) rather than an outer one, so it stays inside the cell instead of bleeding under
+   its neighbours in the grid. Layers on any base color — a red day can still glow if
+   something important also got cleared. */
+.calendar-cell-gold::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 2px var(--day-gold), inset 0 0 10px 2px var(--day-gold-soft);
+  pointer-events: none;
+}
+
+.calendar-legend-chip.calendar-cell-overdue-ring::after {
+  inset: 1px;
+  border-radius: 999px;
+}
+
+.calendar-legend-chip.calendar-cell-gold::before {
+  box-shadow: inset 0 0 0 1.5px var(--day-gold), inset 0 0 6px 1px var(--day-gold-soft);
+}
+
+/* ---- Future due-date markers (days after today only) ---- */
+.calendar-cell-markers {
+  position: absolute;
+  bottom: 0.35rem;
+  left: 0.35rem;
+  right: 0.35rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+}
+
+/* Plain dot: a regular task's deadline lands on this day. */
+.calendar-cell-marker {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex: none;
+  pointer-events: auto;
+}
+
+/* Accented marker: the task would be listed in the Overview's priority summary panel
+   (top N or score ≥ flag threshold). Larger, accent-colored, and a diamond rather than a
+   dot so it stays distinct even for colorblind viewers. */
+.calendar-cell-marker-top {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--accent);
+  transform: rotate(45deg);
+  box-shadow: 0 0 0 1.5px var(--surface);
+}
+
+.calendar-legend-chip .calendar-cell-marker-top {
+  width: 8px;
+  height: 8px;
+  margin: 0 1px;
+}
+
+.calendar-cell-today {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+/* Selected week: a plain neutral ring, no added hue, so it never competes with the
+   red/green/blue/gray day-bucket fills. Thinner (1px) than the "open day" ring below
+   so the two stay visually distinct when a cell is both — the day you just clicked is
+   always inside its own selected week. */
+.calendar-cell-selected-week {
+  box-shadow: 0 0 0 1px var(--text);
+}
+
+.calendar-cell-today.calendar-cell-selected-week {
+  box-shadow: 0 0 0 2px var(--accent), 0 0 0 3px var(--text);
+}
+
+.calendar-cell-open {
+  box-shadow: 0 0 0 2px var(--text);
+}
+
+.calendar-cell-num {
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.calendar-cell-badge {
+  position: absolute;
+  bottom: 0.3rem;
+  right: 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.25rem;
+}
+
+/* A single day's completions, so it takes the sky hue — same one the Daily habit box in
+   the Checklist view uses — and the same washed-card treatment, distinct from the grid's
+   red/green/blue/gray pace colors. The Weekly Accomplishments panel below gets
+   the violet "weekly" hue instead, so the two summaries read as clearly different things. */
+.calendar-day-repo {
+  margin-top: 1rem;
+  background: hsl(var(--daily-h) var(--recurring-body-s) var(--recurring-body-l));
+  border: 1px solid var(--border);
+  border-top: 4px solid hsl(var(--daily-h) var(--recurring-acc-s) var(--recurring-acc-l));
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  position: relative;
+}
+
+.calendar-day-repo-heading {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  padding-right: 1.5rem;
+  color: hsl(var(--daily-h) var(--recurring-acc-s) var(--recurring-acc-l));
+}
+
+.calendar-day-repo-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  font-size: 1rem;
+}
+
+.calendar-day-repo-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.calendar-day-repo-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.calendar-day-repo-item:last-child {
+  border-bottom: none;
+}
+
+.calendar-day-repo-meta {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.calendar-weekly-panel {
+  width: 300px;
+  flex-shrink: 0;
+  background: hsl(var(--weekly-h) var(--recurring-body-s) var(--recurring-body-l));
+  border: 1px solid var(--border);
+  border-top: 4px solid hsl(var(--weekly-h) var(--recurring-acc-s) var(--recurring-acc-l));
+  border-radius: 8px;
+  padding: 0.8rem 0.9rem 0.9rem;
+}
+
+@media (max-width: 900px) {
+  .calendar-layout {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .calendar-weekly-panel {
+    width: 100%;
+  }
+}
+
+.calendar-weekly-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.4rem;
+}
+
+.calendar-weekly-title {
+  margin: 0;
+  font-size: 0.92rem;
+  min-width: 8rem;
+  text-align: center;
+  color: hsl(var(--weekly-h) var(--recurring-acc-s) var(--recurring-acc-l));
+}
+
+.calendar-weekly-thisweek {
+  margin-left: auto;
+}
+
+.calendar-weekly-subhead {
+  margin: 0.7rem 0 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.calendar-weekly-subhead:first-of-type {
+  margin-top: 0;
+}
+
+.calendar-weekly-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.calendar-biggest-win {
+  --p: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 6px;
+  border-left: 3px solid var(--row-accent);
+  background: var(--row-bg);
+}
+
+.calendar-biggest-win-title {
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.calendar-biggest-win-score {
+  font-size: 0.74rem;
+  color: var(--row-accent);
+  font-weight: 700;
+}
+
+@media (max-width: 480px) {
+  .calendar-cell {
+    min-height: 40px;
+  }
+
+  .calendar-cell-num {
+    font-size: 0.7rem;
   }
 }
