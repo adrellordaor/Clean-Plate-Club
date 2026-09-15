@@ -101,6 +101,7 @@ body {
 
 .header-top {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
@@ -110,6 +111,7 @@ body {
 .app-header h1 {
   margin: 0;
   font-size: 1.4rem;
+  white-space: nowrap;
 }
 
 .header-actions {
@@ -906,4 +908,325 @@ body {
   justify-content: flex-end;
   gap: 0.5rem;
   margin-top: 0.5rem;
+}
+
+/* ---- View switch (Matrix / List) ---- */
+[hidden] {
+  display: none !important;
+}
+
+.view-switch {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px;
+  background: var(--bg);
+  margin-left: auto;
+  margin-right: 0.5rem;
+}
+
+.view-switch-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.3rem 0.9rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.view-switch-btn:hover {
+  color: var(--text);
+}
+
+.view-switch-btn.active {
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+/* ---- Matrix / Digest view ---- */
+.matrix-help {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0 0 1rem;
+}
+
+/* auto column for the row-axis labels, then the two quadrant columns */
+.matrix-grid {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto 1fr 1fr;
+  gap: 0.75rem;
+  align-items: stretch;
+}
+
+.matrix-axis {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.matrix-axis-col {
+  padding-bottom: 0.1rem;
+}
+
+.matrix-axis-row {
+  width: 1.4rem;
+  grid-column: 1;
+}
+
+/* Explicit placement (not auto-flow) so the mobile `order` below can never reshuffle the
+   desktop grid: Remember top-left, Do top-right, Backlog bottom-left, Clear bottom-right. */
+.matrix-corner { grid-column: 1; grid-row: 1; }
+.matrix-axis-col-low { grid-column: 2; grid-row: 1; }
+.matrix-axis-col-high { grid-column: 3; grid-row: 1; }
+.matrix-axis-row-high { grid-row: 2; }
+.matrix-axis-row-low { grid-row: 3; }
+.matrix-cell-q2 { grid-column: 2; grid-row: 2; }
+.matrix-cell-q1 { grid-column: 3; grid-row: 2; }
+.matrix-cell-q4 { grid-column: 2; grid-row: 3; }
+.matrix-cell-q3 { grid-column: 3; grid-row: 3; }
+
+.matrix-axis-row span {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  white-space: nowrap;
+}
+
+.matrix-cell {
+  --p: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 180px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--row-accent);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.matrix-cell-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.6rem 0.9rem;
+  background: var(--row-bg-pale);
+  border-bottom: 1px solid var(--border);
+}
+
+.matrix-cell-label {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--row-accent);
+}
+
+.matrix-cell-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.matrix-cell-count {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--row-accent);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 0.5rem;
+  min-width: 1.6rem;
+  text-align: center;
+}
+
+.matrix-cell .empty-hint {
+  padding: 0.75rem 0.9rem;
+}
+
+.matrix-list {
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem 0.6rem 0.6rem;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* Same heat-map as List rows: hue from the quadrant, intensity from priority_score. */
+.matrix-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "title score" "meta score";
+  column-gap: 0.5rem;
+  align-items: center;
+  padding: 0.35rem 0.55rem;
+  border-radius: 6px;
+  border-left: 3px solid var(--row-accent);
+  background: var(--row-bg);
+  cursor: default;
+}
+
+.matrix-item-title {
+  grid-area: title;
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.matrix-item-meta {
+  grid-area: meta;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.matrix-item-meta:empty {
+  display: none;
+}
+
+.matrix-item-score {
+  grid-area: score;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--row-accent);
+}
+
+@media (max-width: 640px) {
+  .matrix-grid {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .matrix-corner, .matrix-axis {
+    display: none;
+  }
+
+  .matrix-cell {
+    min-height: 0;
+  }
+
+  .matrix-cell-q1 { order: 0; }
+  .matrix-cell-q2 { order: 1; }
+  .matrix-cell-q3 { order: 2; }
+  .matrix-cell-q4 { order: 3; }
+}
+
+/* What changed since yesterday */
+.digest {
+  margin-top: 1.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.9rem 1.1rem 1rem;
+}
+
+.digest-heading {
+  margin: 0 0 0.2rem;
+  font-size: 1rem;
+}
+
+.digest-sub {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.digest-list {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.digest-line {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.88rem;
+  padding: 0.3rem 0.4rem;
+  border-radius: 6px;
+}
+
+.digest-line:hover {
+  background: var(--row-hover);
+}
+
+.digest-chip {
+  --p: 1;
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  min-width: 4.6rem;
+  text-align: center;
+  background: var(--row-bg-vivid);
+  color: var(--row-accent);
+}
+
+.digest-chip-neutral {
+  background: var(--badge-recurring-bg);
+  color: var(--badge-recurring-text);
+}
+
+.digest-arrow {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.digest-text {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.digest-title {
+  font-weight: 600;
+}
+
+.digest-context {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.digest-context::before {
+  content: "· ";
+}
+
+.digest-reason {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.digest-reason::before {
+  content: "— ";
+}
+
+@media (max-width: 640px) {
+  .digest-line {
+    flex-wrap: wrap;
+  }
+
+  .digest-text {
+    flex-basis: 100%;
+  }
 }

@@ -236,7 +236,7 @@ function assessTask(task, settings, today) {
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     DEFAULT_SETTINGS, SETTINGS_KEYS, normalizeSettings, IMPORTANCE_SCORES, URGENCY_LEVEL_SCORES,
-    QUADRANTS, localDateString, toLocalDateString, calendarDaysBetween, interpolate,
+    QUADRANTS, localDateString, toLocalDateString, parseLocalDate, calendarDaysBetween, interpolate,
     deadlineUrgencyScore, stalenessUrgencyScore, urgencyLevel, computeUrgency,
     importanceScore, importanceBucket, urgencyBucket, quadrantFor,
     priorityScore, priorityRangeFor, priorityIntensity, assessTask,

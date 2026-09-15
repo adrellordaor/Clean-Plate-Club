@@ -10,7 +10,7 @@ function makeId() {
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-const DATA_VERSION = 3; // v3: adds the settings object (urgency thresholds)
+const DATA_VERSION = 4; // v3: settings object (urgency thresholds); v4: quadrantHistory (daily digest)
 
 // Minimalist outline icons (stroke = currentColor, so they inherit button text color).
 const SVG_ATTRS = 'viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
@@ -29,6 +29,7 @@ let tasks = [];
 let recurringTasks = []; // RecurringTask: singular, resets on schedule, outside the Eisenhower matrix.
 let completionLog = [];  // CompletionLog: one row per recurring-task check-off, feeds future history views.
 let settings = normalizeSettings(null); // Urgency thresholds etc. (see urgency.js); synced with the data file.
+let quadrantHistory = {}; // "YYYY-MM-DD" -> { taskId: quadrantKey }, one end-of-day snapshot per day (see digest.js).
 
 function seedDefaults() {
   categories = [
@@ -46,6 +47,7 @@ function seedDefaults() {
   recurringTasks = [];
   completionLog = [];
   settings = normalizeSettings(null);
+  quadrantHistory = {};
 }
 
 function loadState(data) {
@@ -60,6 +62,7 @@ function loadState(data) {
   recurringTasks = data.recurringTasks || [];
   completionLog = data.completionLog || [];
   settings = normalizeSettings(data.settings); // older files without settings get the defaults
+  quadrantHistory = data.quadrantHistory && typeof data.quadrantHistory === "object" ? data.quadrantHistory : {};
 }
 
 function serializeState() {
@@ -72,11 +75,27 @@ function serializeState() {
     tasks,
     recurringTasks,
     completionLog,
+    quadrantHistory,
   };
 }
 
+// Refreshes today's quadrant snapshot from the live tasks. Returns true if the history
+// changed (new day, or a task moved/entered/left since the last save).
+function recordTodaySnapshot() {
+  return recordQuadrantSnapshot(quadrantHistory, tasks, settings, todayISODate());
+}
+
+// Every save also rewrites today's snapshot, so the last save of the day is that day's
+// end-of-day state — nothing has to be running at midnight for the digest to work.
 function persist() {
+  recordTodaySnapshot();
   storage.save(serializeState());
+}
+
+// For loads and the midnight rollover: only write if the snapshot actually changed, so two
+// synced devices opening the same file don't rewrite it back and forth.
+function persistIfSnapshotChanged() {
+  if (recordTodaySnapshot()) persist();
 }
 
 function makeTask(overrides) {
@@ -172,14 +191,273 @@ function toggleFolderCountDisplay() {
   render();
 }
 
+// ---------- Views ----------
+// "list" is where work happens; "matrix" is the read-only orientation glance. Which one is
+// showing is a per-device preference (like theme), not synced task data.
+
+let activeView = localStorage.getItem("view") === "matrix" ? "matrix" : "list";
+
+function setActiveView(view) {
+  activeView = view === "matrix" ? "matrix" : "list";
+  localStorage.setItem("view", activeView);
+  render();
+}
+
+document.querySelectorAll("#view-switch .view-switch-btn").forEach(btn => {
+  btn.addEventListener("click", () => setActiveView(btn.dataset.view));
+});
+
+function renderViewSwitch() {
+  document.querySelectorAll("#view-switch .view-switch-btn").forEach(btn => {
+    const isActive = btn.dataset.view === activeView;
+    btn.classList.toggle("active", isActive);
+    btn.setAttribute("aria-selected", isActive ? "true" : "false");
+  });
+  const isList = activeView === "list";
+  document.getElementById("list-view").hidden = !isList;
+  document.getElementById("folder-tabs").hidden = !isList;
+  document.getElementById("top-banner").hidden = !isList;
+  document.getElementById("matrix-view").hidden = isList;
+}
+
 // ---------- Rendering ----------
 
 function render() {
+  renderViewSwitch();
   renderCategoryTabs();
   renderTopBanner();
   renderHeatMapLegend();
   renderFolderList();
   renderRecurringSidebar();
+  renderMatrixView();
+}
+
+// ---------- Matrix / Digest view ----------
+// Read-only: no checkboxes, no edit/delete, nothing to click. Only regular Tasks appear;
+// RecurringTasks have no importance/urgency/quadrant and never show up here.
+
+// Grid placement follows the spec table: rows are importance (high on top), columns are
+// urgency (high on the right), so Do sits top-right and Backlog bottom-left. The actual
+// cell positions are pinned in CSS (.matrix-cell-q*), this is just the DOM order.
+const MATRIX_LAYOUT = [QUADRANTS.q2, QUADRANTS.q1, QUADRANTS.q4, QUADRANTS.q3];
+
+function renderMatrixView() {
+  if (activeView !== "matrix") return; // nothing visible to draw; skip the work
+  const today = todayISODate();
+  renderMatrixGrid(today);
+  renderDigest(today);
+}
+
+function renderMatrixGrid(today) {
+  const grid = document.getElementById("matrix-grid");
+  grid.innerHTML = "";
+
+  const byQuadrant = { q1: [], q2: [], q3: [], q4: [] };
+  tasks
+    .filter(t => t.status === "active")
+    .forEach(task => {
+      const assessment = assessTask(task, settings, today);
+      byQuadrant[assessment.quadrant.key].push({ task, assessment });
+    });
+  Object.values(byQuadrant).forEach(list => list.sort((a, b) => b.assessment.priorityScore - a.assessment.priorityScore));
+
+  // Axis labels: corner, two column heads (urgency), then each row's head (importance).
+  grid.appendChild(makeMatrixAxis("matrix-corner", ""));
+  grid.appendChild(makeMatrixAxis("matrix-axis matrix-axis-col matrix-axis-col-low", "Urgency low / medium"));
+  grid.appendChild(makeMatrixAxis("matrix-axis matrix-axis-col matrix-axis-col-high", "Urgency high / critical"));
+
+  MATRIX_LAYOUT.forEach((quadrant, i) => {
+    if (i % 2 === 0) {
+      const high = quadrant.importance === "high";
+      grid.appendChild(makeMatrixAxis(
+        "matrix-axis matrix-axis-row " + (high ? "matrix-axis-row-high" : "matrix-axis-row-low"),
+        high ? "Importance high / critical" : "Importance low / medium"
+      ));
+    }
+    grid.appendChild(renderMatrixCell(quadrant, byQuadrant[quadrant.key]));
+  });
+}
+
+function makeMatrixAxis(className, text) {
+  const el = document.createElement("div");
+  el.className = className;
+  if (text) {
+    const span = document.createElement("span");
+    span.textContent = text;
+    el.appendChild(span);
+  }
+  return el;
+}
+
+function renderMatrixCell(q, entries) {
+  const cell = document.createElement("section");
+  cell.className = "matrix-cell matrix-cell-" + q.key + " quadrant-" + q.key;
+  cell.style.setProperty("--p", "1");
+
+  const header = document.createElement("header");
+  header.className = "matrix-cell-header";
+
+  const label = document.createElement("h2");
+  label.className = "matrix-cell-label";
+  label.textContent = q.label;
+  header.appendChild(label);
+
+  const hint = document.createElement("span");
+  hint.className = "matrix-cell-hint";
+  hint.textContent = (q.importance === "high" ? "important" : "less important") + " · " + (q.urgency === "high" ? "urgent" : "not urgent");
+  header.appendChild(hint);
+
+  const count = document.createElement("span");
+  count.className = "matrix-cell-count";
+  count.textContent = entries.length;
+  header.appendChild(count);
+
+  cell.appendChild(header);
+
+  if (entries.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty-hint";
+    empty.textContent = "Nothing here.";
+    cell.appendChild(empty);
+    return cell;
+  }
+
+  const ul = document.createElement("ul");
+  ul.className = "matrix-list";
+  entries.forEach(({ task, assessment }) => ul.appendChild(renderMatrixItem(task, assessment)));
+  cell.appendChild(ul);
+  return cell;
+}
+
+function renderMatrixItem(task, assessment) {
+  const li = document.createElement("li");
+  li.className = "matrix-item quadrant-" + assessment.quadrant.key;
+  li.style.setProperty("--p", assessment.intensity.toFixed(3));
+  li.title = [
+    "priority " + assessment.priorityScore,
+    "urgency " + assessment.urgency.score + " (" + assessment.urgency.reason + ")",
+    "importance " + task.importance,
+    task.deadline ? "due " + task.deadline : null,
+  ].filter(Boolean).join(" · ");
+
+  const title = document.createElement("span");
+  title.className = "matrix-item-title";
+  title.textContent = task.title;
+  li.appendChild(title);
+
+  const meta = document.createElement("span");
+  meta.className = "matrix-item-meta";
+  meta.textContent = taskContextLabel(task);
+  li.appendChild(meta);
+
+  const score = document.createElement("span");
+  score.className = "matrix-item-score";
+  score.textContent = assessment.priorityScore;
+  li.appendChild(score);
+
+  return li;
+}
+
+// "Folder" for a top-level task, "Folder › Parent" for a subtask.
+function taskContextLabel(task) {
+  const folder = folders.find(f => f.id === task.folder_id);
+  const parent = task.parent_task_id ? tasks.find(t => t.id === task.parent_task_id) : null;
+  return [folder ? folder.name : null, parent ? parent.title : null].filter(Boolean).join(" › ");
+}
+
+function renderDigest(today) {
+  const container = document.getElementById("digest");
+  container.innerHTML = "";
+
+  const digest = buildDigest(quadrantHistory, tasks, settings, today);
+
+  const heading = document.createElement("h2");
+  heading.className = "digest-heading";
+  heading.textContent = "What changed since " + (digest.baseline ? describeBaseline(digest.baseline) : "yesterday");
+  container.appendChild(heading);
+
+  const sub = document.createElement("p");
+  sub.className = "digest-sub";
+
+  if (!digest.baseline) {
+    sub.textContent = "No earlier day to compare against yet. Today's quadrants are saved as you go; changes show up from tomorrow.";
+    container.appendChild(sub);
+    return;
+  }
+
+  const total = digest.moved.length + digest.entered.length + digest.left.length;
+  if (total === 0) {
+    sub.textContent = "No quadrant changes. Everything is where it was at the end of " + digest.baseline.date + ".";
+    container.appendChild(sub);
+    return;
+  }
+
+  sub.textContent = [
+    digest.moved.length ? digest.moved.length + " moved" : null,
+    digest.entered.length ? digest.entered.length + " new" : null,
+    digest.left.length ? digest.left.length + " finished" : null,
+  ].filter(Boolean).join(" · ") + " · compared with the end of " + digest.baseline.date;
+  container.appendChild(sub);
+
+  const ul = document.createElement("ul");
+  ul.className = "digest-list";
+  digest.moved.forEach(change => ul.appendChild(renderDigestLine(change.task, change.from, change.to, change.reason)));
+  digest.entered.forEach(change => ul.appendChild(renderDigestLine(change.task, null, change.to, change.reason)));
+  digest.left.forEach(change => ul.appendChild(renderDigestLine(change.task, change.from, null, change.status === "done" ? "completed" : "dropped")));
+  container.appendChild(ul);
+}
+
+// One line: [from] → [to]  Title · reason. `from` null = entered the matrix, `to` null = left it.
+function renderDigestLine(task, from, to, reason) {
+  const li = document.createElement("li");
+  li.className = "digest-line";
+
+  li.appendChild(makeDigestChip(from, "new"));
+
+  const arrow = document.createElement("span");
+  arrow.className = "digest-arrow";
+  arrow.textContent = "→";
+  arrow.setAttribute("aria-hidden", "true");
+  li.appendChild(arrow);
+
+  li.appendChild(makeDigestChip(to, "done"));
+
+  const text = document.createElement("span");
+  text.className = "digest-text";
+
+  const title = document.createElement("span");
+  title.className = "digest-title";
+  title.textContent = task.title;
+  text.appendChild(title);
+
+  const context = taskContextLabel(task);
+  if (context) {
+    const ctx = document.createElement("span");
+    ctx.className = "digest-context";
+    ctx.textContent = context;
+    text.appendChild(ctx);
+  }
+
+  const why = document.createElement("span");
+  why.className = "digest-reason";
+  why.textContent = (to ? to.label + ": " : "") + reason;
+  text.appendChild(why);
+
+  li.appendChild(text);
+  return li;
+}
+
+function makeDigestChip(quadrant, fallbackText) {
+  const chip = document.createElement("span");
+  if (quadrant) {
+    chip.className = "digest-chip quadrant-" + quadrant.key;
+    chip.style.setProperty("--p", "1");
+    chip.textContent = quadrant.label;
+  } else {
+    chip.className = "digest-chip digest-chip-neutral";
+    chip.textContent = fallbackText;
+  }
+  return chip;
 }
 
 // Top priority banner: top 3-5 tasks by priority_score across ALL folders/categories,
@@ -1243,6 +1521,7 @@ async function applyLoadResult(result) {
   }
   storageGate.classList.add("hidden");
   loadState(result.data);
+  persistIfSnapshotChanged(); // first open of the day: freeze yesterday, start today's snapshot
   render();
   renderStorageBar();
 }
@@ -1273,6 +1552,7 @@ async function syncFromFolder() {
   }
   if (data) {
     loadState(data);
+    persistIfSnapshotChanged();
   }
   render();
 }
@@ -1285,11 +1565,13 @@ window.addEventListener("focus", syncFromFolder);
 setInterval(syncFromFolder, 30000);
 
 // Daily recalculation: urgency is derived from "today" at render time, so a re-render just
-// after local midnight is all it takes for scores, quadrants and tints to roll over.
+// after local midnight is all it takes for scores, quadrants and tints to roll over. The
+// snapshot is refreshed too, so yesterday's entry is left frozen and the digest can diff.
 function scheduleMidnightRender() {
   const now = new Date();
   const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 1);
   setTimeout(() => {
+    persistIfSnapshotChanged();
     render();
     scheduleMidnightRender();
   }, next - now);

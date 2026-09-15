@@ -17,6 +17,10 @@
 <header class="app-header">
   <div class="header-top">
     <h1>Task Tracker</h1>
+    <div id="view-switch" class="view-switch" role="tablist" aria-label="View">
+      <button type="button" class="view-switch-btn" data-view="matrix" role="tab">Matrix</button>
+      <button type="button" class="view-switch-btn" data-view="list" role="tab">List</button>
+    </div>
     <div class="header-actions">
       <button id="settings-btn" class="theme-toggle" type="button" aria-label="Settings" title="Settings"></button>
       <button id="theme-toggle-btn" class="theme-toggle" type="button" aria-label="Toggle dark mode"></button>
@@ -28,21 +32,32 @@
 </header>
 
 <main class="app-main">
-  <div class="toolbar">
-    <div id="heatmap-legend" class="heatmap-legend"></div>
-    <button id="add-category-btn" class="btn btn-secondary">+ Category</button>
-    <button id="add-folder-btn" class="btn btn-secondary">+ Folder</button>
-    <button id="add-task-btn" class="btn btn-primary">+ Task</button>
-  </div>
-
-  <div class="main-layout">
-    <div class="main-column">
-      <div id="folder-list" class="folder-list"></div>
+  <!-- Matrix / Digest view: read-only orientation. Regular Tasks only, nothing to tick off. -->
+  <section id="matrix-view" class="matrix-view" hidden>
+    <div class="matrix-intro">
+      <p class="matrix-help">Where every active task sits right now. Hue is the quadrant, intensity is priority. Tick things off in the List view.</p>
     </div>
-    <aside class="recurring-column">
-      <div id="recurring-weekly" class="recurring-box"></div>
-      <div id="recurring-daily" class="recurring-box"></div>
-    </aside>
+    <div id="matrix-grid" class="matrix-grid"></div>
+    <section id="digest" class="digest" aria-live="polite"></section>
+  </section>
+
+  <div id="list-view">
+    <div class="toolbar">
+      <div id="heatmap-legend" class="heatmap-legend"></div>
+      <button id="add-category-btn" class="btn btn-secondary">+ Category</button>
+      <button id="add-folder-btn" class="btn btn-secondary">+ Folder</button>
+      <button id="add-task-btn" class="btn btn-primary">+ Task</button>
+    </div>
+
+    <div class="main-layout">
+      <div class="main-column">
+        <div id="folder-list" class="folder-list"></div>
+      </div>
+      <aside class="recurring-column">
+        <div id="recurring-weekly" class="recurring-box"></div>
+        <div id="recurring-daily" class="recurring-box"></div>
+      </aside>
+    </div>
   </div>
 </main>
 
@@ -255,6 +270,7 @@
 
 <script src="storage.js"></script>
 <script src="urgency.js"></script>
+<script src="digest.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
