@@ -520,7 +520,11 @@ function renderPriorityCard(entry) {
 }
 
 // ---------- What changed since yesterday ----------
-// Rendering only; the diff itself is buildDigest() in digest.js and is unchanged.
+// Rendering only; the diff itself is buildDigest() in digest.js. Primary (automatic drift)
+// entries are the digest's core purpose and always shown; entered/left tasks sit alongside
+// them since they're a different kind of event, not drift-vs-edit. Secondary entries (a
+// manual edit caused or contributed to the shift) go in a collapsed, de-emphasized section
+// underneath — still there, just out of the way, since you already knew about that edit.
 
 function renderDigest(today) {
   const container = document.getElementById("digest");
@@ -542,7 +546,7 @@ function renderDigest(today) {
     return;
   }
 
-  const total = digest.moved.length + digest.entered.length + digest.left.length;
+  const total = digest.primary.length + digest.secondary.length + digest.entered.length + digest.left.length;
   if (total === 0) {
     sub.textContent = "No quadrant changes. Everything is where it was at the end of " + digest.baseline.date + ".";
     container.appendChild(sub);
@@ -550,18 +554,43 @@ function renderDigest(today) {
   }
 
   sub.textContent = [
-    digest.moved.length ? digest.moved.length + " moved" : null,
+    digest.primary.length ? digest.primary.length + " automatic" : null,
     digest.entered.length ? digest.entered.length + " new" : null,
     digest.left.length ? digest.left.length + " finished" : null,
+    digest.secondary.length ? digest.secondary.length + " from edits" : null,
   ].filter(Boolean).join(" · ") + " · compared with the end of " + digest.baseline.date;
   container.appendChild(sub);
 
-  const ul = document.createElement("ul");
-  ul.className = "digest-list";
-  digest.moved.forEach(change => ul.appendChild(renderDigestLine(change.task, change.from, change.to, change.reason)));
-  digest.entered.forEach(change => ul.appendChild(renderDigestLine(change.task, null, change.to, change.reason)));
-  digest.left.forEach(change => ul.appendChild(renderDigestLine(change.task, change.from, null, change.status === "done" ? "completed" : "dropped")));
-  container.appendChild(ul);
+  const mainCount = digest.primary.length + digest.entered.length + digest.left.length;
+  if (mainCount > 0) {
+    const ul = document.createElement("ul");
+    ul.className = "digest-list";
+    digest.primary.forEach(change => ul.appendChild(renderDigestLine(change.task, change.from, change.to, change.reason)));
+    digest.entered.forEach(change => ul.appendChild(renderDigestLine(change.task, null, change.to, change.reason)));
+    digest.left.forEach(change => ul.appendChild(renderDigestLine(change.task, change.from, null, change.status === "done" ? "completed" : "dropped")));
+    container.appendChild(ul);
+  } else if (digest.secondary.length > 0) {
+    const note = document.createElement("p");
+    note.className = "digest-note";
+    note.textContent = "Nothing shifted purely from time passing today.";
+    container.appendChild(note);
+  }
+
+  if (digest.secondary.length > 0) {
+    const details = document.createElement("details");
+    details.className = "digest-secondary";
+
+    const summary = document.createElement("summary");
+    summary.textContent = digest.secondary.length + " more from edits you made";
+    details.appendChild(summary);
+
+    const ul = document.createElement("ul");
+    ul.className = "digest-list digest-list-secondary";
+    digest.secondary.forEach(change => ul.appendChild(renderDigestLine(change.task, change.from, change.to, change.reason)));
+    details.appendChild(ul);
+
+    container.appendChild(details);
+  }
 }
 
 // One line: [from] → [to]  Title · reason. `from` null = entered the matrix, `to` null = left it.

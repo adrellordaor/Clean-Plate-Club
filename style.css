@@ -1517,6 +1517,44 @@ body {
   content: "— ";
 }
 
+.digest-note {
+  margin: 0.75rem 0 0;
+  font-size: 0.82rem;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+/* Secondary tier (a manual edit caused or contributed to the quadrant shift): collapsed by
+   default and, once opened, visibly quieter than the primary list above — smaller text and
+   reduced opacity — since you were already aware of the edit when you made it. */
+.digest-secondary {
+  margin-top: 0.75rem;
+}
+
+.digest-secondary summary {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.digest-secondary summary:hover {
+  color: var(--text);
+}
+
+.digest-list-secondary {
+  margin-top: 0.5rem;
+  opacity: 0.8;
+}
+
+.digest-list-secondary .digest-line {
+  font-size: 0.8rem;
+}
+
+.digest-list-secondary .digest-reason {
+  font-size: 0.74rem;
+}
+
 @media (max-width: 640px) {
   .digest-line {
     flex-wrap: wrap;

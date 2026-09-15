@@ -10,7 +10,9 @@ function makeId() {
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-const DATA_VERSION = 4; // v3: settings object (urgency thresholds); v4: quadrantHistory (daily digest)
+const DATA_VERSION = 5; // v3: settings object; v4: quadrantHistory (daily digest); v5: quadrantHistory
+// records enriched with deadline/importance/manual_urgent_flag/last_touched_at/priority_score,
+// for the primary (automatic drift) vs secondary (manual edit) digest split
 
 // Minimalist outline icons (stroke = currentColor, so they inherit button text color).
 const SVG_ATTRS = 'viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
@@ -63,6 +65,7 @@ function loadState(data) {
   completionLog = data.completionLog || [];
   settings = normalizeSettings(data.settings); // older files without settings get the defaults
   quadrantHistory = data.quadrantHistory && typeof data.quadrantHistory === "object" ? data.quadrantHistory : {};
+  sanitizeQuadrantHistory(quadrantHistory); // drop any pre-v5 day stored as a bare quadrant-key string
 }
 
 function serializeState() {
