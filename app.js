@@ -192,13 +192,14 @@ function toggleFolderCountDisplay() {
 }
 
 // ---------- Views ----------
-// "list" is where work happens; "matrix" is the read-only orientation glance. Which one is
+// "list" is where work happens; "overview" is the read-only orientation glance. Which one is
 // showing is a per-device preference (like theme), not synced task data.
 
-let activeView = localStorage.getItem("view") === "matrix" ? "matrix" : "list";
+const savedView = localStorage.getItem("view");
+let activeView = savedView === "overview" || savedView === "matrix" ? "overview" : "list"; // "matrix" = pre-rename value
 
 function setActiveView(view) {
-  activeView = view === "matrix" ? "matrix" : "list";
+  activeView = view === "overview" ? "overview" : "list";
   localStorage.setItem("view", activeView);
   render();
 }
@@ -217,7 +218,7 @@ function renderViewSwitch() {
   document.getElementById("list-view").hidden = !isList;
   document.getElementById("folder-tabs").hidden = !isList;
   document.getElementById("top-banner").hidden = !isList;
-  document.getElementById("matrix-view").hidden = isList;
+  document.getElementById("overview-view").hidden = isList;
 }
 
 // ---------- Rendering ----------
@@ -229,235 +230,7 @@ function render() {
   renderHeatMapLegend();
   renderFolderList();
   renderRecurringSidebar();
-  renderMatrixView();
-}
-
-// ---------- Matrix / Digest view ----------
-// Read-only: no checkboxes, no edit/delete, nothing to click. Only regular Tasks appear;
-// RecurringTasks have no importance/urgency/quadrant and never show up here.
-
-// Grid placement follows the spec table: rows are importance (high on top), columns are
-// urgency (high on the right), so Do sits top-right and Backlog bottom-left. The actual
-// cell positions are pinned in CSS (.matrix-cell-q*), this is just the DOM order.
-const MATRIX_LAYOUT = [QUADRANTS.q2, QUADRANTS.q1, QUADRANTS.q4, QUADRANTS.q3];
-
-function renderMatrixView() {
-  if (activeView !== "matrix") return; // nothing visible to draw; skip the work
-  const today = todayISODate();
-  renderMatrixGrid(today);
-  renderDigest(today);
-}
-
-function renderMatrixGrid(today) {
-  const grid = document.getElementById("matrix-grid");
-  grid.innerHTML = "";
-
-  const byQuadrant = { q1: [], q2: [], q3: [], q4: [] };
-  tasks
-    .filter(t => t.status === "active")
-    .forEach(task => {
-      const assessment = assessTask(task, settings, today);
-      byQuadrant[assessment.quadrant.key].push({ task, assessment });
-    });
-  Object.values(byQuadrant).forEach(list => list.sort((a, b) => b.assessment.priorityScore - a.assessment.priorityScore));
-
-  // Axis labels: corner, two column heads (urgency), then each row's head (importance).
-  grid.appendChild(makeMatrixAxis("matrix-corner", ""));
-  grid.appendChild(makeMatrixAxis("matrix-axis matrix-axis-col matrix-axis-col-low", "Urgency low / medium"));
-  grid.appendChild(makeMatrixAxis("matrix-axis matrix-axis-col matrix-axis-col-high", "Urgency high / critical"));
-
-  MATRIX_LAYOUT.forEach((quadrant, i) => {
-    if (i % 2 === 0) {
-      const high = quadrant.importance === "high";
-      grid.appendChild(makeMatrixAxis(
-        "matrix-axis matrix-axis-row " + (high ? "matrix-axis-row-high" : "matrix-axis-row-low"),
-        high ? "Importance high / critical" : "Importance low / medium"
-      ));
-    }
-    grid.appendChild(renderMatrixCell(quadrant, byQuadrant[quadrant.key]));
-  });
-}
-
-function makeMatrixAxis(className, text) {
-  const el = document.createElement("div");
-  el.className = className;
-  if (text) {
-    const span = document.createElement("span");
-    span.textContent = text;
-    el.appendChild(span);
-  }
-  return el;
-}
-
-function renderMatrixCell(q, entries) {
-  const cell = document.createElement("section");
-  cell.className = "matrix-cell matrix-cell-" + q.key + " quadrant-" + q.key;
-  cell.style.setProperty("--p", "1");
-
-  const header = document.createElement("header");
-  header.className = "matrix-cell-header";
-
-  const label = document.createElement("h2");
-  label.className = "matrix-cell-label";
-  label.textContent = q.label;
-  header.appendChild(label);
-
-  const hint = document.createElement("span");
-  hint.className = "matrix-cell-hint";
-  hint.textContent = (q.importance === "high" ? "important" : "less important") + " · " + (q.urgency === "high" ? "urgent" : "not urgent");
-  header.appendChild(hint);
-
-  const count = document.createElement("span");
-  count.className = "matrix-cell-count";
-  count.textContent = entries.length;
-  header.appendChild(count);
-
-  cell.appendChild(header);
-
-  if (entries.length === 0) {
-    const empty = document.createElement("div");
-    empty.className = "empty-hint";
-    empty.textContent = "Nothing here.";
-    cell.appendChild(empty);
-    return cell;
-  }
-
-  const ul = document.createElement("ul");
-  ul.className = "matrix-list";
-  entries.forEach(({ task, assessment }) => ul.appendChild(renderMatrixItem(task, assessment)));
-  cell.appendChild(ul);
-  return cell;
-}
-
-function renderMatrixItem(task, assessment) {
-  const li = document.createElement("li");
-  li.className = "matrix-item quadrant-" + assessment.quadrant.key;
-  li.style.setProperty("--p", assessment.intensity.toFixed(3));
-  li.title = [
-    "priority " + assessment.priorityScore,
-    "urgency " + assessment.urgency.score + " (" + assessment.urgency.reason + ")",
-    "importance " + task.importance,
-    task.deadline ? "due " + task.deadline : null,
-  ].filter(Boolean).join(" · ");
-
-  const title = document.createElement("span");
-  title.className = "matrix-item-title";
-  title.textContent = task.title;
-  li.appendChild(title);
-
-  const meta = document.createElement("span");
-  meta.className = "matrix-item-meta";
-  meta.textContent = taskContextLabel(task);
-  li.appendChild(meta);
-
-  const score = document.createElement("span");
-  score.className = "matrix-item-score";
-  score.textContent = assessment.priorityScore;
-  li.appendChild(score);
-
-  return li;
-}
-
-// "Folder" for a top-level task, "Folder › Parent" for a subtask.
-function taskContextLabel(task) {
-  const folder = folders.find(f => f.id === task.folder_id);
-  const parent = task.parent_task_id ? tasks.find(t => t.id === task.parent_task_id) : null;
-  return [folder ? folder.name : null, parent ? parent.title : null].filter(Boolean).join(" › ");
-}
-
-function renderDigest(today) {
-  const container = document.getElementById("digest");
-  container.innerHTML = "";
-
-  const digest = buildDigest(quadrantHistory, tasks, settings, today);
-
-  const heading = document.createElement("h2");
-  heading.className = "digest-heading";
-  heading.textContent = "What changed since " + (digest.baseline ? describeBaseline(digest.baseline) : "yesterday");
-  container.appendChild(heading);
-
-  const sub = document.createElement("p");
-  sub.className = "digest-sub";
-
-  if (!digest.baseline) {
-    sub.textContent = "No earlier day to compare against yet. Today's quadrants are saved as you go; changes show up from tomorrow.";
-    container.appendChild(sub);
-    return;
-  }
-
-  const total = digest.moved.length + digest.entered.length + digest.left.length;
-  if (total === 0) {
-    sub.textContent = "No quadrant changes. Everything is where it was at the end of " + digest.baseline.date + ".";
-    container.appendChild(sub);
-    return;
-  }
-
-  sub.textContent = [
-    digest.moved.length ? digest.moved.length + " moved" : null,
-    digest.entered.length ? digest.entered.length + " new" : null,
-    digest.left.length ? digest.left.length + " finished" : null,
-  ].filter(Boolean).join(" · ") + " · compared with the end of " + digest.baseline.date;
-  container.appendChild(sub);
-
-  const ul = document.createElement("ul");
-  ul.className = "digest-list";
-  digest.moved.forEach(change => ul.appendChild(renderDigestLine(change.task, change.from, change.to, change.reason)));
-  digest.entered.forEach(change => ul.appendChild(renderDigestLine(change.task, null, change.to, change.reason)));
-  digest.left.forEach(change => ul.appendChild(renderDigestLine(change.task, change.from, null, change.status === "done" ? "completed" : "dropped")));
-  container.appendChild(ul);
-}
-
-// One line: [from] → [to]  Title · reason. `from` null = entered the matrix, `to` null = left it.
-function renderDigestLine(task, from, to, reason) {
-  const li = document.createElement("li");
-  li.className = "digest-line";
-
-  li.appendChild(makeDigestChip(from, "new"));
-
-  const arrow = document.createElement("span");
-  arrow.className = "digest-arrow";
-  arrow.textContent = "→";
-  arrow.setAttribute("aria-hidden", "true");
-  li.appendChild(arrow);
-
-  li.appendChild(makeDigestChip(to, "done"));
-
-  const text = document.createElement("span");
-  text.className = "digest-text";
-
-  const title = document.createElement("span");
-  title.className = "digest-title";
-  title.textContent = task.title;
-  text.appendChild(title);
-
-  const context = taskContextLabel(task);
-  if (context) {
-    const ctx = document.createElement("span");
-    ctx.className = "digest-context";
-    ctx.textContent = context;
-    text.appendChild(ctx);
-  }
-
-  const why = document.createElement("span");
-  why.className = "digest-reason";
-  why.textContent = (to ? to.label + ": " : "") + reason;
-  text.appendChild(why);
-
-  li.appendChild(text);
-  return li;
-}
-
-function makeDigestChip(quadrant, fallbackText) {
-  const chip = document.createElement("span");
-  if (quadrant) {
-    chip.className = "digest-chip quadrant-" + quadrant.key;
-    chip.style.setProperty("--p", "1");
-    chip.textContent = quadrant.label;
-  } else {
-    chip.className = "digest-chip digest-chip-neutral";
-    chip.textContent = fallbackText;
-  }
-  return chip;
+  renderOverview();
 }
 
 // Top priority banner: top 3-5 tasks by priority_score across ALL folders/categories,
@@ -1359,7 +1132,14 @@ const SETTINGS_FIELDS = {
   staleness_medium_days: "setting-staleness-medium",
   staleness_high_days: "setting-staleness-high",
   priority_importance_weight: "setting-priority-weight",
+  quadrant_split_score: "setting-quadrant-split",
+  overview_top_n: "setting-overview-top-n",
+  overview_flag_threshold: "setting-overview-flag",
+  overview_display_mode: "setting-overview-mode",
 };
+
+// Settings read back as a string choice rather than a number.
+const STRING_SETTINGS = new Set(["overview_display_mode"]);
 
 function fillSettingsForm(values) {
   Object.entries(SETTINGS_FIELDS).forEach(([key, inputId]) => {
@@ -1371,13 +1151,15 @@ function fillSettingsForm(values) {
 function readSettingsForm() {
   const values = {};
   Object.entries(SETTINGS_FIELDS).forEach(([key, inputId]) => {
-    values[key] = Number(document.getElementById(inputId).value);
+    const raw = document.getElementById(inputId).value;
+    values[key] = STRING_SETTINGS.has(key) ? raw : Number(raw);
   });
   return values;
 }
 
 function validateSettings(v) {
-  const allNumbers = Object.values(v).every(n => Number.isFinite(n) && n >= 0);
+  const numbers = Object.entries(v).filter(([key]) => !STRING_SETTINGS.has(key)).map(([, n]) => n);
+  const allNumbers = numbers.every(n => Number.isFinite(n) && n >= 0);
   if (!allNumbers) return "All values must be numbers of 0 or more.";
   if (!(v.deadline_low_days >= v.deadline_medium_days && v.deadline_medium_days >= v.deadline_high_days)) {
     return "Deadline days must run low ≥ medium ≥ high (e.g. 14 / 7 / 3).";
@@ -1386,6 +1168,9 @@ function validateSettings(v) {
     return "Staleness days must run low ≤ medium ≤ high (e.g. 3 / 7 / 8).";
   }
   if (v.priority_importance_weight > 1) return "Importance weight is a fraction from 0 to 1.";
+  if (v.quadrant_split_score > 100) return "Quadrant split is a score from 0 to 100.";
+  if (v.overview_flag_threshold > 100) return "Flag threshold is a score from 0 to 100.";
+  if (!Number.isInteger(v.overview_top_n)) return "Top N must be a whole number.";
   return null;
 }
 

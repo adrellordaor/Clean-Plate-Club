@@ -95,6 +95,10 @@ stored).
 | folder_count_display | active |
 | productivity_low_pct | 33 |
 | productivity_high_pct | 66 |
+| quadrant_split_score | 62.5 |
+| overview_top_n | 3 |
+| overview_flag_threshold | 80 |
+| overview_display_mode | scatter |
 
 `last_touched_at` updates whenever the task is edited, commented on, or
 manually "bumped" — this is what lets an important, deadline-less task
@@ -138,9 +142,30 @@ sitting in Remember too long.
 
 The app has three views:
 
-**1. Matrix / Digest view** (orientation, not execution)
-- The 2x2 Eisenhower grid, current snapshot
-- "What changed since yesterday" line(s)
+**1. Overview** (orientation, not execution — renamed from Matrix/Digest)
+- **Primary display: continuous scatter.** Urgency on the x-axis, importance
+  on the y-axis (both 0-100), each task rendered as a dot at its exact
+  coordinates, colored with the same hue+intensity system as the List
+  view's heat-map. Background quadrant regions split at
+  `quadrant_split_score` (default 62.5, the midpoint between the existing
+  Medium(50) and High(75) importance values, reused identically for the
+  urgency axis) — this is the same boundary Phase 4's bucketing already
+  uses, just now stated as an explicit number instead of implied by the
+  Low/Medium vs High/Critical labels.
+  - Layout: Do (top-left), Remember (top-right), Clear (bottom-left),
+    Backlog (bottom-right)
+- **Priority summary panel** (right side): shows top tasks by
+  `priority_score` for the day. Inclusion rule: a task shows if its rank
+  is within `overview_top_n` (default 3), OR its score is ≥
+  `overview_flag_threshold` (default 80), whichever is broader. So 3 tasks
+  scoring 70/60/50 all show (top-3 rule); 5 tasks scoring 90/90/90/80/70
+  show the first four, the 70 is excluded (outside top-3 and below 80).
+- **Display mode toggle** (`overview_display_mode`, default `scatter`):
+  switches between the scatter view above and the quadrant-list style
+  already built (four boxes, tasks listed inside each), same Do/Remember/
+  Clear/Backlog corner layout either way. Both modes are worth keeping,
+  the list is better for scanning within one quadrant.
+- "What changed since yesterday" line(s), unchanged from before
 - Read-only glance, no checking things off here
 
 **2. List view** (primary, where work actually happens)
@@ -182,9 +207,9 @@ The app has three views:
   Checking one off just sets `last_completed_date` and writes a
   CompletionLog row, nothing here touches importance, urgency, or the
   quadrant system, recurring tasks never appear in the heat-map, the top
-  banner, or the Matrix/Digest view.
+  banner, or the Overview.
 
-Typical flow: open app → glance at Matrix/Digest view (10 seconds) → switch
+Typical flow: open app → glance at the Overview (10 seconds) → switch
 to List view → work through tasks with the top banner and heat-map colors
 carrying the same prioritization without needing to re-check the matrix.
 Recurring habits are ticked off separately, in their own boxes, unrelated
@@ -264,7 +289,10 @@ Inbox category) for manual sorting.
    underlying mechanic changed)
 4. Urgency engine + quadrant derivation (read thresholds from Settings, not
    hardcoded); apply as heat-map coloring on List view rows
-5. Matrix/Digest view (2x2 grid) with change-tracking since yesterday
+5. Overview: continuous scatter (urgency × importance, quadrant
+   backgrounds split at quadrant_split_score), priority summary panel
+   (top_n + flag_threshold rule), display-mode toggle to the existing
+   quadrant-list style, with change-tracking since yesterday
 6. Calendar view: color-coded by daily-recurring completion rate, count
    badge for regular task completions, click-through day repository
 7. Polish pass (styling, keyboard shortcuts, quick-capture)

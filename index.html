@@ -18,7 +18,7 @@
   <div class="header-top">
     <h1>Task Tracker</h1>
     <div id="view-switch" class="view-switch" role="tablist" aria-label="View">
-      <button type="button" class="view-switch-btn" data-view="matrix" role="tab">Matrix</button>
+      <button type="button" class="view-switch-btn" data-view="overview" role="tab">Overview</button>
       <button type="button" class="view-switch-btn" data-view="list" role="tab">List</button>
     </div>
     <div class="header-actions">
@@ -32,12 +32,19 @@
 </header>
 
 <main class="app-main">
-  <!-- Matrix / Digest view: read-only orientation. Regular Tasks only, nothing to tick off. -->
-  <section id="matrix-view" class="matrix-view" hidden>
-    <div class="matrix-intro">
+  <!-- Overview: read-only orientation. Regular Tasks only, nothing to tick off. -->
+  <section id="overview-view" class="overview-view" hidden>
+    <div class="overview-toolbar">
       <p class="matrix-help">Where every active task sits right now. Hue is the quadrant, intensity is priority. Tick things off in the List view.</p>
+      <div id="overview-mode" class="view-switch overview-mode" role="tablist" aria-label="Overview display mode"></div>
     </div>
-    <div id="matrix-grid" class="matrix-grid"></div>
+    <div class="overview-layout">
+      <div class="overview-main">
+        <div id="overview-scatter" class="scatter" hidden></div>
+        <div id="matrix-grid" class="matrix-grid" hidden></div>
+      </div>
+      <aside id="overview-panel" class="overview-panel" aria-label="Priority summary"></aside>
+    </div>
     <section id="digest" class="digest" aria-live="polite"></section>
   </section>
 
@@ -244,6 +251,30 @@
         <p class="settings-hint">priority = weight × importance (Low 25 · Medium 50 · High 75 · Critical 100) + (1 − weight) × urgency. 0.5 weighs both equally; the score sets how vivid each row's colour is.</p>
       </fieldset>
 
+      <fieldset class="settings-group">
+        <legend>Overview</legend>
+        <div class="form-row">
+          <label>Quadrant split (0–100)
+            <input type="number" id="setting-quadrant-split" min="0" max="100" step="0.5" required>
+          </label>
+          <label>Priority panel: top N
+            <input type="number" id="setting-overview-top-n" min="0" step="1" required>
+          </label>
+          <label>Priority panel: flag at score ≥
+            <input type="number" id="setting-overview-flag" min="0" max="100" step="1" required>
+          </label>
+        </div>
+        <div class="form-row">
+          <label>Display mode
+            <select id="setting-overview-mode">
+              <option value="scatter">Scatter plot</option>
+              <option value="list">Quadrant lists</option>
+            </select>
+          </label>
+        </div>
+        <p class="settings-hint">The split is the boundary between low and high on both axes (62.5 sits between Medium 50 and High 75), so it decides which quadrant a task belongs to everywhere. The panel lists the top N tasks plus anything at or above the flag score.</p>
+      </fieldset>
+
       <p id="settings-error" class="settings-error" aria-live="polite"></p>
 
       <div class="modal-actions">
@@ -271,6 +302,7 @@
 <script src="storage.js"></script>
 <script src="urgency.js"></script>
 <script src="digest.js"></script>
+<script src="overview.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -16,6 +16,10 @@ const DEFAULT_SETTINGS = Object.freeze({
   priority_importance_weight: 0.5, // 0 = urgency only, 1 = importance only
   productivity_low_pct: 33,
   productivity_high_pct: 66,
+  quadrant_split_score: 62.5,     // 0-100 boundary between the low and high bucket on BOTH axes
+  overview_top_n: 3,              // priority panel: always show at least this many
+  overview_flag_threshold: 80,    // priority panel: and anything scoring at or above this
+  overview_display_mode: "scatter", // "scatter" | "list"
 });
 
 const SETTINGS_KEYS = Object.keys(DEFAULT_SETTINGS);
@@ -23,16 +27,31 @@ const SETTINGS_KEYS = Object.keys(DEFAULT_SETTINGS);
 // Settings that are a 0-1 fraction rather than a day count / percentage.
 const FRACTION_SETTINGS = new Set(["priority_importance_weight"]);
 
+// Settings on a 0-100 score scale (clamped at 100).
+const SCORE_SETTINGS = new Set(["quadrant_split_score", "overview_flag_threshold", "productivity_low_pct", "productivity_high_pct"]);
+
+// Settings that are a choice between fixed strings rather than a number.
+const CHOICE_SETTINGS = Object.freeze({ overview_display_mode: ["scatter", "list"] });
+
 // Fill gaps with defaults and coerce to sane numbers, so an older data file or a
 // hand-edited one can't break the engine.
 function normalizeSettings(raw) {
   const out = {};
   SETTINGS_KEYS.forEach(key => {
+    if (CHOICE_SETTINGS[key]) {
+      const choice = raw ? raw[key] : undefined;
+      out[key] = CHOICE_SETTINGS[key].includes(choice) ? choice : DEFAULT_SETTINGS[key];
+      return;
+    }
     const value = raw && raw[key] !== undefined && raw[key] !== null ? Number(raw[key]) : NaN;
     if (!Number.isFinite(value) || value < 0) {
       out[key] = DEFAULT_SETTINGS[key];
     } else if (FRACTION_SETTINGS.has(key)) {
       out[key] = Math.min(1, value);
+    } else if (SCORE_SETTINGS.has(key)) {
+      out[key] = Math.min(100, value);
+    } else if (key === "overview_top_n") {
+      out[key] = Math.round(value);
     } else {
       out[key] = value;
     }
@@ -167,13 +186,21 @@ function importanceScore(importance) {
   return IMPORTANCE_SCORES[importance] !== undefined ? IMPORTANCE_SCORES[importance] : IMPORTANCE_SCORES.Low;
 }
 
-// Low/Medium -> "low", High/Critical -> "high" — the same bucketing on both axes.
-function importanceBucket(importance) {
-  return importance === "High" || importance === "Critical" ? "high" : "low";
+// Both axes bucket at the same explicit boundary, quadrant_split_score (default 62.5: the
+// midpoint between Medium 50 and High 75, so Low/Medium -> "low" and High/Critical -> "high"
+// for importance). The scatter plot draws its quadrant backgrounds at this exact number,
+// so a dot's hue always matches the region it sits in.
+function splitScore(settings) {
+  const s = settings && Number(settings.quadrant_split_score);
+  return Number.isFinite(s) ? s : DEFAULT_SETTINGS.quadrant_split_score;
 }
 
-function urgencyBucket(level) {
-  return level === "High" || level === "Critical" ? "high" : "low";
+function importanceBucket(importance, settings) {
+  return importanceScore(importance) >= splitScore(settings) ? "high" : "low";
+}
+
+function urgencyBucket(urgencyScore, settings) {
+  return urgencyScore >= splitScore(settings) ? "high" : "low";
 }
 
 function quadrantFor(impBucket, urgBucket) {
@@ -192,15 +219,19 @@ function priorityScore(impScore, urgencyScore, settings) {
 }
 
 // The lowest and highest priority_score a task can have while sitting in this quadrant,
-// given the current weight. Importance buckets are the discrete label scores; urgency
-// buckets are the continuous level ranges (low: 10 up to just under 75, high: 75-100).
+// given the current weight. Importance is the discrete label scores on that side of the
+// split; urgency is the continuous range on that side (low: 10 up to the split, high:
+// split to 100).
 function priorityRangeFor(quadrant, settings) {
-  const imp = quadrant.importance === "high"
-    ? [IMPORTANCE_SCORES.High, IMPORTANCE_SCORES.Critical]
-    : [IMPORTANCE_SCORES.Low, IMPORTANCE_SCORES.Medium];
+  const split = splitScore(settings);
+  const labelScores = Object.values(IMPORTANCE_SCORES);
+  const side = labelScores.filter(s => (quadrant.importance === "high" ? s >= split : s < split));
+  const imp = side.length
+    ? [Math.min(...side), Math.max(...side)]
+    : (quadrant.importance === "high" ? [IMPORTANCE_SCORES.Critical, IMPORTANCE_SCORES.Critical] : [IMPORTANCE_SCORES.Low, IMPORTANCE_SCORES.Low]);
   const urg = quadrant.urgency === "high"
-    ? [URGENCY_LEVEL_SCORES.High, URGENCY_LEVEL_SCORES.Critical]
-    : [URGENCY_LEVEL_SCORES.Low, URGENCY_LEVEL_SCORES.High];
+    ? [Math.min(split, URGENCY_LEVEL_SCORES.Critical), URGENCY_LEVEL_SCORES.Critical]
+    : [Math.min(URGENCY_LEVEL_SCORES.Low, split), split];
   return {
     min: priorityScore(imp[0], urg[0], settings),
     max: priorityScore(imp[1], urg[1], settings),
@@ -222,7 +253,7 @@ function assessTask(task, settings, today) {
   const day = today || localDateString(new Date());
   const urgency = computeUrgency(task, settings, day);
   const impScore = importanceScore(task.importance);
-  const quadrant = quadrantFor(importanceBucket(task.importance), urgencyBucket(urgency.level));
+  const quadrant = quadrantFor(importanceBucket(task.importance, settings), urgencyBucket(urgency.score, settings));
   const priority = priorityScore(impScore, urgency.score, settings);
   return {
     urgency,
@@ -238,7 +269,7 @@ if (typeof module !== "undefined" && module.exports) {
     DEFAULT_SETTINGS, SETTINGS_KEYS, normalizeSettings, IMPORTANCE_SCORES, URGENCY_LEVEL_SCORES,
     QUADRANTS, localDateString, toLocalDateString, parseLocalDate, calendarDaysBetween, interpolate,
     deadlineUrgencyScore, stalenessUrgencyScore, urgencyLevel, computeUrgency,
-    importanceScore, importanceBucket, urgencyBucket, quadrantFor,
+    importanceScore, splitScore, importanceBucket, urgencyBucket, quadrantFor,
     priorityScore, priorityRangeFor, priorityIntensity, assessTask,
   };
 }

@@ -947,11 +947,245 @@ body {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
-/* ---- Matrix / Digest view ---- */
+/* ---- Overview (scatter / quadrant list, priority panel, digest) ---- */
+.overview-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
 .matrix-help {
   font-size: 0.85rem;
   color: var(--text-muted);
-  margin: 0 0 1rem;
+  margin: 0;
+  flex: 1 1 320px;
+}
+
+.overview-mode {
+  margin-right: 0;
+}
+
+.overview-layout {
+  display: flex;
+  gap: 1.25rem;
+  align-items: flex-start;
+}
+
+.overview-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.overview-panel {
+  width: 300px;
+  flex-shrink: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.8rem 0.9rem 0.9rem;
+}
+
+@media (max-width: 900px) {
+  .overview-layout {
+    flex-direction: column;
+  }
+
+  .overview-panel {
+    width: 100%;
+  }
+}
+
+.overview-panel-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+
+.overview-panel-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.overview-panel-rule {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  cursor: help;
+}
+
+.overview-panel-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+/* Same heat-map as everything else: hue from the quadrant, intensity from priority. */
+.priority-card {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 6px;
+  border-left: 3px solid var(--row-accent);
+  background: var(--row-bg);
+}
+
+.priority-card-rank {
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--row-accent);
+}
+
+.priority-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.priority-card-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.priority-card-meta {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.priority-card-score {
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--row-accent);
+}
+
+.overview-panel-rest {
+  margin: 0.6rem 0 0;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+/* Scatter plot */
+.scatter {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.6rem 0.6rem 0.4rem;
+}
+
+.scatter-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  font-family: inherit;
+}
+
+.scatter-region-fill {
+  fill: var(--row-bg-pale);
+}
+
+.scatter-region-label {
+  fill: var(--row-accent);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  /* halo in the surface colour keeps the word legible if a dot drifts close */
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.scatter-split {
+  stroke: var(--text-muted);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+  opacity: 0.55;
+}
+
+.scatter-split-label {
+  fill: var(--text-muted);
+  font-size: 10px;
+  font-style: italic;
+}
+
+.scatter-axis {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.scatter-tick {
+  fill: var(--text-muted);
+  font-size: 10px;
+}
+
+.scatter-axis-title {
+  fill: var(--text-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.scatter-dot-group {
+  cursor: default;
+  outline: none;
+}
+
+.scatter-dot {
+  fill: var(--row-accent);
+  stroke: var(--surface);
+  stroke-width: 1.5;
+  transition: r 0.1s ease;
+}
+
+.scatter-dot-group:hover .scatter-dot,
+.scatter-dot-group:focus .scatter-dot {
+  r: 9;
+  stroke: var(--text);
+}
+
+.scatter-dot-rank {
+  fill: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
+.scatter-legend {
+  margin: 0.4rem 0 0.2rem;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.scatter .empty-hint {
+  text-align: center;
 }
 
 /* auto column for the row-axis labels, then the two quadrant columns */
@@ -983,17 +1217,17 @@ body {
   grid-column: 1;
 }
 
-/* Explicit placement (not auto-flow) so the mobile `order` below can never reshuffle the
-   desktop grid: Remember top-left, Do top-right, Backlog bottom-left, Clear bottom-right. */
+/* Explicit placement (not auto-flow), same corners as the scatter plot: Do top-left,
+   Remember top-right, Clear bottom-left, Backlog bottom-right. */
 .matrix-corner { grid-column: 1; grid-row: 1; }
-.matrix-axis-col-low { grid-column: 2; grid-row: 1; }
-.matrix-axis-col-high { grid-column: 3; grid-row: 1; }
+.matrix-axis-col-high { grid-column: 2; grid-row: 1; }
+.matrix-axis-col-low { grid-column: 3; grid-row: 1; }
 .matrix-axis-row-high { grid-row: 2; }
 .matrix-axis-row-low { grid-row: 3; }
-.matrix-cell-q2 { grid-column: 2; grid-row: 2; }
-.matrix-cell-q1 { grid-column: 3; grid-row: 2; }
-.matrix-cell-q4 { grid-column: 2; grid-row: 3; }
-.matrix-cell-q3 { grid-column: 3; grid-row: 3; }
+.matrix-cell-q1 { grid-column: 2; grid-row: 2; }
+.matrix-cell-q2 { grid-column: 3; grid-row: 2; }
+.matrix-cell-q3 { grid-column: 2; grid-row: 3; }
+.matrix-cell-q4 { grid-column: 3; grid-row: 3; }
 
 .matrix-axis-row span {
   writing-mode: vertical-rl;
