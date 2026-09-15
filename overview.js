@@ -93,7 +93,8 @@ const SCATTER = Object.freeze({
   margin: Object.freeze({ top: 24, right: 18, bottom: 46, left: 92 }),
   inset: 18, // the 0-100 scale stops this far inside the plot edges so edge dots aren't clipped
   dotRadius: 6,
-  summaryDotRadius: 8, // tasks in the priority panel are drawn bigger, with their rank inside
+  summaryDotRadius: 11, // tasks in the priority panel are drawn bigger, with their rank inside
+  haloGap: 4, // gap between a summary dot's edge and its accent-colored halo ring
   clusterRadius: 10, // dots sharing exact coordinates fan out on a ring this far from the point
   labelHeight: 13,
   labelGap: 4, // space between a dot's edge and its title label
@@ -243,6 +244,9 @@ function renderScatterDot(entry, x, y, radius, inSummary) {
     assessment.quadrant.label + " · priority " + assessment.priorityScore,
     "urgency " + assessment.urgency.score + " (" + assessment.urgency.reason + ") · importance " + task.importance,
   ].filter(Boolean).join("\n")));
+  if (inSummary) {
+    g.appendChild(svgEl("circle", { cx: x, cy: y, r: radius + SCATTER.haloGap, class: "scatter-dot-halo" }));
+  }
   g.appendChild(svgEl("circle", { cx: x, cy: y, r: radius, class: "scatter-dot" }));
   if (inSummary) {
     g.appendChild(svgEl("text", { x, y, class: "scatter-dot-rank" }, entry.rank));

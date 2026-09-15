@@ -1027,7 +1027,9 @@ body {
   gap: 0.4rem;
 }
 
-/* Same heat-map as everything else: hue from the quadrant, intensity from priority. */
+/* Same heat-map as everything else: hue from the quadrant, intensity from priority. A
+   soft accent-colored ring + glow echoes the halo drawn around this task's dot in the
+   scatter plot, so the two representations of "this one matters" visually match. */
 .priority-card {
   display: flex;
   align-items: center;
@@ -1036,6 +1038,9 @@ body {
   border-radius: 6px;
   border-left: 3px solid var(--row-accent);
   background: var(--row-bg);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--row-accent) 40%, transparent),
+    0 3px 10px -3px color-mix(in srgb, var(--row-accent) 65%, transparent);
 }
 
 .priority-card-rank {
@@ -1166,6 +1171,16 @@ body {
   transition: r 0.1s ease;
 }
 
+/* Soft accent-colored ring around priority-panel dots, so they read as distinct from a
+   plain size bump alone, even inside a dense cluster. Purely decorative, no interaction. */
+.scatter-dot-halo {
+  fill: none;
+  stroke: var(--row-accent);
+  stroke-width: 2;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
 .scatter-dot-group:hover .scatter-dot,
 .scatter-dot-group:focus .scatter-dot {
   r: 9;
@@ -1174,7 +1189,7 @@ body {
 
 .scatter-dot-rank {
   fill: #fff;
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   text-anchor: middle;
   dominant-baseline: central;
@@ -1194,6 +1209,7 @@ body {
 }
 
 .scatter-label-summary {
+  font-size: 12px;
   font-weight: 700;
 }
 
