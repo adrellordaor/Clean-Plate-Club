@@ -125,6 +125,11 @@ The app has two views, not one combined screen:
   top-level tasks (no `parent_task_id`), never subtasks. Subtask count is a
   documentation-granularity choice, not additional workload, so it must
   never inflate this number.
+- **Subtask completion percentage**: any task with subtasks shows a small
+  progress indicator (e.g. a thin bar or "67%"), computed as completed
+  subtasks ÷ total subtasks, rounded to the nearest whole number. Never
+  shown on tasks with zero subtasks. Purely visual, no setting, no
+  threshold, nothing to configure.
 - **Heat-map coloring**: each task row is tinted by its current quadrant
   (e.g. Do Now = warm/coral, Plan = teal, Quick win = amber, low-priority =
   neutral gray). This carries the matrix concept into the view where you're
