@@ -125,6 +125,10 @@ file in an OneDrive-backed folder.
 **RecurringTask** (no importance/urgency/deadline/quadrant, lives outside
 the Eisenhower matrix, but still assigned to a Folder for grouping)
 - id, folder_id, title, cadence: daily | weekly(+weekday)
+- The weekday for weekly cadence is optional at creation, no forced
+  choice, defaults to Sunday if left empty. This weekday doubles as the
+  task's "do date" equivalent for Now inclusion, see the Now window
+  section, not a separate field.
 - last_completed_date (nullable) — checking it off sets this to today; a
   daily scan compares against today (or the current week, for weekly) and
   unchecks anything whose last_completed_date has lapsed. The task itself
@@ -194,6 +198,8 @@ stored).
 | do_today_urgency_floor | 65 |
 | daily_capacity_points | 6 |
 | calendar_display_mode | pace |
+| weekly_recurring_now_days | 3 |
+| list_display_mode | windows |
 
 `last_touched_at` updates whenever the task is edited, commented on, or
 manually "bumped" — this is what lets an important, deadline-less task
@@ -334,6 +340,11 @@ The app has three views:
   same sidebar column: the Staleness check-ins card (see Daily Digest),
   teal-tiered, its own card rather than folded into the "what changed"
   digest below.
+  - **Expandable into a full priority list**: clicking/expanding the
+    panel opens every active regular Task, not just the top-N, sorted by
+    `priority_score`, scrollable, with basic inline editing. This is a
+    third access point, distinct from both List modes below, "just show
+    me the raw ranking, regardless of window or folder."
 - **Display mode toggle** (`overview_display_mode`, default `scatter`):
   switches between the scatter view above and the quadrant-list style
   already built (four boxes, tasks listed inside each, same tag shown per
@@ -344,6 +355,18 @@ The app has three views:
 - Read-only glance, no checking things off here
 
 **2. List view** (primary, where work actually happens)
+- **Display mode toggle** (`list_display_mode`, default `windows`): the
+  third of three views with this same two-mode pattern
+  (`overview_display_mode`, `calendar_display_mode`). **"windows"** is
+  the Now/Later layout described below. **"full"** is the original
+  folder/category-based list (category tabs, heat-map rows, Recurring
+  habit boxes, everything else in this section as originally specified),
+  kept fully intact as a secondary page, not removed, since Now/Later
+  cards now show nested subtasks too, "full" is no longer required for
+  everyday use, just still available whenever you want the complete
+  folder-organized picture. The Overdue callout stays visible regardless
+  of mode, it's a safety signal, not something that should disappear
+  while browsing "full."
 - Tabs are Categories ("All" plus one per category); within a category tab,
   tasks are grouped into collapsible Folder sections (e.g. "Finances" and
   "Chores" as two sections inside the Errands tab)
@@ -371,15 +394,21 @@ The app has three views:
   *how much*, one formula drives both. Every row also carries the same
   escalating tag (Do Today/Due Today/Overdue) wherever it applies, one
   visual language across the whole app, not something exclusive to Now.
-- **Overdue callout**: separate from the Top banner, since it answers a
-  different question ("act on this exact task right now" vs. "here's
-  today's ranking"). Membership-based, not ranked: a task qualifies if its
+- **Overdue callout**: separate from Now, since it answers a different
+  question ("act on this exact task right now" vs. "here's what you're
+  planning for today"). Membership-based, not ranked: a task qualifies if its
   `deadline` has passed. No new fields or scoring, just a filter on data
   already tracked. A stale, undated task climbing toward "high" urgency
   does not qualify here, staleness alone never reaches critical, only an
   actual missed deadline does. This is the "firefight" window. An
   ad-hoc emergency with no deadline yet is handled by setting `deadline`
   to today, "promote to deadline" in the Now window does exactly this.
+  Takes the visual position the now-removed Top banner used to occupy,
+  and stays minimal/collapsed when nothing is overdue, only claiming that
+  prominent space when it's actually earned it, redundant with sorting
+  Now by Do Date in principle, but worth the dedicated, always-visible
+  slot precisely because you shouldn't have to remember to switch sort
+  modes to notice something overdue with lower priority than the rest.
 - **Now window** (renamed from "Do Today"): the companion "intention"
   window, and the actual replacement for the old manual urgent flag, a
   consolidated view of what you're assigning yourself to tackle today,
@@ -392,6 +421,20 @@ The app has three views:
   once `do_date == today` applies). Together with the Overdue callout,
   these are the two independent windows: one for real consequences, one
   for what you told yourself to get done today.
+  - **RecurringTasks also surface here**, as a filtered view of the same
+    Recurring habit boxes (see Views, "full" List mode below), not a
+    second storage location: daily RecurringTasks always show; weekly
+    ones show when today matches their weekday, or when today is within
+    `weekly_recurring_now_days` (default 3) of the week ending, whichever
+    is true. They participate in none of the scoring/tag system above,
+    no importance, urgency, quadrant, or escalating tag, that isolation
+    from the matrix stays exactly as originally designed, this is purely
+    an additional place they're visible, completion still logs to
+    CompletionLog as before.
+  - **Cards show nested subtasks**, collapsible, same behavior as the
+    original folder-based list. This is what makes the "full" List mode
+    below genuinely optional for everyday use rather than something
+    you're forced back to just to see subtask structure.
   - **Escalating tag, one slot, most severe wins**: **Do Today**
     (`do_date == today`) < **Due Today** (`deadline == today`) <
     **Overdue** (`deadline < today`, still open). Only the most severe
@@ -521,9 +564,6 @@ The app has three views:
   is no longer true. This directly serves the app's founding purpose:
   clearing your fires shouldn't mean the important-but-quiet Plan/Backlog
   items get forgotten by default.
-- **Top banner**: always-visible strip showing the top 3-5 tasks by
-  `priority_score` across all folders, regardless of which folder filter
-  is active, so the highest-priority items are never scrolled out of view.
 - **Recurring habit boxes** (top right, entirely separate from the folder/
   matrix system below): two small boxes, Weekly on top and Daily below it.
   Within each box, RecurringTasks are grouped by Folder, collapsible, the
@@ -674,6 +714,14 @@ productivity view")
 - Later window: membership is simply current live quadrant Plan or
   Backlog, no special case needed, since deprioritizing always forces a
   real quadrant change rather than overriding one
+- Now/Later cards show nested subtasks, and daily/weekly RecurringTasks
+  surface in Now on relevant days (daily always, weekly near week's end
+  or on their assigned weekday), without joining the scoring system
+- List view display-mode toggle (windows/full), same two-mode pattern as
+  Overview and Calendar; "full" keeps the original folder-organized page
+  completely intact as a secondary view
+- Priority summary panel expands into a full scrollable, editable,
+  priority-sorted list of every active task
 - Required deadline on High/Critical importance tasks landing in Plan,
   closing the "important but dateless forever" loophole; do_date defaults
   to the deadline so it surfaces at latest by then
@@ -695,7 +743,6 @@ productivity view")
   `someday_review_days` setting (default 14) so they resurface in the
   weekly review rather than being forgotten
 - Heat-map row coloring in List view, tied to each task's live quadrant
-- Top banner in List view: top 3-5 priority tasks, visible across all folders
 
 ## Backlog (v2+, not in scope now)
 - Bulk import via AI parsing of unstructured pasted text (ongoing API cost
