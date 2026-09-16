@@ -46,6 +46,16 @@
   --day-gold: #e0a616;
   --day-gold-soft: rgba(224, 166, 22, 0.45);
 
+  /* Capacity view: a single neutral hue (magenta-plum, unused anywhere else in the app —
+     nearest neighbor is the weekly-habit violet at 44° away) for a continuous pale->vivid
+     effort/capacity gradient, deliberately not one of Pace's red/green/blue/gold. The
+     overload marker reuses the same hue at a darker, more saturated tone, so "busy" and
+     Pace's "missed something important" (red) can never be mistaken for each other. */
+  --capacity-h: 300;
+  --capacity-s0: 12%;  --capacity-s1: 65%;
+  --capacity-l0: 97%;  --capacity-l1: 82%;
+  --capacity-overload: #7a1f63;
+
   /* Staleness check-in tiers: mild -> medium -> strong, shades of the same teal as the
      Plan quadrant (--h: 173) — an undated task quietly aging is exactly the "important,
      not urgent, don't forget it" case Plan exists for. Light theme deepens and saturates
@@ -118,6 +128,11 @@
   --day-gray-text: #c7c6c0;
   --day-gold: #f0c14b;
   --day-gold-soft: rgba(240, 193, 75, 0.5);
+
+  --capacity-h: 300;
+  --capacity-s0: 10%;  --capacity-s1: 55%;
+  --capacity-l0: 16%;  --capacity-l1: 34%;
+  --capacity-overload: #e07ad0;
 
   --staleness-low-text: #7fb3ac;
   --staleness-medium-text: #52c4b0;
@@ -2552,6 +2567,13 @@ body {
   margin-bottom: 1rem;
 }
 
+/* Pace/Capacity toggle: sits with the nav controls, not pushed to the far right where the
+   legend's own auto margin lives (same override .list-mode uses for the same reason). */
+.calendar-mode {
+  margin-left: 0;
+  margin-right: 0;
+}
+
 .calendar-nav {
   display: flex;
   align-items: center;
@@ -2676,6 +2698,35 @@ body {
   border: 1px dashed var(--border);
 }
 
+/* ---- Capacity view: continuous effort/capacity gradient (--p, 0-1, set per cell in JS),
+   one neutral hue shared by past AND future days alike — deliberately not a discrete
+   red/green/blue/gray bucket like Pace, this is volume, not judgment. ---- */
+.calendar-cell-capacity, .calendar-legend-chip.calendar-cell-capacity {
+  background: hsl(
+    var(--capacity-h)
+    calc(var(--capacity-s0) + (var(--capacity-s1) - var(--capacity-s0)) * var(--p, 0))
+    calc(var(--capacity-l0) + (var(--capacity-l1) - var(--capacity-l0)) * var(--p, 0))
+  );
+  color: var(--text);
+}
+
+/* Overload marker: fires once effort crosses 100% of daily capacity. A ring in Capacity's
+   own hue (not red — see --capacity-overload) so it can never be mistaken for Pace's
+   overdue trigger; they're different claims ("busy" vs. "missed something important"). */
+.calendar-cell-capacity-overload::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border: 2px solid var(--capacity-overload);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.calendar-legend-chip.calendar-cell-capacity-overload::after {
+  inset: 1px;
+  border-radius: 999px;
+}
+
 /* ---- Overlays: independent of the base fill, drawn as pseudo-elements so they never
    compete with the cell's own box-shadow (today / selected week / open / hover rings). ---- */
 
@@ -2752,6 +2803,19 @@ body {
 .calendar-legend-chip .calendar-cell-marker-top {
   width: 8px;
   height: 8px;
+  margin: 0 1px;
+}
+
+/* Weekly RecurringTask marker: a small square in the same violet used everywhere else in
+   the app for "weekly" (the habit box, the Weekly Accomplishments panel) — reusing that
+   hue rather than inventing a new one. Distinct in shape from both the plain deadline dot
+   and the rotated top-priority diamond. Daily habits deliberately get no marker at all. */
+.calendar-cell-marker-recurring {
+  border-radius: 2px;
+  background: hsl(var(--weekly-h) 55% 55%);
+}
+
+.calendar-legend-chip .calendar-cell-marker-recurring {
   margin: 0 1px;
 }
 

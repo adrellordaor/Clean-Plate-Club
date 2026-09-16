@@ -1430,10 +1430,12 @@ const SETTINGS_FIELDS = {
   do_today_urgency_floor: "setting-do-today-floor",
   weekly_recurring_now_days: "setting-weekly-recurring-now",
   list_display_mode: "setting-list-mode",
+  calendar_display_mode: "setting-calendar-mode",
+  daily_capacity_points: "setting-daily-capacity",
 };
 
 // Settings read back as a string choice rather than a number.
-const STRING_SETTINGS = new Set(["overview_display_mode", "list_display_mode"]);
+const STRING_SETTINGS = new Set(["overview_display_mode", "list_display_mode", "calendar_display_mode"]);
 
 function fillSettingsForm(values) {
   Object.entries(SETTINGS_FIELDS).forEach(([key, inputId]) => {
@@ -1476,6 +1478,7 @@ function validateSettings(v) {
   if (!Number.isInteger(v.weekly_recurring_now_days) || v.weekly_recurring_now_days > 6) {
     return "Weekly habits in Now: use a whole number of days from 0 (Sunday only) to 6 (all week).";
   }
+  if (v.daily_capacity_points <= 0) return "Daily capacity must be greater than 0.";
   return null;
 }
 

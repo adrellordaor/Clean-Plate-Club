@@ -159,10 +159,17 @@ function computeDayStats(dateStr, data, settings, today) {
     const upcomingDeadlines = data.tasks
       .filter(t => t.status === "active" && t.deadline === dateStr)
       .map(task => ({ task, top: topIds.has(task.id) }));
+    // Weekly RecurringTasks get a future marker on their scheduled weekday too ("Tuesday is
+    // laundry day" is genuinely informative). Daily ones deliberately don't: a marker on
+    // every single day is constant noise, not information, and they're already surfaced
+    // twice elsewhere (the habit boxes and Now).
+    const upcomingWeeklyRecurring = data.recurringTasks
+      .filter(rt => rt.cadence === "weekly" && recurringScheduledOn(rt, dateStr))
+      .map(task => ({ task, top: false }));
     return {
       date: dateStr, upcoming: true, bucket: CALENDAR_DAY_BUCKETS.upcoming,
       highOverdue: [], lowOverdue: [], due: [], dueCount: 0, doneCount: 0,
-      goldWins: [], regularCompletedCount, upcomingDeadlines,
+      goldWins: [], regularCompletedCount, upcomingDeadlines, upcomingWeeklyRecurring,
     };
   }
 
@@ -192,7 +199,44 @@ function computeDayStats(dateStr, data, settings, today) {
   return {
     date: dateStr, upcoming: false, bucket,
     highOverdue, lowOverdue, due, dueCount, doneCount,
-    goldWins, regularCompletedCount, upcomingDeadlines: [],
+    goldWins, regularCompletedCount, upcomingDeadlines: [], upcomingWeeklyRecurring: [],
+  };
+}
+
+// ---------- Capacity view ----------
+// A day's effort, independent of Pace's red/green/blue/gray judgment — purely "how much
+// volume", so it can render as a continuous gradient rather than a discrete bucket.
+// Quick win = 1 point, "need to tackle" = 2, same weight the List view's sizing already
+// uses. A RecurringTask completion/occurrence is a flat 1, regardless of cadence — they
+// don't carry is_quick_win (they live outside the matrix entirely), so there's no finer
+// signal to weight by.
+function quickWinWeight(task) {
+  return task.is_quick_win ? 1 : 2;
+}
+
+// Past days (and today, live): reads completed_at, regardless of what was planned — a raw
+// "how much did I actually do" volume. Future days: reads do_date, the intended-effort
+// field, not deadline — see the Calendar spec section for why they diverge. Both add a flat
+// 1 point per RecurringTask: completions that day (CompletionLog) for past/today, scheduled
+// occurrences (recurringScheduledOn — daily every day, weekly only its weekday) for future.
+function computeDayCapacity(dateStr, data, settings, today) {
+  const isPast = dateStr <= today;
+  let effort = 0;
+
+  if (isPast) {
+    data.tasks.filter(t => completedDateOf(t) === dateStr).forEach(t => { effort += quickWinWeight(t); });
+    effort += data.completionLog.filter(l => l.completed_date === dateStr).length;
+  } else {
+    data.tasks.filter(t => isPlannedOn(t, dateStr)).forEach(t => { effort += quickWinWeight(t); });
+    effort += data.recurringTasks.filter(rt => recurringScheduledOn(rt, dateStr)).length;
+  }
+
+  const capacity = settings.daily_capacity_points;
+  const ratio = capacity > 0 ? effort / capacity : (effort > 0 ? Infinity : 0);
+  return {
+    date: dateStr, isPast, effort, capacity, ratio,
+    clampedRatio: Math.min(1, ratio),
+    overloaded: ratio > 1,
   };
 }
 
@@ -257,6 +301,14 @@ let calendarOpenDay = null; // "YYYY-MM-DD" whose repository panel is expanded, 
 
 const CALENDAR_WEEKDAY_HEADS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+// calendar_display_mode: "pace" (existing red/green/blue/gray coloring, unchanged) or
+// "capacity" (effort vs. daily_capacity_points, same two-mode pattern as
+// overview_display_mode / list_display_mode).
+const CALENDAR_MODES = [
+  { key: "pace", label: "Pace" },
+  { key: "capacity", label: "Capacity" },
+];
+
 function renderCalendar() {
   if (activeView !== "calendar") return; // nothing visible to draw; skip the work
   const today = todayISODate();
@@ -273,10 +325,39 @@ function renderCalendar() {
   const data = { tasks, folders, recurringTasks, completionLog, plannedHistory, topPriorityIds };
 
   renderCalendarToolbar();
-  renderCalendarLegend();
-  renderCalendarGrid(data, today);
+  renderCalendarModeToggle();
+  if (settings.calendar_display_mode === "capacity") {
+    renderCalendarCapacityLegend();
+    renderCalendarCapacityGrid(data, today);
+  } else {
+    renderCalendarLegend();
+    renderCalendarGrid(data, today);
+  }
   renderCalendarDayRepo(data);
   renderCalendarWeeklyPanel(data, today);
+}
+
+function renderCalendarModeToggle() {
+  const toggle = document.getElementById("calendar-mode");
+  toggle.innerHTML = "";
+  CALENDAR_MODES.forEach(mode => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    const active = settings.calendar_display_mode === mode.key;
+    btn.className = "view-switch-btn" + (active ? " active" : "");
+    btn.setAttribute("role", "tab");
+    btn.setAttribute("aria-selected", active ? "true" : "false");
+    btn.textContent = mode.label;
+    btn.addEventListener("click", () => setCalendarDisplayMode(mode.key));
+    toggle.appendChild(btn);
+  });
+}
+
+function setCalendarDisplayMode(mode) {
+  if (settings.calendar_display_mode === mode) return;
+  settings = normalizeSettings(Object.assign({}, settings, { calendar_display_mode: mode }));
+  persist();
+  render();
 }
 
 function calendarGoToMonth(delta) {
@@ -331,11 +412,13 @@ function renderCalendarLegend() {
     "Big win: a High/Critical-importance task got completed that day"));
 
   const markerChip = makeCalendarLegendChip("", "calendar-day-upcoming",
-    "Upcoming deadline · accented = top priority (top " + topN + " or score ≥ " + threshold + ")");
+    "Upcoming deadline · accented = top priority (top " + topN + " or score ≥ " + threshold + ") · square = weekly habit's scheduled day");
   markerChip.appendChild(makeCalendarMarker(false, null));
   markerChip.appendChild(document.createTextNode(" due "));
   markerChip.appendChild(makeCalendarMarker(true, null));
-  markerChip.appendChild(document.createTextNode(" top"));
+  markerChip.appendChild(document.createTextNode(" top "));
+  markerChip.appendChild(makeCalendarMarker(false, null, true));
+  markerChip.appendChild(document.createTextNode(" weekly"));
   legend.appendChild(markerChip);
 
   const note = document.createElement("span");
@@ -352,16 +435,20 @@ function makeCalendarLegendChip(text, extraClass, hint) {
   return chip;
 }
 
-// A future due-date marker: a plain dot, or the larger accented diamond for a task the
-// Overview's priority panel would list. `task` is null for the legend sample.
-function makeCalendarMarker(top, task) {
+// A future due-date marker: a plain dot, the larger accented diamond for a task the
+// Overview's priority panel would list, or the violet square for a weekly RecurringTask's
+// scheduled day (same hue the habit boxes use for "weekly", elsewhere in the app).
+// `task` is null for the legend sample.
+function makeCalendarMarker(top, task, recurring) {
   const m = document.createElement("span");
-  m.className = "calendar-cell-marker" + (top ? " calendar-cell-marker-top" : "");
-  if (task) m.title = task.title + (top ? " (top priority)" : "");
+  m.className = "calendar-cell-marker" + (top ? " calendar-cell-marker-top" : "") + (recurring ? " calendar-cell-marker-recurring" : "");
+  if (task) m.title = task.title + (top ? " (top priority)" : recurring ? " (weekly)" : "");
   return m;
 }
 
-function renderCalendarGrid(data, today) {
+// Shared month-grid scaffold (weekday heads + leading/trailing blanks) for both display
+// modes; only how each day's cell is built (`cellFn`) differs.
+function renderCalendarGridScaffold(cellFn) {
   const grid = document.getElementById("calendar-grid");
   grid.innerHTML = "";
 
@@ -375,9 +462,13 @@ function renderCalendarGrid(data, today) {
   const dates = daysInMonthArray(calendarMonth.year, calendarMonth.month);
   const firstWeekday = (parseLocalDate(dates[0]).getDay() + 6) % 7; // Monday = 0, matches startOfWeekISODate
   for (let i = 0; i < firstWeekday; i++) grid.appendChild(makeCalendarBlankCell());
-  dates.forEach(dateStr => grid.appendChild(renderCalendarCell(dateStr, data, today)));
+  dates.forEach(dateStr => grid.appendChild(cellFn(dateStr)));
   const trailing = (7 - ((firstWeekday + dates.length) % 7)) % 7;
   for (let i = 0; i < trailing; i++) grid.appendChild(makeCalendarBlankCell());
+}
+
+function renderCalendarGrid(data, today) {
+  renderCalendarGridScaffold(dateStr => renderCalendarCell(dateStr, data, today));
 }
 
 function makeCalendarBlankCell() {
@@ -408,14 +499,16 @@ function renderCalendarCell(dateStr, data, today) {
   num.textContent = String(Number(dateStr.slice(8, 10)));
   cell.appendChild(num);
 
-  if (stats.upcomingDeadlines.length > 0) {
+  if (stats.upcomingDeadlines.length > 0 || stats.upcomingWeeklyRecurring.length > 0) {
     const markers = document.createElement("span");
     markers.className = "calendar-cell-markers";
-    // Top-priority markers first so they stay visible if a crowded day wraps.
+    // Top-priority deadline markers first, then plain deadlines, then weekly habits, so the
+    // most important thing stays visible first if a crowded day wraps.
     stats.upcomingDeadlines
       .slice()
       .sort((a, b) => Number(b.top) - Number(a.top))
       .forEach(({ task, top }) => markers.appendChild(makeCalendarMarker(top, task)));
+    stats.upcomingWeeklyRecurring.forEach(({ task }) => markers.appendChild(makeCalendarMarker(false, task, true)));
     cell.appendChild(markers);
   }
 
@@ -435,6 +528,74 @@ function renderCalendarCell(dateStr, data, today) {
   return cell;
 }
 
+// ---------- Capacity view rendering ----------
+// Same grid scaffold and day-click/day-repo/weekly-panel behavior as Pace; only the fill
+// and markers differ — a continuous effort/capacity gradient instead of a discrete bucket,
+// with no overdue ring, gold glow, or deadline markers, since those all carry the red/green
+// "judgment" this view deliberately avoids.
+
+function renderCalendarCapacityGrid(data, today) {
+  renderCalendarGridScaffold(dateStr => renderCalendarCapacityCell(dateStr, data, today));
+}
+
+function renderCalendarCapacityCell(dateStr, data, today) {
+  const stats = computeDayCapacity(dateStr, data, settings, today);
+  const weekStart = startOfWeekISODate(dateStr);
+
+  const cell = document.createElement("button");
+  cell.type = "button";
+  cell.className = "calendar-cell calendar-cell-capacity" + (stats.overloaded ? " calendar-cell-capacity-overload" : "");
+  cell.style.setProperty("--p", stats.clampedRatio.toFixed(3));
+  if (dateStr === today) cell.classList.add("calendar-cell-today");
+  if (weekStart === calendarSelectedWeekStart) cell.classList.add("calendar-cell-selected-week");
+  if (dateStr === calendarOpenDay) cell.classList.add("calendar-cell-open");
+
+  cell.title = calendarCapacityCellTitle(stats);
+
+  const num = document.createElement("span");
+  num.className = "calendar-cell-num";
+  num.textContent = String(Number(dateStr.slice(8, 10)));
+  cell.appendChild(num);
+
+  const badge = document.createElement("span");
+  badge.className = "calendar-cell-badge";
+  badge.textContent = stats.effort % 1 === 0 ? stats.effort : stats.effort.toFixed(1);
+  cell.appendChild(badge);
+
+  cell.addEventListener("click", () => {
+    calendarSelectedWeekStart = weekStart;
+    calendarOpenDay = calendarOpenDay === dateStr ? null : dateStr;
+    render();
+  });
+
+  return cell;
+}
+
+function calendarCapacityCellTitle(stats) {
+  const pct = Math.round(stats.ratio * 100);
+  const source = stats.isPast ? "completed" : "scheduled (do-date)";
+  return pluralCount(stats.effort, "point") + " " + source + " of " + stats.capacity
+    + " (" + pct + "%)" + (stats.overloaded ? " — over capacity" : "");
+}
+
+function renderCalendarCapacityLegend() {
+  const legend = document.getElementById("calendar-legend");
+  legend.innerHTML = "";
+
+  const gradientChip = makeCalendarLegendChip("Effort ÷ daily capacity", "calendar-cell-capacity",
+    "Pale = little scheduled/done that day, vivid = at capacity. Past/today reads completed_at; future reads do_date.");
+  gradientChip.style.setProperty("--p", "0.85");
+  legend.appendChild(gradientChip);
+
+  legend.appendChild(makeCalendarLegendChip("Overload", "calendar-cell-capacity calendar-cell-capacity-overload",
+    "Effort crossed 100% of daily capacity — a volume flag, not the same red as Pace's overdue trigger"));
+
+  const note = document.createElement("span");
+  note.className = "legend-note";
+  note.textContent = "badge = effort points that day";
+  legend.appendChild(note);
+}
+
 function pluralCount(n, noun) {
   return n + " " + noun + (n === 1 ? "" : "s");
 }
@@ -449,6 +610,9 @@ function calendarCellTitle(stats) {
       ? "Hasn't happened yet"
       : pluralCount(n, "deadline") + (top > 0 ? " (" + top + " top priority)" : "")
         + ": " + stats.upcomingDeadlines.map(d => d.task.title).join(", "));
+    if (stats.upcomingWeeklyRecurring.length > 0) {
+      parts.push("Weekly: " + stats.upcomingWeeklyRecurring.map(d => d.task.title).join(", "));
+    }
     return parts.join(" · ");
   }
 
@@ -629,5 +793,6 @@ if (typeof module !== "undefined" && module.exports) {
     completedDateOf, taskExistedOn, isOverdueOn, isPlannedOn, plannedTaskDone,
     buildPlannedRecord, plannedRecordFor, recurringScheduledOn, recurringDoneFor,
     computeDayStats, completionsOnDay, computeWeekSummary,
+    quickWinWeight, computeDayCapacity,
   };
 }

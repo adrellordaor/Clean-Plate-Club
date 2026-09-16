@@ -66,6 +66,7 @@
         <button type="button" id="calendar-next-btn" class="btn-icon" aria-label="Next month">&rsaquo;</button>
       </div>
       <button type="button" id="calendar-today-btn" class="link-btn">Today</button>
+      <div id="calendar-mode" class="view-switch calendar-mode" role="tablist" aria-label="Calendar display mode"></div>
       <div id="calendar-legend" class="calendar-legend"></div>
     </div>
     <div class="calendar-layout">
@@ -424,6 +425,22 @@
           </label>
         </div>
         <p class="settings-hint">Windows is the everyday Now/Later layout; Full is the complete folder-organized page with category tabs and the habit boxes. Daily habits always appear in Now; a weekly habit appears on its own weekday and once the (Monday-start) week is this many days from ending — 3 means from Thursday on. Habits never join the scoring.</p>
+      </fieldset>
+
+      <fieldset class="settings-group">
+        <legend>Calendar</legend>
+        <div class="form-row">
+          <label>Display mode
+            <select id="setting-calendar-mode">
+              <option value="pace">Pace</option>
+              <option value="capacity">Capacity</option>
+            </select>
+          </label>
+          <label>Daily capacity (points)
+            <input type="number" id="setting-daily-capacity" min="0.5" step="0.5" required>
+          </label>
+        </div>
+        <p class="settings-hint">Pace is the existing red/green/blue/gray coloring. Capacity instead shades each day by effort ÷ this many points: a regular task is worth 1 point as a quick win or 2 as a "need to tackle," a recurring habit completion/occurrence is a flat 1. Past days count what actually got done (completed_at); future days count what's scheduled (do_date). A distinct marker appears once a day crosses 100%.</p>
       </fieldset>
 
       <p id="settings-error" class="settings-error" aria-live="polite"></p>

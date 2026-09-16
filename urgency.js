@@ -26,6 +26,8 @@ const DEFAULT_SETTINGS = Object.freeze({
   // (just above quadrant_split_score, so "planned for today" genuinely lands it in Do/Clear)
   weekly_recurring_now_days: 3,         // Now window: a weekly habit shows once the week's end is this close
   list_display_mode: "windows",         // "windows" (Now/Later) | "full" (the folder-organized page)
+  daily_capacity_points: 6,             // Calendar Capacity view: effort points a day can absorb before "overload"
+  calendar_display_mode: "pace",        // "pace" (existing coloring) | "capacity" (effort vs. daily_capacity_points)
 });
 
 const SETTINGS_KEYS = Object.keys(DEFAULT_SETTINGS);
@@ -40,6 +42,7 @@ const SCORE_SETTINGS = new Set(["quadrant_split_score", "overview_flag_threshold
 const CHOICE_SETTINGS = Object.freeze({
   overview_display_mode: ["scatter", "list"],
   list_display_mode: ["windows", "full"],
+  calendar_display_mode: ["pace", "capacity"],
 });
 
 // Fill gaps with defaults and coerce to sane numbers, so an older data file or a
