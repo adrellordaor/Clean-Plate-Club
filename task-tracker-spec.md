@@ -32,12 +32,72 @@ file in an OneDrive-backed folder.
 - id, folder_id, parent_task_id (nullable — enables nesting)
 - title, notes
 - created_at, last_touched_at
-- deadline (nullable)
+- deadline (nullable) — the real consequence date, drives the urgency
+  engine, Overdue callout, and Calendar Red
+- do_date (nullable) — self-chosen "I intend to tackle this on this day."
+  Set three ways: manually (typed directly, or dragged from the main List
+  view into the Now window, in either case set to today, prompting for a
+  deadline if none exists yet, see Deadline requirement below); once
+  automatically, on the day a task's urgency transitions into the
+  High/Critical bucket (Do or Clear quadrant, whichever importance lands
+  it in, reusing the digest's existing drift-detection); or **defaulted
+  from `deadline`**: whenever a deadline gets set on a task (however it
+  came to be set), `do_date` defaults to that same date unless already set
+  to something else, so a task at minimum surfaces in Now on its deadline
+  day even if never moved earlier.
+  **Rollover**: an incomplete `do_date` task silently advances to the next
+  day, no confirmation needed, this is safe specifically because other
+  independent signals keep surfacing a neglected task regardless: dated
+  tasks keep escalating toward the Overdue callout on their own real
+  schedule, and undated tasks keep getting staleness check-ins on theirs.
+  Critically, **rollover must never update `last_touched_at`**, only a
+  genuine edit should, otherwise it would silently reset the staleness
+  clock every day and quietly disable that safety net. Dragging a task out
+  of the Now window back to the main list clears `do_date` entirely.
+  `do_date == today` applies a floor to that task's computed urgency
+  (`do_today_urgency_floor`, default 65, deliberately set just above
+  `quadrant_split_score` so it actually crosses into the High/Critical
+  urgency bucket, not just raising the continuous score) — moving
+  something into Now is meant to genuinely reclassify it as Do (if high
+  importance) or Clear (if low importance), not just look more urgent
+  while staying in Plan or Backlog. A rolled-over task can simultaneously
+  appear in the Overdue callout if its `deadline` has separately passed,
+  the two are fully independent.
+  Note: `deadline` itself never rolls or changes automatically under any
+  circumstance, only an explicit user action changes it (Evening Review
+  may surface extending one as an option, but never does it silently).
+- is_quick_win: bool — "knock it out" (quick win) vs "need to tackle"
+  sizing, purely a display/organization tag, no effect on scoring. Defaults
+  to true when a task is manually added to Now (dragged or created there
+  directly), false when auto-populated via the urgency-bucket transition
+  above. Toggleable either way from the task's info. Quick-win tasks
+  render as a smaller card in the Now window.
+- **Deadline requirement**: a High/Critical importance task that would
+  otherwise land in Plan (i.e., its urgency isn't already High/Critical
+  through some other means, e.g. staleness reaching "high") must have a
+  `deadline` set, the app blocks saving importance at High/Critical
+  without one. This is the actual fix for the app's founding problem, an
+  important task can no longer sit dateless forever, it forces a real
+  target, even a generous one. Backlog tasks (Low/Medium importance) are
+  exempt, they can stay dateless or carry long deadlines indefinitely,
+  being unimportant is precisely why that's fine. **Backfill**: on first
+  load after this ships, any existing task that already violates the rule
+  (High/Critical importance, no deadline, currently in Plan) surfaces in
+  a one-time backfill list, requiring a deadline be set for each before
+  it can be dismissed, same rule applied retroactively rather than
+  silently grandfathered in.
+- **Now-window deadline prompt** (separate from the requirement above,
+  applies regardless of importance): a task manually added to the Now
+  window without an existing `deadline` prompts to set one, defaulting to
+  today + `deadline_high_days` (reusing the existing setting, no new one
+  needed) but editable before confirming. This is what makes silent
+  `do_date` rollover safe even for a low-importance task, it closes the
+  one gap that would otherwise let something drift in Now with nothing
+  else eventually forcing it to surface.
 - importance: Low | Medium | High | Critical (manual, user-set), mapped to
   25 / 50 / 75 / 100 for scoring purposes. Bucketed as Low/Medium → "Low
   importance" and High/Critical → "High importance" for quadrant placement,
   the same pattern urgency uses.
-- manual_urgent_flag: bool (ad-hoc fire override)
 - status: active | done | dropped
 - completed_at (nullable)
 
@@ -73,7 +133,16 @@ constants — see Settings below.
    - < staleness_low_days → low
    - < staleness_medium_days → medium
    - ≥ staleness_high_days → high (task is "going stale")
-3. **manual_urgent_flag = true:** score forced to 100 regardless of the above.
+3. **do_date = today:** score floored at `do_today_urgency_floor` (default
+   65, just above `quadrant_split_score`), whichever is higher between this
+   and rules 1-2 above. This is deliberate: moving something into Now
+   should genuinely reclassify it as Do or Clear, not just look more
+   urgent while its quadrant stays put. Never lowers a score that's
+   already higher from a real deadline or staleness. This also covers what
+   `manual_urgent_flag` used to handle, "promote to deadline" (deadline =
+   today) already scores at critical (100) via rule 1 above, and stays
+   critical every day it remains overdue, so a separate override flag was
+   redundant.
 
 ## Settings
 
@@ -101,6 +170,7 @@ stored).
 | staleness_reminder_low_days | 7 |
 | staleness_reminder_medium_days | 14 |
 | staleness_reminder_high_days | 28 |
+| do_today_urgency_floor | 65 |
 
 `last_touched_at` updates whenever the task is edited, commented on, or
 manually "bumped" — this is what lets an important, deadline-less task
@@ -121,7 +191,7 @@ is this a priority" rather than "how much"):
 
 | Importance \ Urgency | Low/Medium | High/Critical |
 |---|---|---|
-| **High/Critical** | Remember | Do |
+| **High/Critical** | Plan | Do |
 | **Low/Medium** | Backlog | Clear |
 
 Quadrant and priority_score are both derived, not stored, recalculated
@@ -136,16 +206,19 @@ cost, works offline. Two parts:
    against different snapshot pairs since the digest is meant to be
    checked first thing each morning, before any edits happen that day.
    Keep a rolling window of the last 2-3 daily snapshots (not unbounded
-   history), each recording `deadline`, `importance`, `manual_urgent_flag`,
-   `last_touched_at`, quadrant, and `priority_score` per task.
+   history), each recording `deadline`, `importance`, `last_touched_at`,
+   quadrant, and `priority_score` per task (`do_date` is deliberately
+   excluded here, its changes are often automatic via silent rollover or
+   auto-population, including it would falsely classify an ordinary day as
+   "you edited this").
    - **Primary (automatic drift)**: today's live computed values vs.
-     yesterday's stored snapshot. Quadrant/score shifted while all four
-     fields are unchanged, meaning the shift came purely from time
+     yesterday's stored snapshot. Quadrant/score shifted while all fields
+     are unchanged, meaning the shift came purely from time
      passing overnight. This is the digest's core purpose, shown
      prominently with a one-line reason (e.g. "Do: deadline in 2 days" /
-     "Remember: untouched 9 days").
+     "Plan: untouched 9 days").
    - **Secondary (what you edited yesterday)**: yesterday's snapshot vs.
-     the day-before-yesterday's snapshot. Any of the four fields differ,
+     the day-before-yesterday's snapshot. Any of the three fields differ,
      meaning you made an edit during yesterday's session. Comparing
      today's live values against yesterday's snapshot would miss this
      entirely, yesterday's snapshot already bakes the edit in, so this
@@ -160,7 +233,7 @@ an edit, or a finish is, and on a heavy capture day it drowned out the
 actual drift signal the digest exists to surface.
 
 Weekly digest = same idea, rolled up: what's trending toward Do, what's been
-sitting in Remember too long. Same primary/secondary split applies.
+sitting in Plan too long. Same primary/secondary split applies.
 
 **Staleness check-ins** (undated tasks only, softer tone than the drift
 tiers above, own card in the Overview sidebar underneath the Priority
@@ -183,9 +256,9 @@ cadence for scoring purposes, not display):
 - `staleness_reminder_low_days` (7) → mild teal
 - `staleness_reminder_medium_days` (14) → medium teal
 - `staleness_reminder_high_days` (28) → strong teal
-Teal specifically because it's the Remember quadrant's hue: an undated
+Teal specifically because it's the Plan quadrant's hue: an undated
 task quietly aging is exactly the "important, not urgent, don't forget it"
-case Remember exists for. The reminder still fires every
+case Plan exists for. The reminder still fires every
 `staleness_reminder_interval_days`, the color just reflects which of these
 three bands the task currently sits in at the time it fires.
 
@@ -203,7 +276,7 @@ The app has three views:
   urgency axis) — this is the same boundary Phase 4's bucketing already
   uses, just now stated as an explicit number instead of implied by the
   Low/Medium vs High/Critical labels.
-  - Layout: Do (top-left), Remember (top-right), Clear (bottom-left),
+  - Layout: Do (top-left), Plan (top-right), Clear (bottom-left),
     Backlog (bottom-right)
 - **Priority summary panel** (right side): shows top tasks by
   `priority_score` for the day. Inclusion rule: a task shows if its rank
@@ -216,7 +289,7 @@ The app has three views:
   into the "what changed" digest below.
 - **Display mode toggle** (`overview_display_mode`, default `scatter`):
   switches between the scatter view above and the quadrant-list style
-  already built (four boxes, tasks listed inside each), same Do/Remember/
+  already built (four boxes, tasks listed inside each), same Do/Plan/
   Clear/Backlog corner layout either way. Both modes are worth keeping,
   the list is better for scanning within one quadrant.
 - "What changed since yesterday" line(s), unchanged from before
@@ -239,7 +312,7 @@ The app has three views:
   subtasks ÷ total subtasks, rounded to the nearest whole number. Never
   shown on tasks with zero subtasks. Purely visual, no setting, no
   threshold, nothing to configure.
-- **Heat-map coloring**: hue is set by quadrant (Do = red family, Remember =
+- **Heat-map coloring**: hue is set by quadrant (Do = red family, Plan =
   teal, Clear = amber, Backlog = gray), and saturation/
   lightness within that hue is set continuously by `priority_score`, low
   score → pale, high score → vivid. One task barely qualifying as "Do"
@@ -251,11 +324,58 @@ The app has three views:
 - **Overdue callout**: separate from the Top banner, since it answers a
   different question ("act on this exact task right now" vs. "here's
   today's ranking"). Membership-based, not ranked: a task qualifies if its
-  `deadline` has passed, or `manual_urgent_flag` is true. No new fields or
-  scoring, just a filter on data already tracked. A stale, undated task
-  climbing toward "high" urgency does not qualify here, staleness alone
-  never reaches critical, only an actual missed deadline or a declared
-  fire does.
+  `deadline` has passed. No new fields or scoring, just a filter on data
+  already tracked. A stale, undated task climbing toward "high" urgency
+  does not qualify here, staleness alone never reaches critical, only an
+  actual missed deadline does. This is the "firefight" window. An
+  ad-hoc emergency with no deadline yet is handled by setting `deadline`
+  to today, "promote to deadline" in the Now window does exactly this.
+- **Now window** (renamed from "Do Today"): the companion "intention"
+  window, membership-based on `do_date == today` and not yet completed,
+  fully independent of `priority_score` ranking for *membership* (though
+  the floor above does feed the score once a task is in). Together with
+  the Overdue callout, these are the two independent windows: one for
+  real consequences, one for what you told yourself to get done today.
+  - **Auto-population**: any task whose urgency transitions into the
+    High/Critical bucket (landing it in Do or Clear, whichever importance
+    dictates) gets `do_date` set to today automatically, once, on the
+    transition day (see the Data Model note on `do_date`). This is the
+    payoff of the matrix actually informing your daily plan rather than
+    sitting separate from it.
+  - **Sorting and view toggle**: a sort-key control offers Priority
+    (`priority_score`, default), Urgency, Importance, or Quick Win
+    (`is_quick_win` true surfaces first, `priority_score` as the
+    secondary tiebreak within each group), tasks re-sort by whichever is
+    selected, all values already exist, no new computation needed. A
+    separate toggle switches between a flat sorted list and the existing
+    by-folder grouping, same pattern as `overview_display_mode`.
+  - **Drag-and-drop**: dragging a task from the main List view into Now
+    sets `do_date` to today (applying the urgency floor, which now
+    reclassifies it into Do or Clear; prompts for a deadline first if none
+    exists, see Now-window deadline prompt). Dragging a task out of Now
+    back to the main list clears `do_date` entirely (removing the floor,
+    since it only applies when `do_date == today`).
+  - **Promote to deadline**: a checkbox on any Now task sets `deadline`
+    to today, "I really can't miss this one." No new logic needed here,
+    the existing urgency engine already scores a 0-days-out deadline at
+    critical (100), so this naturally bumps `priority_score` through the
+    mechanism that already exists.
+  - **Quick-win sizing**: see `is_quick_win` in the Data Model, renders as
+    a smaller card for quick wins.
+- **Later window** (renamed from "Remember"): the long-view counterpart
+  to Now, aggregating Plan (important, not yet urgent) and Backlog
+  (unimportant) tasks together, both are genuinely "not needed today,"
+  just for different reasons. Same sort-key control as Now (Priority/
+  Urgency/Importance/Quick Win), useful here specifically for spotting
+  the biggest Plan items by Importance or what's creeping closest to
+  urgent by Urgency. Tasks render with their own existing quadrant hue
+  (teal for
+  Plan-origin, gray for Backlog-origin), this window doesn't invent a new
+  color scheme, it's a filtered aggregate view of data that already
+  exists elsewhere. Now vs. Later: act on these now, versus don't lose
+  track of these. Renders side by side with Now, both narrower by
+  default; either can be focused/expanded to take more width than the
+  other.
 - **Top banner**: always-visible strip showing the top 3-5 tasks by
   `priority_score` across all folders, regardless of which folder filter
   is active, so the highest-priority items are never scrolled out of view.
@@ -281,24 +401,44 @@ to that prioritization flow.
 productivity view")
 - Monthly grid, one cell per day
 - **Color reflects overall pace**, not just habits, in strict priority
-  order (matches the override pattern already used for
-  manual_urgent_flag):
+  order (matches the override pattern used elsewhere, e.g. the do_date
+  urgency floor):
   1. **Red**: something **High/Critical importance** is overdue as of
      that day — a regular task bucketed High importance (same bucket as
      quadrant placement) with a `deadline` before that day that was still
      open past it (`completed_at` null or later). A Low/Medium importance
      overdue task does not trigger this, see the ring indicator below
-     instead.
-  2. **Green**: nothing High-importance overdue, and everything due that
-     day (RecurringTasks scheduled that day, plus regular Tasks with
-     `deadline` exactly that day) got done.
+     instead. This is purely about `deadline` (real consequences),
+     `do_date` has no role in Red.
+  2. **Green**: nothing High-importance overdue, and everything *planned*
+     for that day (RecurringTasks scheduled that day, plus regular Tasks
+     with `do_date` exactly that day) got done. Note this uses `do_date`,
+     not `deadline` — a self-chosen task with no deadline at all still
+     counts as "planned," fixing the earlier flaw where a day full of
+     completed undated tasks (gym, cleaning, chores) would incorrectly
+     render Gray since nothing had a real due date that day.
   3. **Blue**: nothing High-importance overdue, but only some of what was
-     due got done.
-  4. **Gray**: nothing was due at all that day, same "no obligation, not a
-     failure" principle as before.
-  All of this is derived live from existing fields (deadline,
-  completed_at, cadence, importance), no new snapshot storage needed, even
-  for past days.
+     planned (by the same `do_date` definition) got done.
+  4. **Gray**: nothing was planned at all that day, same "no obligation,
+     not a failure" principle as before.
+  Red and the overdue ring stay fully live-computed always, `deadline`
+  never changes retroactively so there's nothing to freeze there. Green/
+  Blue/Gray for **today** are also computed live. But for **any past day**,
+  computing "planned" live from each task's *current* `do_date` breaks
+  once rollover exists: a task planned yesterday that wasn't finished
+  rolls its `do_date` forward to today, so a live recompute of yesterday
+  would show it as never having been planned at all, quietly turning an
+  honest Blue day into Green or Gray after the fact. To prevent the
+  calendar from rewriting its own history, freeze each day's planned set
+  once, right before daily maintenance rolls incomplete `do_date`s
+  forward: record which regular Tasks had `do_date` equal to that day and
+  whether each was completed by day's end, plus which RecurringTasks were
+  scheduled that day and completed. This is a permanent, append-only
+  per-day record (unlike the digest's short 2-3 day rolling window, this
+  one persists indefinitely since the calendar can be viewed for any past
+  month), captured for free at the exact moment daily maintenance already
+  runs, no separate process needed. Once frozen, a day's color never
+  changes again regardless of what happens to `do_date` afterward.
 - **Overdue ring** (independent overlay, separate from the base fill
   color): a thin outline on the cell when a Low/Medium importance task is
   overdue as of that day, without forcing Red. Keeps minor overdue items
@@ -339,8 +479,19 @@ productivity view")
 - Recurring habit checklist (Daily/Weekly boxes, separate from the matrix):
   tasks reset rather than pile up, with a completion fraction and history
   log
-- Manual urgent flag for true ad-hoc fires
-- Deadline field with the dynamic urgency engine above
+- Deadline field with the dynamic urgency engine above (also covers
+  ad-hoc fires, "promote to deadline" sets it to today)
+- do_date field (separate from deadline) and the Now window: auto-
+  populated from the Do/Clear quadrants (harsher urgency bucket, both
+  count now) plus your own manual additions, priority-sorted with a
+  flat/by-folder toggle, drag-and-drop in and out (now reclassifying
+  quadrant, not just score), silent daily rollover, a checkbox to promote
+  to a real deadline, and quick-win vs. need-to-tackle sizing
+- Later window: aggregates Plan and Backlog quadrant tasks, the
+  long-view counterpart to Now
+- Required deadline on High/Critical importance tasks landing in Plan,
+  closing the "important but dateless forever" loophole; do_date defaults
+  to the deadline so it surfaces at latest by then
 - Quick-capture box (frictionless add, sort later)
 - Daily digest (snapshot + quadrant changes)
 - Weekly digest (trend view)
@@ -348,8 +499,10 @@ productivity view")
 - Calendar view: pace-based coloring across all tasks (not just habits),
   gold glow for big wins, count badge, click-through repository, and a
   Weekly Accomplishments panel (highlights, never a score)
-- Evening review: incomplete tasks require a conscious choice to roll to
-  tomorrow, drop, or push to Someday/Maybe — never a silent auto-carry
+- Evening review: no longer gates `do_date` rollover (that's now silent,
+  see Data Model), instead flags Now-window tasks that have rolled over
+  repeatedly, and can surface extending a deadline as an option, never
+  automatically, on tasks that are overdue but still relevant
 - Someday/Maybe list: undated, low-importance tasks that age via the same
   staleness engine as any other undated task, using a separate
   `someday_review_days` setting (default 14) so they resurface in the
@@ -376,7 +529,8 @@ One task per line, with optional inline tags parsed mechanically (no AI
 call, no ongoing cost):
 - `#folder` — assigns folder (and its parent category)
 - `@friday` / `@2026-10-01` — sets deadline
-- `!` — sets manual_urgent_flag
+- `!` — sets `deadline` to today (the ad-hoc-fire equivalent, since the
+  separate urgent flag was removed, see Urgency Engine)
 Unrecognized lines still import as plain tasks in an Inbox folder (under an
 Inbox category) for manual sorting.
 

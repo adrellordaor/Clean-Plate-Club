@@ -22,6 +22,8 @@ const DEFAULT_SETTINGS = Object.freeze({
   staleness_reminder_low_days: 7,       // check-in color tier: mild at/above this many days
   staleness_reminder_medium_days: 14,   // check-in color tier: medium at/above this many days
   staleness_reminder_high_days: 28,     // check-in color tier: strong at/above this many days
+  do_today_urgency_floor: 65,           // Now window: a task with do_date == today scores at least this
+  // (just above quadrant_split_score, so "planned for today" genuinely lands it in Do/Clear)
 });
 
 const SETTINGS_KEYS = Object.keys(DEFAULT_SETTINGS);
@@ -30,7 +32,7 @@ const SETTINGS_KEYS = Object.keys(DEFAULT_SETTINGS);
 const FRACTION_SETTINGS = new Set(["priority_importance_weight"]);
 
 // Settings on a 0-100 score scale (clamped at 100).
-const SCORE_SETTINGS = new Set(["quadrant_split_score", "overview_flag_threshold"]);
+const SCORE_SETTINGS = new Set(["quadrant_split_score", "overview_flag_threshold", "do_today_urgency_floor"]);
 
 // Settings that are a choice between fixed strings rather than a number.
 const CHOICE_SETTINGS = Object.freeze({ overview_display_mode: ["scatter", "list"] });
@@ -160,11 +162,27 @@ function pluralDays(n) {
 
 // Returns { score (0-100 integer), level, basis, days, reason }.
 // `today` is a "YYYY-MM-DD" string so callers (and tests) can pin the date.
+//
+// basis is "deadline" or "staleness" for the two real paths, or "do_date" when the Now
+// window floor (below) is what set the score. There is no manual override any more: an
+// ad-hoc fire is expressed by setting deadline to today, which the deadline path already
+// scores at Critical (100) and keeps there for as long as it stays overdue.
 function computeUrgency(task, settings, today) {
-  if (task.manual_urgent_flag) {
-    return { score: 100, level: "Critical", basis: "manual", days: null, reason: "flagged urgent" };
-  }
+  const base = baseUrgency(task, settings, today);
 
+  // Now window floor: a task planned for today (do_date == today) scores at least
+  // do_today_urgency_floor, which sits just above quadrant_split_score so the task genuinely
+  // reclassifies into Do (high importance) or Clear (low importance) rather than merely
+  // looking more urgent while staying in Plan/Backlog. Never lowers a real score.
+  const floor = Number(settings.do_today_urgency_floor);
+  if (task.do_date && task.do_date === today && Number.isFinite(floor) && floor > base.score) {
+    const score = Math.round(floor);
+    return { score, level: urgencyLevel(score), basis: "do_date", days: base.days, reason: "planned for today" };
+  }
+  return base;
+}
+
+function baseUrgency(task, settings, today) {
   if (task.deadline) {
     const days = calendarDaysBetween(today, task.deadline);
     const raw = deadlineUrgencyScore(days, settings);
@@ -270,7 +288,7 @@ if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     DEFAULT_SETTINGS, SETTINGS_KEYS, normalizeSettings, IMPORTANCE_SCORES, URGENCY_LEVEL_SCORES,
     QUADRANTS, localDateString, toLocalDateString, parseLocalDate, calendarDaysBetween, interpolate,
-    deadlineUrgencyScore, stalenessUrgencyScore, urgencyLevel, computeUrgency,
+    deadlineUrgencyScore, stalenessUrgencyScore, urgencyLevel, computeUrgency, baseUrgency,
     importanceScore, splitScore, importanceBucket, urgencyBucket, quadrantFor,
     priorityScore, priorityRangeFor, priorityIntensity, assessTask,
   };

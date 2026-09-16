@@ -23,24 +23,26 @@ const HISTORY_KEEP_DAYS = 2; // keeps today + the 2 days before it: exactly what
 // Order used when listing quadrants in the digest: most actionable first.
 const QUADRANT_RANK = { q1: 0, q2: 1, q3: 2, q4: 3 };
 
-// The four raw fields that can cause a manual quadrant shift, in the shape both a live task
+// The three raw fields that can cause a manual quadrant shift, in the shape both a live task
 // and a stored snapshot record share, so the two can be compared field-for-field.
+// do_date is deliberately NOT here: it changes automatically (silent daily rollover, Now
+// window auto-population), so comparing it would make an ordinary day read as "you edited
+// this". Records saved by older versions may still carry a manual_urgent_flag key; it is
+// simply ignored.
 function snapshotFieldsFor(task) {
   return {
     deadline: task.deadline || null,
     importance: task.importance,
-    manual_urgent_flag: !!task.manual_urgent_flag,
     last_touched_at: task.last_touched_at || null,
   };
 }
 
-// True when the task's deadline, importance, urgent flag, or last-touched time differ
-// between `a` and `b` — the four inputs a quadrant shift can be traced back to. `a` and `b`
-// are each either a live task or a stored snapshot record; both shapes carry the same fields.
+// True when the task's deadline, importance, or last-touched time differ between `a` and
+// `b` — the three inputs a quadrant shift can be traced back to. `a` and `b` are each either
+// a live task or a stored snapshot record; both shapes carry the same fields.
 function fieldsDiffer(a, b) {
   return (a.deadline || null) !== (b.deadline || null)
     || a.importance !== b.importance
-    || !!a.manual_urgent_flag !== !!b.manual_urgent_flag
     || (a.last_touched_at || null) !== (b.last_touched_at || null);
 }
 
@@ -128,8 +130,8 @@ function findDigestBaseline(history, today) {
 }
 
 // One-line reason for a task's quadrant change, built from what moved: the importance
-// bucket (a manual edit) and/or the urgency bucket (the engine, or a deadline/flag edit).
-// The urgency reason is the live one ("due in 2 days", "untouched 9 days", "flagged urgent").
+// bucket (a manual edit) and/or the urgency bucket (the engine, or a deadline edit).
+// The urgency reason is the live one ("due in 2 days", "untouched 9 days", "planned for today").
 // Used for the primary tier and for newly-entered tasks, both of which compare against a
 // LIVE assessment of the task right now.
 function describeQuadrantChange(fromKey, task, assessment) {
@@ -148,7 +150,7 @@ function describeQuadrantChange(fromKey, task, assessment) {
 // One-line reason for the secondary tier, reconstructed purely from two stored snapshot
 // records (yesterday's vs. the day before). There's no "live" task to recompute urgency
 // from here — this is a look back at a day that's already over — so the reason is built
-// straight from which of the four raw fields differ between the two records.
+// straight from which of the three raw fields differ between the two records.
 function describeStoredEdit(fromRecord, toRecord) {
   const parts = [];
   if (fromRecord.importance !== toRecord.importance) {
@@ -156,9 +158,6 @@ function describeStoredEdit(fromRecord, toRecord) {
   }
   if ((fromRecord.deadline || null) !== (toRecord.deadline || null)) {
     parts.push(toRecord.deadline ? "deadline set to " + toRecord.deadline : "deadline cleared");
-  }
-  if (!!fromRecord.manual_urgent_flag !== !!toRecord.manual_urgent_flag) {
-    parts.push(toRecord.manual_urgent_flag ? "flagged urgent" : "urgent flag cleared");
   }
   if (parts.length === 0) {
     // Only last_touched_at differs: an edit, a bump, or a check/uncheck that didn't change
@@ -173,7 +172,7 @@ function describeStoredEdit(fromRecord, toRecord) {
 // { baseline, priorBaseline, primary, secondary, entered, left }; every list is sorted
 // most-actionable-first.
 //   primary:   today's live values vs. yesterday's snapshot (`baseline`). Quadrant shifted
-//              with deadline/importance/flag/last_touched_at all unchanged since yesterday
+//              with deadline/importance/last_touched_at all unchanged since yesterday
 //              — automatic drift, the digest's core purpose.
 //              { task, from, to, reason, sortScore }
 //   secondary: yesterday's snapshot (`baseline`) vs. the day-before-yesterday's snapshot
@@ -316,6 +315,32 @@ function buildStalenessCheckIns(history, tasks, settings, today) {
   return checkIns;
 }
 
+// ---------- Now window auto-population ----------
+// Reuses the drift snapshots above to spot the day a task's urgency crosses into the
+// High/Critical bucket (landing it in Do or Clear). The "last recorded" state of a task is
+// today's own snapshot record when one exists (the app was already opened today), otherwise
+// the nearest earlier day's — which is exactly what makes this fire once: after the first
+// save of the day today's record already shows the task in Do/Clear, and a task dragged back
+// out of Now rewrites today's record as Plan/Backlog, so neither gets re-added later the same
+// day. A task with no record at all (created today) hasn't transitioned from anything.
+// Returns { task, from, to } for each active task that crossed, live-assessed with `settings`.
+function findUrgencyBucketTransitions(history, tasks, settings, today) {
+  const todayRecords = history[today] || null;
+  const prior = findNearestSnapshotBefore(history, today);
+  const out = [];
+  tasks.forEach(task => {
+    if (task.status !== "active") return;
+    const record = (todayRecords && todayRecords[task.id]) || (prior && prior.snapshot[task.id]) || null;
+    if (!record || !QUADRANTS[record.quadrant]) return;
+    const from = QUADRANTS[record.quadrant];
+    if (from.urgency === "high") return;
+    const to = assessTask(task, settings, today).quadrant;
+    if (to.urgency !== "high") return;
+    out.push({ task, from, to });
+  });
+  return out;
+}
+
 // "yesterday", or "Fri 12 Sep (3 days ago)" when the app wasn't opened yesterday.
 function describeBaseline(baseline) {
   if (baseline.daysAgo <= 1) return "yesterday";
@@ -329,5 +354,6 @@ if (typeof module !== "undefined" && module.exports) {
     snapshotRecordsEqual, sameSnapshot, sanitizeQuadrantHistory, recordQuadrantSnapshot,
     findNearestSnapshotBefore, findDigestBaseline, describeQuadrantChange, describeStoredEdit,
     buildDigest, describeBaseline, stalenessReminderTier, daysUntouchedAt, buildStalenessCheckIns,
+    findUrgencyBucketTransitions,
   };
 }

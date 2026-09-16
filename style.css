@@ -11,8 +11,8 @@
   --done: #9a9a94;
   --row-hover: #fafaf8;
 
-  --badge-urgent-bg: #f6dedc;
-  --badge-urgent-text: #b5514a;
+  --badge-now-bg: #dcefe6;
+  --badge-now-text: #1f6b45;
   --badge-high-bg: #e4ecf7;
   --badge-high-text: #4a6fa5;
   --badge-critical-bg: #fbe8c9;
@@ -90,8 +90,8 @@
   --done: #6c6c67;
   --row-hover: #2a2b30;
 
-  --badge-urgent-bg: #4a2e2c;
-  --badge-urgent-text: #e2948d;
+  --badge-now-bg: #1e3d2e;
+  --badge-now-text: #8fe0b4;
   --badge-high-bg: #26374d;
   --badge-high-text: #9cc0f2;
   --badge-critical-bg: #4a3a1a;
@@ -745,9 +745,10 @@ body {
   letter-spacing: 0.02em;
 }
 
-.badge-urgent {
-  background: var(--badge-urgent-bg);
-  color: var(--badge-urgent-text);
+/* "Now": this row is planned for today (do_date == today), i.e. it's in the Now window. */
+.badge-now {
+  background: var(--badge-now-bg);
+  color: var(--badge-now-text);
 }
 
 .badge-high {
@@ -845,6 +846,308 @@ body {
 
 .link-btn:hover {
   text-decoration: underline;
+}
+
+/* ---- Now / Later windows ----
+   Two panels side by side above the folder list, equal width by default; "Expand" on either
+   one gives it two thirds. Cards inside carry the same quadrant-hue heat-map as list rows
+   (a Now task is Do or Clear thanks to the do_date floor; a Later task is Plan or Backlog),
+   so the windows don't invent any colour of their own. */
+.windows-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+  margin-bottom: 1.25rem;
+}
+
+.windows-row.focus-now { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+.windows-row.focus-later { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+
+@media (max-width: 700px) {
+  .windows-row,
+  .windows-row.focus-now,
+  .windows-row.focus-later {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.window-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.7rem 0.8rem 0.6rem;
+  min-width: 0;
+  transition: box-shadow 0.1s ease;
+}
+
+.window-panel.window-focused {
+  box-shadow: 0 2px 10px -4px rgba(0, 0, 0, 0.2);
+}
+
+/* Drop-zone highlight while a task is being dragged over it (also used on .folder-list). */
+.drop-target {
+  outline: 2px dashed var(--accent);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+.dragging {
+  opacity: 0.45;
+}
+
+.window-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.45rem;
+}
+
+.window-title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.window-count {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 0.5rem;
+  min-width: 1.5rem;
+  text-align: center;
+}
+
+.window-hint {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.window-focus-btn {
+  font-size: 0.74rem;
+  padding: 0;
+}
+
+.window-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.55rem;
+}
+
+.window-switch {
+  margin: 0;
+  flex-wrap: wrap; /* the narrow (shrunk) panel can't fit four labels on one line */
+  row-gap: 2px;
+}
+
+.window-switch .view-switch-btn {
+  font-size: 0.7rem;
+  padding: 0.2rem 0.55rem;
+  white-space: nowrap;
+}
+
+.window-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 420px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
+}
+
+.window-empty {
+  padding: 0.6rem 0.25rem;
+}
+
+.window-group-header {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin: 0.35rem 0 0;
+}
+
+.window-group-header:first-child {
+  margin-top: 0;
+}
+
+/* Task card: the priority-card look (accent stripe, tinted background), draggable. The
+   actions wrap onto their own line when the panel is too narrow for them (the shrunk
+   window), instead of squeezing the title into nothing. */
+.window-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.3rem 0.45rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 6px;
+  border-left: 3px solid var(--row-accent);
+  background: var(--row-bg);
+  cursor: grab;
+}
+
+.window-card:active {
+  cursor: grabbing;
+}
+
+.window-card-check {
+  margin-top: 0.2rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.window-card-body {
+  flex: 1 1 140px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.window-card-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.window-card-meta {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.window-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+  margin-left: auto; /* stays right-aligned when it wraps under the title */
+}
+
+.window-card-actions .btn-icon {
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+.window-card:hover .window-card-actions .btn-icon {
+  opacity: 1;
+}
+
+/* Quick-win chip: a toggle between "quick win" (filled) and "tackle" (outlined). */
+.window-chip {
+  font: inherit;
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--row-accent, var(--border));
+  background: transparent;
+  color: var(--row-accent, var(--text-muted));
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.window-chip.active {
+  background: var(--row-accent);
+  color: #fff;
+}
+
+.window-promote {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.window-promote input {
+  margin: 0;
+  cursor: pointer;
+}
+
+.window-promote input:disabled {
+  cursor: default;
+}
+
+/* Quick wins are the "knock it out" pile: a slimmer card, no meta line, lighter title. */
+.window-card-quick {
+  padding: 0.25rem 0.5rem;
+  gap: 0.35rem;
+}
+
+.window-card-quick .window-card-title {
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.window-card-quick .window-card-meta {
+  display: none;
+}
+
+.window-card-quick .window-card-check {
+  margin-top: 0.1rem;
+}
+
+.window-add {
+  margin-top: 0.4rem;
+}
+
+/* Deadline backfill modal rows */
+.backfill-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.modal-content form .backfill-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+}
+
+.backfill-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.backfill-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.backfill-meta {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.modal-content .backfill-row input[type="date"] {
+  width: auto;
+  margin-top: 0;
 }
 
 /* Modal */

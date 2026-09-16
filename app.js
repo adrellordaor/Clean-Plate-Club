@@ -10,9 +10,11 @@ function makeId() {
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-const DATA_VERSION = 5; // v3: settings object; v4: quadrantHistory (daily digest); v5: quadrantHistory
-// records enriched with deadline/importance/manual_urgent_flag/last_touched_at/priority_score,
-// for the primary (automatic drift) vs secondary (manual edit) digest split
+const DATA_VERSION = 6; // v3: settings object; v4: quadrantHistory (daily digest); v5: quadrantHistory
+// records enriched with deadline/importance/last_touched_at/priority_score, for the primary
+// (automatic drift) vs secondary (manual edit) digest split; v6: manual_urgent_flag removed
+// (migrated to deadline = today / do_date = today), do_date + is_quick_win added to Task,
+// plannedHistory (permanent per-day frozen "planned" sets for the Calendar) added
 
 // Minimalist outline icons (stroke = currentColor, so they inherit button text color).
 const SVG_ATTRS = 'viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
@@ -31,7 +33,9 @@ let tasks = [];
 let recurringTasks = []; // RecurringTask: singular, resets on schedule, outside the Eisenhower matrix.
 let completionLog = [];  // CompletionLog: one row per recurring-task check-off, feeds future history views.
 let settings = normalizeSettings(null); // Urgency thresholds etc. (see urgency.js); synced with the data file.
-let quadrantHistory = {}; // "YYYY-MM-DD" -> { taskId: quadrantKey }, one end-of-day snapshot per day (see digest.js).
+let quadrantHistory = {}; // "YYYY-MM-DD" -> { taskId: record }, a short rolling window of daily snapshots (see digest.js).
+let plannedHistory = {};  // "YYYY-MM-DD" -> { tasks: [{id,title,done}], recurring: [...] }, frozen once per past day,
+// kept forever (the Calendar looks back indefinitely). See runDailyMaintenance and calendar.js.
 
 function seedDefaults() {
   categories = [
@@ -50,6 +54,7 @@ function seedDefaults() {
   completionLog = [];
   settings = normalizeSettings(null);
   quadrantHistory = {};
+  plannedHistory = {};
 }
 
 function loadState(data) {
@@ -66,6 +71,37 @@ function loadState(data) {
   settings = normalizeSettings(data.settings); // older files without settings get the defaults
   quadrantHistory = data.quadrantHistory && typeof data.quadrantHistory === "object" ? data.quadrantHistory : {};
   sanitizeQuadrantHistory(quadrantHistory); // drop any pre-v5 day stored as a bare quadrant-key string
+  plannedHistory = data.plannedHistory && typeof data.plannedHistory === "object" ? data.plannedHistory : {};
+  if ((Number(data.version) || 0) < 6) migrateTasksToV6(tasks, todayISODate());
+  tasks.forEach(normalizeTaskFields);
+}
+
+// One-time v6 migration, gated on the file's version so it can't re-run on a later load
+// (which would, for instance, re-default a do_date the user had deliberately cleared):
+//  - manual_urgent_flag is gone. A flagged task keeps its "fire" status through the fields
+//    that replace it: no deadline -> deadline = today (scores Critical via the deadline
+//    path, and stays there while overdue); has a deadline -> do_date = today (in Now today).
+//  - Existing dated tasks get the spec's deadline-default (do_date = deadline) applied once,
+//    so they surface in Now on their deadline day; past deadlines roll forward to today in
+//    the same load (runDailyMaintenance), putting overdue work in Now straight away.
+function migrateTasksToV6(taskList, today) {
+  taskList.forEach(task => {
+    if (task.manual_urgent_flag === true) {
+      if (!task.deadline) task.deadline = today;
+      else task.do_date = today;
+    }
+    delete task.manual_urgent_flag;
+    if (task.do_date === undefined) task.do_date = null;
+    if (task.deadline && !task.do_date) task.do_date = task.deadline;
+  });
+}
+
+// Fills in the v6 fields on any task that lacks them (a task written by the pre-v6 app on the
+// other device, or a hand-edited file), without touching anything already set.
+function normalizeTaskFields(task) {
+  if (task.do_date === undefined) task.do_date = null;
+  if (typeof task.is_quick_win !== "boolean") task.is_quick_win = false;
+  if ("manual_urgent_flag" in task) delete task.manual_urgent_flag;
 }
 
 function serializeState() {
@@ -79,6 +115,7 @@ function serializeState() {
     recurringTasks,
     completionLog,
     quadrantHistory,
+    plannedHistory,
   };
 }
 
@@ -101,6 +138,90 @@ function persistIfSnapshotChanged() {
   if (recordTodaySnapshot()) persist();
 }
 
+// ---------- Daily maintenance (do_date) ----------
+// Runs on every load (first open of the day, a synced change from the other device) and at
+// midnight. Three steps, in this order:
+//  1. Freeze the "planned" set of every past day that hasn't been frozen yet, into
+//     plannedHistory, so the Calendar's Green/Blue/Gray for that day can never be rewritten
+//     by what happens to do_date afterwards. Days are walked one at a time from the day after
+//     the newest record (or just yesterday, the first time) up to yesterday, and each day's
+//     rollover is simulated before moving on — so after a multi-day gap a task left on
+//     Monday's do_date is recorded as planned-and-missed on Monday, Tuesday and Wednesday,
+//     exactly as if the app had been open each day. Existing records are never rewritten.
+//  2. Roll every incomplete do_date that's now in the past forward to today. Silent, no
+//     confirmation: other signals (the deadline path, staleness check-ins) keep surfacing a
+//     neglected task on their own. This must NEVER touch last_touched_at, or it would reset
+//     the staleness clock every day and quietly disable that safety net.
+//  3. Auto-populate Now: any task whose urgency crossed into the High/Critical bucket since
+//     its last recorded snapshot (findUrgencyBucketTransitions, digest.js) gets do_date =
+//     today, once, on the transition day, as a "need to tackle" (is_quick_win false).
+//     Again without touching last_touched_at — nothing here is a user edit.
+// Returns true when anything changed (and persists in that case).
+function runDailyMaintenance() {
+  const today = todayISODate();
+  let changed = false;
+
+  // 1. Freeze past days.
+  const frozenDays = Object.keys(plannedHistory).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+  const yesterday = addDaysISODate(today, -1);
+  let day = frozenDays.length ? addDaysISODate(frozenDays[frozenDays.length - 1], 1) : yesterday;
+  for (; day <= yesterday; day = addDaysISODate(day, 1)) {
+    if (plannedHistory[day]) continue;
+    plannedHistory[day] = buildPlannedRecord(day, tasks, recurringTasks, completionLog);
+    changed = true;
+    const next = addDaysISODate(day, 1);
+    tasks.forEach(task => {
+      if (task.status === "active" && task.do_date === day && !plannedTaskDone(task, day)) task.do_date = next;
+    });
+  }
+
+  // 2. Roll over whatever is still in the past.
+  tasks.forEach(task => {
+    if (task.status === "active" && task.do_date && task.do_date < today) {
+      task.do_date = today;
+      changed = true;
+    }
+  });
+
+  // 3. Auto-populate from urgency-bucket transitions.
+  findUrgencyBucketTransitions(quadrantHistory, tasks, settings, today).forEach(({ task }) => {
+    if (task.do_date === today) return;
+    task.do_date = today;
+    task.is_quick_win = false;
+    changed = true;
+  });
+
+  if (changed) persist();
+  return changed;
+}
+
+// Spec: whenever a deadline gets set on a task (however it came to be set), do_date defaults
+// to that same date unless already set, so a task at minimum surfaces in Now on its deadline
+// day. Called at the moment a deadline is set or changed, never on a plain load.
+function applyDeadlineDefault(task) {
+  if (task.deadline && !task.do_date) task.do_date = task.deadline;
+}
+
+// Deadline requirement (spec, Data Model): a High/Critical importance task that would land in
+// Plan must carry a deadline. A task is a violator when it's active, its importance buckets
+// high, it has no deadline, and its live quadrant is Plan (i.e. nothing else — a do_date of
+// today, staleness already at high — is lifting its urgency).
+function isDeadlineViolator(task, today) {
+  if (task.status !== "active" || task.deadline) return false;
+  if (importanceBucket(task.importance, settings) !== "high") return false;
+  return assessTask(task, settings, today).quadrant.key === "q2";
+}
+
+function findDeadlineViolators() {
+  const today = todayISODate();
+  return tasks.filter(t => isDeadlineViolator(t, today));
+}
+
+// Now-window deadline prompt default: today + deadline_high_days (reusing that setting).
+function defaultNowDeadline() {
+  return addDaysISODate(todayISODate(), Math.max(0, Math.round(settings.deadline_high_days)));
+}
+
 function makeTask(overrides) {
   const now = new Date().toISOString();
   return Object.assign({
@@ -111,9 +232,10 @@ function makeTask(overrides) {
     notes: "",
     created_at: now,
     last_touched_at: now,
-    deadline: null,
+    deadline: null,       // the real consequence date; drives urgency, never changes on its own
+    do_date: null,        // "YYYY-MM-DD" the user (or auto-population) intends to tackle it; rolls forward daily
     importance: "Low",
-    manual_urgent_flag: false,
+    is_quick_win: false,  // display/organization tag only ("knock it out" vs "need to tackle"); no scoring effect
     status: "active",
     completed_at: null,
   }, overrides);
@@ -234,6 +356,7 @@ function render() {
   renderCategoryTabs();
   renderTopBanner();
   renderHeatMapLegend();
+  renderNowLaterWindows();
   renderFolderList();
   renderRecurringSidebar();
   renderOverview();
@@ -457,10 +580,12 @@ function renderTaskRow(task) {
   // Heat-map tint only applies to live tasks; done/dropped rows stay neutral. The quadrant
   // class picks the hue, --p (0-1 intensity from priority_score) drives saturation/lightness
   // in CSS, so the colour maths stays theme-aware without a re-render on theme toggle.
-  const assessment = task.status === "active" ? assessTask(task, settings, todayISODate()) : null;
+  const today = todayISODate();
+  const assessment = task.status === "active" ? assessTask(task, settings, today) : null;
   if (assessment) {
     row.classList.add("quadrant-" + assessment.quadrant.key);
     row.style.setProperty("--p", assessment.intensity.toFixed(3));
+    makeTaskDraggable(row, task); // into the Now window (see windows.js)
   }
 
   const children = tasks.filter(t => t.parent_task_id === task.id);
@@ -504,8 +629,8 @@ function renderTaskRow(task) {
   title.textContent = task.title;
   titleLine.appendChild(title);
 
-  if (task.manual_urgent_flag) {
-    titleLine.appendChild(makeBadge("Urgent", "badge-urgent"));
+  if (assessment && isInNow(task, today)) {
+    titleLine.appendChild(makeBadge("Now", "badge-now"));
   }
   if (task.importance === "Critical") {
     titleLine.appendChild(makeBadge("Critical", "badge-critical"));
@@ -611,6 +736,7 @@ function renderUrgencyMeta(task, assessment) {
     "urgency " + assessment.urgency.score + " (" + assessment.urgency.reason + ")",
   ];
   if (task.deadline) parts.push("due " + task.deadline);
+  if (task.do_date) parts.push("planned " + task.do_date);
   quadrant.title = parts.join(" · ");
   meta.appendChild(quadrant);
   return meta;
@@ -861,7 +987,11 @@ const taskModal = document.getElementById("task-modal");
 const taskForm = document.getElementById("task-form");
 const taskFolderSelect = document.getElementById("task-folder");
 const taskParentSelect = document.getElementById("task-parent");
+const taskError = document.getElementById("task-error");
 
+// `prefillOrTask` is either an existing task (edit) or a prefill object for a new one:
+// folder_id / parent_task_id as before, plus optional deadline / do_date / importance /
+// is_quick_win (the Now window's "+ Add to Now" uses these).
 function openTaskModal(prefillOrTask) {
   const isEdit = tasks.some(t => t.id === prefillOrTask.id);
   document.getElementById("task-modal-title").textContent = isEdit ? "Edit Task" : "Add Task";
@@ -872,9 +1002,11 @@ function openTaskModal(prefillOrTask) {
   document.getElementById("task-id").value = isEdit ? prefillOrTask.id : "";
   document.getElementById("task-title").value = isEdit ? prefillOrTask.title : "";
   document.getElementById("task-notes").value = isEdit ? prefillOrTask.notes : "";
-  document.getElementById("task-deadline").value = isEdit ? (prefillOrTask.deadline || "") : "";
-  document.getElementById("task-importance").value = isEdit ? prefillOrTask.importance : "Low";
-  document.getElementById("task-urgent-flag").checked = isEdit ? prefillOrTask.manual_urgent_flag : false;
+  document.getElementById("task-deadline").value = prefillOrTask.deadline || "";
+  document.getElementById("task-do-date").value = prefillOrTask.do_date || "";
+  document.getElementById("task-importance").value = prefillOrTask.importance || "Low";
+  document.getElementById("task-quick-win").checked = !!prefillOrTask.is_quick_win;
+  taskError.textContent = "";
 
   taskFolderSelect.value = prefillOrTask.folder_id || folders[0]?.id || "";
   taskParentSelect.value = prefillOrTask.parent_task_id || "";
@@ -886,6 +1018,7 @@ function openTaskModal(prefillOrTask) {
 function closeTaskModal() {
   taskModal.classList.add("hidden");
   taskForm.reset();
+  taskError.textContent = "";
 }
 
 function populateFolderSelectInto(selectEl, selectedId) {
@@ -934,16 +1067,43 @@ taskForm.addEventListener("submit", e => {
     title: document.getElementById("task-title").value.trim(),
     notes: document.getElementById("task-notes").value.trim(),
     deadline: document.getElementById("task-deadline").value || null,
+    do_date: document.getElementById("task-do-date").value || null,
     importance: document.getElementById("task-importance").value,
-    manual_urgent_flag: document.getElementById("task-urgent-flag").checked,
+    is_quick_win: document.getElementById("task-quick-win").checked,
   };
 
   if (!data.title) return;
 
   const existing = id ? tasks.find(t => t.id === id) : null;
+  const now = new Date().toISOString();
+
+  // Now-window deadline prompt, inline: a task given a do_date without a deadline would
+  // roll forward silently forever with nothing else eventually forcing it to surface. Fill
+  // in the default (today + deadline_high_days) and ask for a second look rather than save.
+  if (data.do_date && !data.deadline) {
+    const suggested = defaultNowDeadline();
+    document.getElementById("task-deadline").value = suggested;
+    taskError.textContent = "A planned task needs a deadline too. Defaulted to " + suggested + " — adjust if needed and save again.";
+    document.getElementById("task-deadline").focus();
+    return;
+  }
+
+  // Deadline-default: a newly set or changed deadline becomes the do_date unless one is set.
+  const deadlineChanged = !existing || (existing.deadline || null) !== data.deadline;
+  if (deadlineChanged) applyDeadlineDefault(data);
+
+  // Deadline requirement: High/Critical importance can't sit dateless in Plan. Assess the
+  // task as it would be saved (last_touched_at reset, so staleness restarts at zero).
+  const candidate = Object.assign({}, existing || makeTask({}), data, { last_touched_at: now, status: "active" });
+  if (isDeadlineViolator(candidate, todayISODate())) {
+    taskError.textContent = "High/Critical tasks need a deadline — without one this would sit in Plan with no target. Set a date (a generous one is fine) or lower the importance.";
+    document.getElementById("task-deadline").focus();
+    return;
+  }
+
   if (existing) {
     Object.assign(existing, data);
-    existing.last_touched_at = new Date().toISOString();
+    existing.last_touched_at = now;
   } else {
     tasks.push(makeTask(data));
   }
@@ -1147,6 +1307,7 @@ const SETTINGS_FIELDS = {
   staleness_reminder_low_days: "setting-staleness-reminder-low",
   staleness_reminder_medium_days: "setting-staleness-reminder-medium",
   staleness_reminder_high_days: "setting-staleness-reminder-high",
+  do_today_urgency_floor: "setting-do-today-floor",
 };
 
 // Settings read back as a string choice rather than a number.
@@ -1185,6 +1346,10 @@ function validateSettings(v) {
   if (v.staleness_reminder_interval_days < 1) return "Re-flag interval must be at least 1 day.";
   if (!(v.staleness_reminder_low_days <= v.staleness_reminder_medium_days && v.staleness_reminder_medium_days <= v.staleness_reminder_high_days)) {
     return "Staleness check-in colors must run mild ≤ medium ≤ strong (e.g. 7 / 14 / 28).";
+  }
+  if (v.do_today_urgency_floor > 100) return "Now floor is a score from 0 to 100.";
+  if (!(v.do_today_urgency_floor > v.quadrant_split_score)) {
+    return "Now floor must be above the quadrant split (" + v.quadrant_split_score + "), so a task planned for today actually moves into Do or Clear.";
   }
   return null;
 }
@@ -1321,10 +1486,77 @@ async function applyLoadResult(result) {
   }
   storageGate.classList.add("hidden");
   loadState(result.data);
+  runDailyMaintenance();      // freeze past planned days, roll do_dates forward, auto-populate Now
   persistIfSnapshotChanged(); // first open of the day: freeze yesterday, start today's snapshot
   render();
   renderStorageBar();
+  showBackfillIfNeeded();
 }
+
+// ---------- Deadline backfill ----------
+// The deadline requirement applied retroactively: any existing High/Critical task sitting in
+// Plan without a deadline is listed here on load and must be given one before the modal can
+// be dismissed. No "done" flag is stored — the task form blocks new violators, so once this
+// list is empty it stays empty (and if a bump ever pushes an undated High task back into
+// Plan, it simply shows up here again next load, which is the same rule applied consistently).
+
+const backfillModal = document.getElementById("backfill-modal");
+const backfillForm = document.getElementById("backfill-form");
+const backfillList = document.getElementById("backfill-list");
+
+function showBackfillIfNeeded() {
+  if (!backfillModal.classList.contains("hidden")) return; // already up
+  const violators = findDeadlineViolators();
+  if (violators.length === 0) return;
+
+  backfillList.innerHTML = "";
+  violators.forEach(task => {
+    const row = document.createElement("label");
+    row.className = "backfill-row";
+
+    const text = document.createElement("span");
+    text.className = "backfill-text";
+    const title = document.createElement("span");
+    title.className = "backfill-title";
+    title.textContent = task.title;
+    text.appendChild(title);
+    const meta = document.createElement("span");
+    meta.className = "backfill-meta";
+    meta.textContent = [taskContextLabel(task), task.importance].filter(Boolean).join(" · ");
+    text.appendChild(meta);
+    row.appendChild(text);
+
+    const input = document.createElement("input");
+    input.type = "date";
+    input.required = true;
+    input.dataset.taskId = task.id;
+    input.min = todayISODate();
+    row.appendChild(input);
+
+    backfillList.appendChild(row);
+  });
+
+  backfillModal.classList.remove("hidden");
+  const first = backfillList.querySelector("input");
+  if (first) first.focus();
+}
+
+backfillForm.addEventListener("submit", e => {
+  e.preventDefault();
+  const inputs = Array.from(backfillList.querySelectorAll("input[type=date]"));
+  if (inputs.some(i => !i.value)) return; // `required` also blocks this, belt and braces
+  const now = new Date().toISOString();
+  inputs.forEach(input => {
+    const task = tasks.find(t => t.id === input.dataset.taskId);
+    if (!task) return;
+    task.deadline = input.value;
+    applyDeadlineDefault(task);
+    task.last_touched_at = now;
+  });
+  backfillModal.classList.add("hidden");
+  persist();
+  render();
+});
 
 async function runStorageAction(action) {
   try {
@@ -1352,9 +1584,11 @@ async function syncFromFolder() {
   }
   if (data) {
     loadState(data);
+    runDailyMaintenance();
     persistIfSnapshotChanged();
   }
   render();
+  if (data) showBackfillIfNeeded();
 }
 
 document.addEventListener("visibilitychange", () => {
@@ -1371,6 +1605,7 @@ function scheduleMidnightRender() {
   const now = new Date();
   const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 1);
   setTimeout(() => {
+    runDailyMaintenance();      // freeze yesterday's planned set, roll do_dates, auto-populate
     persistIfSnapshotChanged();
     render();
     scheduleMidnightRender();

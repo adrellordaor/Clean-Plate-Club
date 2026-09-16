@@ -52,9 +52,9 @@
     <section id="digest" class="digest" aria-live="polite"></section>
   </section>
 
-  <!-- Calendar: retrospective view. Monthly grid colored by daily-recurring completion
-       rate, a completed-task count badge, a click-through day repository, and a Weekly
-       Accomplishments panel. Read-only, like Overview. -->
+  <!-- Calendar: retrospective view. Monthly grid colored by that day's pace (overdue /
+       planned-and-done), a completed-task count badge, a click-through day repository, and
+       a Weekly Accomplishments panel. Read-only, like Overview. -->
   <section id="calendar-view" class="calendar-view" hidden>
     <div class="calendar-toolbar">
       <div class="calendar-nav">
@@ -84,6 +84,13 @@
 
     <div class="main-layout">
       <div class="main-column">
+        <!-- Now (do_date == today) and Later (Plan + Backlog) side by side; see windows.js.
+             Both are drop zones: drag a task into Now to plan it for today, drag a Now card
+             onto Later or the list below to take it back out. -->
+        <div id="windows-row" class="windows-row">
+          <section id="now-window" class="window-panel window-now" aria-label="Now"></section>
+          <section id="later-window" class="window-panel window-later" aria-label="Later"></section>
+        </div>
         <div id="folder-list" class="folder-list"></div>
       </div>
       <aside class="recurring-column">
@@ -135,15 +142,54 @@
       </div>
 
       <div class="form-row">
+        <label>Planned for (do date)
+          <input type="date" id="task-do-date">
+        </label>
+
         <label class="checkbox-label">
-          <input type="checkbox" id="task-urgent-flag">
-          Manual urgent flag
+          <input type="checkbox" id="task-quick-win">
+          Quick win
         </label>
       </div>
+      <p class="settings-hint">A planned date puts the task in the Now window that day (it rolls forward until done). High/Critical tasks need a deadline.</p>
+
+      <p id="task-error" class="settings-error" aria-live="polite"></p>
 
       <div class="modal-actions">
         <button type="button" id="task-cancel-btn" class="btn btn-secondary">Cancel</button>
         <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Now-window deadline prompt: a task added to Now by hand without a deadline gets one here -->
+<div id="now-deadline-modal" class="modal hidden">
+  <div class="modal-content">
+    <h2>Set a deadline</h2>
+    <p class="gate-text">Anything in Now needs a real deadline, so it can't roll forward forever unnoticed. Set one for <strong id="now-deadline-task"></strong>:</p>
+    <form id="now-deadline-form">
+      <label>Deadline
+        <input type="date" id="now-deadline-input" required>
+      </label>
+      <div class="modal-actions">
+        <button type="button" id="now-deadline-cancel-btn" class="btn btn-secondary">Cancel</button>
+        <button type="submit" class="btn btn-primary">Add to Now</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Deadline backfill: existing High/Critical tasks sitting in Plan without a deadline.
+     Deliberately has no cancel button and doesn't close on overlay click. -->
+<div id="backfill-modal" class="modal hidden">
+  <div class="modal-content modal-content-wide">
+    <h2>These need a deadline</h2>
+    <p class="gate-text">High/Critical tasks can't sit dateless in Plan any more — every one needs a real target, even a generous one. Set a deadline for each to continue.</p>
+    <form id="backfill-form">
+      <div id="backfill-list" class="backfill-list"></div>
+      <div class="modal-actions">
+        <button type="submit" class="btn btn-primary">Save deadlines</button>
       </div>
     </form>
   </div>
@@ -320,6 +366,16 @@
         <p class="settings-hint">Once an undated task's days-untouched count crosses a new multiple of the re-flag interval, it gets a low-key check-in ("Just so you know: untouched for 21 days") in its own card under the Priority Today panel, colored in shades of teal — the Plan quadrant's hue — by whichever of the three day thresholds it's currently past. Separate from the staleness thresholds above, which drive urgency scoring, not this reminder.</p>
       </fieldset>
 
+      <fieldset class="settings-group">
+        <legend>Now window</legend>
+        <div class="form-row">
+          <label>Planned-for-today urgency floor (0–100)
+            <input type="number" id="setting-do-today-floor" min="0" max="100" step="0.5" required>
+          </label>
+        </div>
+        <p class="settings-hint">A task planned for today scores at least this much urgency. Keep it above the quadrant split so being in Now genuinely moves a task into Do (important) or Clear (less important), instead of just looking more urgent while it stays in Plan or Backlog. Never lowers a score that a real deadline or staleness already put higher.</p>
+      </fieldset>
+
       <p id="settings-error" class="settings-error" aria-live="polite"></p>
 
       <div class="modal-actions">
@@ -349,6 +405,7 @@
 <script src="digest.js"></script>
 <script src="calendar.js"></script>
 <script src="overview.js"></script>
+<script src="windows.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

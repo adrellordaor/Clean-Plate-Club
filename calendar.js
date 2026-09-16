@@ -5,12 +5,17 @@
 // repository, and a Weekly Accomplishments panel. Read-only, like Overview — nothing to tick
 // off here, that happens in the List view.
 //
-// Everything is derived live from fields that already exist (deadline, completed_at,
-// created_at, cadence/weekday, importance, CompletionLog) — no snapshot storage, even for
-// past days. RecurringTasks carry no created_at/start date (see makeRecurringTask in app.js),
-// so "scheduled" for a day is read off the CURRENT set of RecurringTasks — a habit added
-// today reads as if it always existed when a past day's color is recomputed. Same
-// "derived, never stored" simplification the rest of the engine relies on.
+// Red, the overdue ring, the gold glow, the count badge and the future markers are derived
+// live from fields that never move retroactively (deadline, completed_at, created_at,
+// importance, CompletionLog). The Green/Blue/Gray "planned" set is different: it reads
+// do_date, and do_date rolls forward every day a task stays unfinished (see
+// runDailyMaintenance in app.js), so recomputing a past day live would quietly rewrite an
+// honest Blue into Green or Gray. Each past day's planned set is therefore frozen once, in
+// plannedHistory (a permanent, append-only per-day record in the data file, captured right
+// before that day's rollover), and past days read from it. Today is still computed live.
+// A past day with no record (before this shipped) falls back to a live best-effort read.
+// RecurringTasks carry no created_at/start date (see makeRecurringTask in app.js), so
+// "scheduled" for a live-evaluated day is read off the CURRENT set of RecurringTasks.
 //
 // Depends on urgency.js (assessTask, importanceBucket, parseLocalDate, localDateString,
 // toLocalDateString), overview.js (rankActiveTasks, selectPrioritySummary) and app.js's live
@@ -18,8 +23,8 @@
 // every script has loaded (see the lazy defaults in renderCalendar below) — nothing here
 // runs at top-level parse time.
 
-// Strict priority order — the first rule that applies wins (same override pattern as
-// manual_urgent_flag). "upcoming" is for days after today, which haven't happened yet.
+// Strict priority order — the first rule that applies wins (same override pattern as the
+// do_date urgency floor). "upcoming" is for days after today, which haven't happened yet.
 const CALENDAR_DAY_BUCKETS = Object.freeze({
   red: Object.freeze({ key: "red", label: "Red" }),
   green: Object.freeze({ key: "green", label: "Green" }),
@@ -69,15 +74,41 @@ function isOverdueOn(task, dateStr) {
   return done === null || done > dateStr;
 }
 
-// Regular task due exactly on `dateStr`; it counts as done if completed on or before that
-// day (finishing early is still finishing).
-function isDueOn(task, dateStr) {
-  return task.deadline === dateStr && taskExistedOn(task, dateStr);
+// Regular task planned for exactly `dateStr` (do_date, the self-chosen day — not the
+// deadline); it counts as done if completed on or before that day (finishing early is still
+// finishing). Only meaningful for a live read of today (or a best-effort fallback for an
+// unfrozen past day): once a day is over its planned set lives in plannedHistory.
+function isPlannedOn(task, dateStr) {
+  return task.do_date === dateStr && taskExistedOn(task, dateStr);
 }
 
-function dueTaskDone(task, dateStr) {
+function plannedTaskDone(task, dateStr) {
   const done = completedDateOf(task);
   return done !== null && done <= dateStr;
+}
+
+// The frozen shape of one day's planned set: which regular Tasks had do_date == that day
+// and whether each got done by day's end, plus which RecurringTasks were scheduled and
+// done. Titles are stored so a later rename or delete can't change what a frozen day says.
+// Pure, so the same code both freezes a day (runDailyMaintenance, right before rollover)
+// and evaluates today live.
+function buildPlannedRecord(dateStr, tasks, recurringTasks, completionLog) {
+  return {
+    tasks: tasks
+      .filter(t => isPlannedOn(t, dateStr))
+      .map(t => ({ id: t.id, title: t.title, done: plannedTaskDone(t, dateStr) })),
+    recurring: recurringTasks
+      .filter(rt => recurringScheduledOn(rt, dateStr))
+      .map(rt => ({ id: rt.id, title: rt.title, done: recurringDoneFor(rt, dateStr, completionLog) })),
+  };
+}
+
+// The planned set to score `dateStr` with: the frozen record for a past day, a live read
+// for today (and, best-effort, for a past day that was never frozen).
+function plannedRecordFor(dateStr, data, today) {
+  const frozen = data.plannedHistory && dateStr < today ? data.plannedHistory[dateStr] : null;
+  if (frozen && Array.isArray(frozen.tasks) && Array.isArray(frozen.recurring)) return frozen;
+  return buildPlannedRecord(dateStr, data.tasks, data.recurringTasks, data.completionLog);
 }
 
 // RecurringTasks scheduled on a day: daily ones every day; weekly ones on their weekday
@@ -102,19 +133,23 @@ function recurringDoneFor(rt, dateStr, completionLog) {
 }
 
 // Pace bucket for one day, in strict priority order (spec, Calendar view):
-//   red   — a High/Critical-importance regular task is overdue as of that day
-//   green — nothing High-importance overdue, and everything due that day got done
-//   blue  — nothing High-importance overdue, but not everything due got done
-//   gray  — nothing was due at all ("no obligation, not a failure")
+//   red   — a High/Critical-importance regular task is overdue as of that day (deadline only,
+//           do_date plays no part, and this is always computed live)
+//   green — nothing High-importance overdue, and everything planned that day got done
+//   blue  — nothing High-importance overdue, but not everything planned got done
+//   gray  — nothing was planned at all ("no obligation, not a failure")
+// "Planned" = RecurringTasks scheduled that day plus regular Tasks with do_date exactly that
+// day, read from the frozen plannedHistory record for a past day (see plannedRecordFor).
 // "High importance" uses the same bucket boundary as quadrant placement (importanceBucket).
 // A Low/Medium overdue task never forces red; it's surfaced as `lowOverdue` for the ring
 // overlay instead. Days strictly after `today` haven't happened, so they get the
 // "upcoming" bucket plus future due-date markers instead of a pace color.
 //
-// `data` is { tasks, folders, recurringTasks, completionLog, topPriorityIds? } — the same
-// bundle every function below takes, so callers build it once. `topPriorityIds` is the Set
-// of task ids the Overview's priority summary panel would list (rank within overview_top_n
-// OR score ≥ overview_flag_threshold); upcoming deadlines in that set get the accented marker.
+// `data` is { tasks, folders, recurringTasks, completionLog, plannedHistory, topPriorityIds? }
+// — the same bundle every function below takes, so callers build it once. `topPriorityIds`
+// is the Set of task ids the Overview's priority summary panel would list (rank within
+// overview_top_n OR score ≥ overview_flag_threshold); upcoming deadlines in that set get the
+// accented marker.
 function computeDayStats(dateStr, data, settings, today) {
   const upcoming = Boolean(today && dateStr > today);
   const regularCompleted = data.tasks.filter(t => completedDateOf(t) === dateStr);
@@ -136,12 +171,10 @@ function computeDayStats(dateStr, data, settings, today) {
   const highOverdue = overdue.filter(t => importanceBucket(t.importance, settings) === "high");
   const lowOverdue = overdue.filter(t => importanceBucket(t.importance, settings) !== "high");
 
-  const due = data.recurringTasks
-    .filter(rt => recurringScheduledOn(rt, dateStr))
-    .map(rt => ({ kind: "recurring", task: rt, done: recurringDoneFor(rt, dateStr, data.completionLog) }))
-    .concat(data.tasks
-      .filter(t => isDueOn(t, dateStr))
-      .map(t => ({ kind: "task", task: t, done: dueTaskDone(t, dateStr) })));
+  const planned = plannedRecordFor(dateStr, data, today);
+  const due = planned.recurring
+    .map(r => ({ kind: "recurring", id: r.id, title: r.title, done: !!r.done }))
+    .concat(planned.tasks.map(t => ({ kind: "task", id: t.id, title: t.title, done: !!t.done })));
   const dueCount = due.length;
   const doneCount = due.filter(d => d.done).length;
 
@@ -238,7 +271,7 @@ function renderCalendar() {
   // overview_top_n OR score ≥ overview_flag_threshold), so the accented future-deadline
   // marker means "top priority" by the same definition used everywhere else in the app.
   const topPriorityIds = new Set(selectPrioritySummary(rankActiveTasks(today), settings).map(e => e.task.id));
-  const data = { tasks, folders, recurringTasks, completionLog, topPriorityIds };
+  const data = { tasks, folders, recurringTasks, completionLog, plannedHistory, topPriorityIds };
 
   renderCalendarToolbar();
   renderCalendarLegend();
@@ -283,9 +316,9 @@ function renderCalendarLegend() {
   // Base colors, in the same strict priority order the engine applies them.
   [
     [CALENDAR_DAY_BUCKETS.red, "A High/Critical-importance task was overdue as of that day"],
-    [CALENDAR_DAY_BUCKETS.green, "Nothing High-importance overdue, and everything due that day (habits + deadlines) got done"],
-    [CALENDAR_DAY_BUCKETS.blue, "Nothing High-importance overdue, but not everything due that day got done"],
-    [CALENDAR_DAY_BUCKETS.gray, "Nothing was due that day"],
+    [CALENDAR_DAY_BUCKETS.green, "Nothing High-importance overdue, and everything planned that day (habits + tasks with that do-date) got done"],
+    [CALENDAR_DAY_BUCKETS.blue, "Nothing High-importance overdue, but not everything planned that day got done"],
+    [CALENDAR_DAY_BUCKETS.gray, "Nothing was planned that day"],
     [CALENDAR_DAY_BUCKETS.upcoming, "Hasn't happened yet — shows upcoming deadlines instead"],
   ].forEach(([bucket, hint]) => {
     legend.appendChild(makeCalendarLegendChip(bucket.label, "calendar-day-" + bucket.key, hint));
@@ -423,8 +456,12 @@ function calendarCellTitle(stats) {
   if (stats.highOverdue.length > 0) {
     parts.push("Overdue (high importance): " + stats.highOverdue.map(t => t.title).join(", "));
   }
-  if (stats.dueCount === 0) parts.push("Nothing due");
-  else parts.push(stats.doneCount + "/" + stats.dueCount + " due items done");
+  if (stats.dueCount === 0) parts.push("Nothing planned");
+  else {
+    const missed = stats.due.filter(d => !d.done).map(d => d.title);
+    parts.push(stats.doneCount + "/" + stats.dueCount + " planned items done"
+      + (missed.length > 0 ? " (missed: " + missed.join(", ") + ")" : ""));
+  }
   if (stats.lowOverdue.length > 0) {
     parts.push("Overdue (low/medium): " + stats.lowOverdue.map(t => t.title).join(", "));
   }
@@ -590,8 +627,8 @@ function makeCalendarEmptyHint(text) {
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     CALENDAR_DAY_BUCKETS, addDaysISODate, weekDates, daysInMonthArray,
-    completedDateOf, taskExistedOn, isOverdueOn, isDueOn, dueTaskDone,
-    recurringScheduledOn, recurringDoneFor,
+    completedDateOf, taskExistedOn, isOverdueOn, isPlannedOn, plannedTaskDone,
+    buildPlannedRecord, plannedRecordFor, recurringScheduledOn, recurringDoneFor,
     computeDayStats, completionsOnDay, computeWeekSummary,
   };
 }
