@@ -127,9 +127,15 @@
       </label>
 
       <div class="form-row">
-        <label>Deadline
-          <input type="date" id="task-deadline">
-        </label>
+        <div class="form-field-stack">
+          <label>Deadline
+            <input type="date" id="task-deadline">
+          </label>
+          <label class="task-deadline-sync-row" id="task-deadline-sync-row" hidden>
+            <input type="checkbox" id="task-deadline-sync">
+            Same as do date
+          </label>
+        </div>
 
         <label>Importance
           <select id="task-importance">

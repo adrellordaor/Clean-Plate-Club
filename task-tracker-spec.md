@@ -171,6 +171,8 @@ stored).
 | staleness_reminder_medium_days | 14 |
 | staleness_reminder_high_days | 28 |
 | do_today_urgency_floor | 65 |
+| daily_capacity_points | 6 |
+| calendar_display_mode | pace |
 
 `last_touched_at` updates whenever the task is edited, commented on, or
 manually "bumped" — this is what lets an important, deadline-less task
@@ -355,11 +357,20 @@ The app has three views:
     exists, see Now-window deadline prompt). Dragging a task out of Now
     back to the main list clears `do_date` entirely (removing the floor,
     since it only applies when `do_date == today`).
-  - **Promote to deadline**: a checkbox on any Now task sets `deadline`
-    to today, "I really can't miss this one." No new logic needed here,
-    the existing urgency engine already scores a 0-days-out deadline at
-    critical (100), so this naturally bumps `priority_score` through the
-    mechanism that already exists.
+  - **Deadline sync in the task form**: not a standalone control on the
+    rendered card, a checkbox inside the shared task form (create or
+    edit), shown only when the form currently has a `do_date` set (this
+    is what naturally excludes Later's intake, which doesn't prefill
+    `do_date`, no second form needed). Labeled something like "Same as do
+    date," checking it copies `do_date`'s value into the `deadline`
+    field, same convenience shape as a "billing address same as
+    residential" checkbox. Covers both creating a new task via "+ Add to
+    Now" (do_date prefilled to today, one click sets deadline to today
+    too) and later editing an existing Now task to escalate it ("I really
+    can't miss this one," opened via the pencil icon). No new scoring
+    logic, the existing urgency engine already scores a 0-days-out
+    deadline at critical (100), so this naturally bumps `priority_score`
+    through the mechanism that already exists.
   - **Quick-win sizing**: see `is_quick_win` in the Data Model, renders as
     a smaller card for quick wins.
 - **Later window** (renamed from "Remember"): the long-view counterpart
@@ -375,7 +386,24 @@ The app has three views:
   exists elsewhere. Now vs. Later: act on these now, versus don't lose
   track of these. Renders side by side with Now, both narrower by
   default; either can be focused/expanded to take more width than the
-  other.
+  other. Has its own "+ Add task" affordance, opening the same shared
+  task form with no special prefill, unlike Now there's no single default
+  to prefill toward, a task's landing in Plan vs. Backlog is derived after
+  the fact from importance and urgency, not chosen upfront. The deadline
+  requirement still applies automatically if the result would land in
+  Plan, that's a global form rule, not something scoped to Now.
+- **Empty-Now suggestion**: whenever the Now window has zero tasks (a live
+  check each render, not a stored/dismissible flag), the top 3 tasks in
+  the Later window (by its default Priority sort) get a visual highlight/
+  box around them. They remain individually draggable into Now like any
+  other Later task, plus a single "Add all 3" button on the box itself
+  that chains the same `addToNow` logic per task (including a deadline
+  prompt if any of the three lack one). The highlight disappears the
+  moment any task lands in Now, whether via this suggestion or an
+  unrelated manual add, since the condition it's based on ("is Now empty")
+  is no longer true. This directly serves the app's founding purpose:
+  clearing your fires shouldn't mean the important-but-quiet Plan/Backlog
+  items get forgotten by default.
 - **Top banner**: always-visible strip showing the top 3-5 tasks by
   `priority_score` across all folders, regardless of which folder filter
   is active, so the highest-priority items are never scrolled out of view.
@@ -400,7 +428,41 @@ to that prioritization flow.
 **3. Calendar view** (retrospective, replaces the earlier vague "basic
 productivity view")
 - Monthly grid, one cell per day
+- **Display mode toggle** (`calendar_display_mode`, default `pace`):
+  switches between the Pace view below (unchanged, still its own thing)
+  and a **Capacity view**, which itself splits by whether a day is in the
+  past or future, since only one kind of data actually exists for each:
+  - **Past days, and today (live)**: effort = sum of `is_quick_win`
+    weight (1 point, else 2) over regular Tasks **completed that day**
+    (`completed_at` == that day), regardless of whether they were
+    planned/do-dated for it, this is deliberately a raw "how much did I
+    actually do" volume, not scoped to what was intended. Reads directly
+    from `completed_at`, no dependency on the frozen `plannedHistory`
+    record.
+  - **Future days**: effort = sum of the same weight over regular Tasks
+    with `do_date` on that day (not `deadline`), since `do_date`
+    represents intended effort distribution, exactly its purpose
+    elsewhere in the app, while `deadline` only represents consequence
+    timing. This also means proactively moving a task's `do_date` earlier
+    than its real deadline correctly lightens the original due day's
+    count, since by your own plan there's nothing left pending there,
+    that's honest, not a blind spot. Most future tasks show identical
+    results either way, since `do_date` defaults to `deadline` when one's
+    set, they only diverge when you've deliberately moved something
+    earlier.
+  - **Rendering, same for both directions**: `effort / daily_capacity_points`
+    as a continuous intensity gradient, one neutral hue, pale → vivid,
+    purely descriptive volume with no red/green judgment baked in, same
+    non-evaluative principle as the Weekly panel's day-color breakdown.
+    A distinct overload marker appears whenever it crosses 100%,
+    deliberately not reusing Pace's red hue, since "busy/overloaded" and
+    "missed something important" are different claims and shouldn't look
+    identical.
+  RecurringTasks don't carry `is_quick_win` and stay outside this
+  entirely, consistent with how they're isolated everywhere else in the
+  matrix system.
 - **Color reflects overall pace**, not just habits, in strict priority
+
   order (matches the override pattern used elsewhere, e.g. the do_date
   urgency floor):
   1. **Red**: something **High/Critical importance** is overdue as of
@@ -497,8 +559,10 @@ productivity view")
 - Weekly digest (trend view)
 - Simple daily log: completed / rolled over / dropped
 - Calendar view: pace-based coloring across all tasks (not just habits),
-  gold glow for big wins, count badge, click-through repository, and a
-  Weekly Accomplishments panel (highlights, never a score)
+  gold glow for big wins, count badge, click-through repository, a
+  Capacity view toggle (effort vs. daily_capacity_points, using
+  is_quick_win as the effort proxy), and a Weekly Accomplishments panel
+  (highlights, never a score)
 - Evening review: no longer gates `do_date` rollover (that's now silent,
   see Data Model), instead flags Now-window tasks that have rolled over
   repeatedly, and can surface extending a deadline as an option, never
@@ -513,7 +577,9 @@ productivity view")
 ## Backlog (v2+, not in scope now)
 - Bulk import via AI parsing of unstructured pasted text (ongoing API cost
   per use — start with template/tag-based parsing instead, see below)
-- Daily time-capacity limits (estimate + total hours available, flag overload)
+- (Daily time-capacity limits moved out of Backlog and into the Calendar
+  view spec below, using is_quick_win as the effort proxy instead of a
+  new estimate field)
 - Native mobile app (browser works fine on phone)
 - Collaboration/sharing
 - Notifications outside the browser

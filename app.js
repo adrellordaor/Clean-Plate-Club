@@ -1008,6 +1008,8 @@ function openTaskModal(prefillOrTask) {
   document.getElementById("task-do-date").value = prefillOrTask.do_date || "";
   document.getElementById("task-importance").value = prefillOrTask.importance || "Low";
   document.getElementById("task-quick-win").checked = !!prefillOrTask.is_quick_win;
+  document.getElementById("task-deadline-sync").checked = false;
+  updateDeadlineSyncVisibility();
   taskError.textContent = "";
 
   taskFolderSelect.value = prefillOrTask.folder_id || folders[0]?.id || "";
@@ -1058,6 +1060,21 @@ function populateParentSelect(folderId, excludeTaskId, selectedParentId) {
 taskFolderSelect.addEventListener("change", () => {
   const currentId = document.getElementById("task-id").value || null;
   populateParentSelect(taskFolderSelect.value, currentId, null);
+});
+
+// Deadline sync ("Same as do date"): only meaningful once the form has a do_date to copy
+// from, so it stays hidden otherwise — this is what naturally excludes Later's plain intake,
+// which never prefills do_date, no separate form needed there.
+function updateDeadlineSyncVisibility() {
+  const hasDoDate = !!document.getElementById("task-do-date").value;
+  document.getElementById("task-deadline-sync-row").hidden = !hasDoDate;
+  if (!hasDoDate) document.getElementById("task-deadline-sync").checked = false;
+}
+
+document.getElementById("task-do-date").addEventListener("input", updateDeadlineSyncVisibility);
+
+document.getElementById("task-deadline-sync").addEventListener("change", e => {
+  if (e.target.checked) document.getElementById("task-deadline").value = document.getElementById("task-do-date").value;
 });
 
 taskForm.addEventListener("submit", e => {

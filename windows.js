@@ -1,21 +1,30 @@
 // Now / Later windows: the two side-by-side "intention" panels at the top of the List view.
 //
 //   Now   — membership is do_date == today (and not yet completed): what you told yourself
-//           to get done today. Populated by hand (drag a task in, "+ Add to Now", or type a
-//           do_date in the task form) and automatically, once, on the day a task's urgency
-//           crosses into the High/Critical bucket (runDailyMaintenance in app.js). Being in
-//           Now floors the task's urgency (do_today_urgency_floor), which is what moves it
-//           into Do or Clear rather than merely making it look more urgent.
+//           to get done today. Populated by hand (drag a task in, its own "+ Add task", or
+//           type a do_date in the task form) and automatically, once, on the day a task's
+//           urgency crosses into the High/Critical bucket (runDailyMaintenance in app.js).
+//           Being in Now floors the task's urgency (do_today_urgency_floor), which is what
+//           moves it into Do or Clear rather than merely making it look more urgent.
 //   Later — the long-view counterpart: every active task whose live quadrant is Plan or
 //           Backlog, i.e. genuinely "not needed today", for two different reasons. Tasks keep
 //           their own quadrant hue (teal / gray); this is a filtered view, not a new scheme.
+//           Has its own "+ Add task" too, opening the plain shared form with no prefill —
+//           unlike Now, Plan vs. Backlog falls out of importance/urgency after the fact, not
+//           a choice made upfront.
 //
 // Both windows share a sort-key control (Priority / Urgency / Importance / Quick win) and a
 // flat-vs-by-folder grouping toggle, kept as per-device preferences in localStorage (like
 // the theme and folderCountDisplay). Either window can be expanded to take more width.
 //
+// Empty-Now suggestion: whenever Now has zero tasks (checked live on every render, never a
+// stored/dismissible flag), the Later window gets a highlighted box around its top 3 tasks
+// by priority (independent of whatever sort/group Later is currently set to), plus an
+// "Add all N" button chaining addToNow across them. The box vanishes the instant Now stops
+// being empty, from that button, a drag, or anything else — there's no state to clear.
+//
 // Reads app.js state (tasks, folders, settings, activeView, todayISODate, persist, render,
-// openTaskModal, toggleTaskDone, applyDeadlineDefault, defaultNowDeadline, ICONS) and
+// openTaskModal, toggleTaskDone, defaultNowDeadline, ICONS) and
 // overview.js helpers (rankActiveTasks, taskContextLabel) only from inside functions that
 // run after every script has loaded — nothing here touches them at parse time.
 
@@ -113,17 +122,20 @@ function renderNowLaterWindows() {
   row.classList.toggle("focus-now", windowPrefs.focus === "now");
   row.classList.toggle("focus-later", windowPrefs.focus === "later");
 
+  const nowIsEmpty = !ranked.some(entry => WINDOWS.now.member(entry, today));
+
   renderWindow(WINDOWS.now, ranked, today);
-  renderWindow(WINDOWS.later, ranked, today);
+  renderWindow(WINDOWS.later, ranked, today, nowIsEmpty);
 }
 
-function renderWindow(win, ranked, today) {
+function renderWindow(win, ranked, today, nowIsEmpty) {
   const el = document.getElementById(win.elementId);
   el.innerHTML = "";
   const focused = windowPrefs.focus === win.key;
   el.classList.toggle("window-focused", focused);
 
-  const entries = sortWindowEntries(ranked.filter(entry => win.member(entry, today)), windowPrefs[win.sortPref]);
+  const unsorted = ranked.filter(entry => win.member(entry, today));
+  const entries = sortWindowEntries(unsorted, windowPrefs[win.sortPref]);
 
   // Header: title, count, hint, expand/shrink.
   const header = document.createElement("div");
@@ -162,6 +174,12 @@ function renderWindow(win, ranked, today) {
   controls.appendChild(makeWindowSwitch(WINDOW_GROUP_MODES, windowPrefs[win.groupPref], key => setWindowPref(win.groupPref, key), win.title + " grouping"));
   el.appendChild(controls);
 
+  // Empty-Now suggestion (Later only, live-checked every render — see file header).
+  if (win.key === "later" && nowIsEmpty) {
+    const suggested = sortWindowEntries(unsorted, "priority").slice(0, 3);
+    if (suggested.length) el.appendChild(renderSuggestionBox(suggested));
+  }
+
   // Body.
   const body = document.createElement("div");
   body.className = "window-body";
@@ -176,21 +194,19 @@ function renderWindow(win, ranked, today) {
       head.className = "window-group-header";
       head.textContent = group.name + " · " + group.entries.length;
       body.appendChild(head);
-      group.entries.forEach(entry => body.appendChild(renderWindowCard(entry, win, today)));
+      group.entries.forEach(entry => body.appendChild(renderWindowCard(entry, win)));
     });
   } else {
-    entries.forEach(entry => body.appendChild(renderWindowCard(entry, win, today)));
+    entries.forEach(entry => body.appendChild(renderWindowCard(entry, win)));
   }
   el.appendChild(body);
 
-  if (win.key === "now") {
-    const addLink = document.createElement("button");
-    addLink.type = "button";
-    addLink.className = "link-btn window-add";
-    addLink.textContent = "+ Add to Now";
-    addLink.addEventListener("click", addTaskToNowDirectly);
-    el.appendChild(addLink);
-  }
+  const addLink = document.createElement("button");
+  addLink.type = "button";
+  addLink.className = "link-btn window-add";
+  addLink.textContent = "+ Add task";
+  addLink.addEventListener("click", win.key === "now" ? addTaskToNowDirectly : addTaskToLaterDirectly);
+  el.appendChild(addLink);
 }
 
 function makeWindowSwitch(options, active, onPick, label) {
@@ -227,7 +243,7 @@ function groupEntriesByFolder(entries) {
 
 // One task card. Same heat-map as everywhere else: hue from the live quadrant, --p from
 // priority intensity. Quick wins render as the compact variant.
-function renderWindowCard(entry, win, today) {
+function renderWindowCard(entry, win) {
   const { task, assessment } = entry;
   const card = document.createElement("div");
   card.className = "window-card quadrant-" + assessment.quadrant.key + (task.is_quick_win ? " window-card-quick" : "");
@@ -284,25 +300,6 @@ function renderWindowCard(entry, win, today) {
   chip.addEventListener("click", () => toggleQuickWin(task));
   actions.appendChild(chip);
 
-  // Promote to deadline (Now only): "I really can't miss this one" — deadline = today, which
-  // the deadline path already scores at Critical. Locked once the deadline is today or past.
-  if (win.key === "now") {
-    const promote = document.createElement("label");
-    promote.className = "window-promote";
-    const box = document.createElement("input");
-    box.type = "checkbox";
-    const locked = !!task.deadline && task.deadline <= today;
-    box.checked = locked;
-    box.disabled = locked;
-    box.addEventListener("change", () => promoteToDeadline(task));
-    promote.appendChild(box);
-    promote.appendChild(document.createTextNode("due today"));
-    promote.title = locked
-      ? (task.deadline === today ? "Deadline is today" : "Overdue since " + task.deadline)
-      : "Set the deadline to today";
-    actions.appendChild(promote);
-  }
-
   const editBtn = document.createElement("button");
   editBtn.type = "button";
   editBtn.className = "btn-icon";
@@ -316,17 +313,63 @@ function renderWindowCard(entry, win, today) {
   return card;
 }
 
+// Empty-Now suggestion box: the top 3 Later tasks by priority, boxed up with an "Add all N"
+// button. Cards are the real renderWindowCard, source "later" — draggable into Now exactly
+// like any other Later card; the box is just a highlighted second look at them.
+function renderSuggestionBox(suggested) {
+  const box = document.createElement("div");
+  box.className = "window-suggestion";
+
+  const header = document.createElement("div");
+  header.className = "window-suggestion-header";
+
+  const label = document.createElement("span");
+  label.className = "window-suggestion-label";
+  label.textContent = "Now is empty — top " + suggested.length + " from Later";
+  header.appendChild(label);
+
+  const addAllBtn = document.createElement("button");
+  addAllBtn.type = "button";
+  addAllBtn.className = "btn btn-primary window-suggestion-add-all";
+  addAllBtn.textContent = "Add all " + suggested.length;
+  addAllBtn.addEventListener("click", () => {
+    addAllBtn.disabled = true;
+    addSuggestedTasksToNow(suggested.map(entry => entry.task));
+  });
+  header.appendChild(addAllBtn);
+
+  box.appendChild(header);
+
+  const cards = document.createElement("div");
+  cards.className = "window-suggestion-cards";
+  suggested.forEach(entry => cards.appendChild(renderWindowCard(entry, WINDOWS.later)));
+  box.appendChild(cards);
+
+  return box;
+}
+
+// Chains addToNow across the suggested tasks, one at a time — addToNow's deadline prompt can
+// only have one open at a time (promptForNowDeadline cancels any prior one), so these must
+// resolve in sequence rather than fire concurrently.
+async function addSuggestedTasksToNow(tasksToAdd) {
+  for (const task of tasksToAdd) {
+    await addToNow(task, { manual: true });
+  }
+}
+
 // ---------- Actions ----------
 
-// Puts a task in Now for today. `manual` = the user did it (drag, "+ Add to Now"), which
+// Puts a task in Now for today. `manual` = the user did it (drag, "+ Add task"), which
 // makes it a quick win by default and counts as a genuine edit (touches last_touched_at).
 // A manual add of a task with no deadline first asks for one (Now-window deadline prompt),
 // so nothing can roll forward in Now indefinitely with nothing else forcing it to surface.
 // Auto-population lives in runDailyMaintenance (app.js) and touches nothing.
+// Returns a promise resolving once the add (or its deadline prompt) settles, so callers that
+// need to chain several adds in sequence (the empty-Now "Add all N" suggestion) can await it.
 function addToNow(task, opts) {
   const manual = !!(opts && opts.manual);
   const today = todayISODate();
-  if (task.status !== "active" || task.do_date === today) return;
+  if (task.status !== "active" || task.do_date === today) return Promise.resolve();
 
   const finish = () => {
     task.do_date = today;
@@ -339,14 +382,14 @@ function addToNow(task, opts) {
   };
 
   if (manual && !task.deadline) {
-    promptForNowDeadline(task).then(date => {
+    return promptForNowDeadline(task).then(date => {
       if (!date) return; // cancelled: leave the task where it was
       task.deadline = date;
       finish();
     });
-    return;
   }
   finish();
+  return Promise.resolve();
 }
 
 // Dragging out of Now clears do_date entirely (and with it the urgency floor).
@@ -358,27 +401,13 @@ function removeFromNow(task) {
   render();
 }
 
-function promoteToDeadline(task) {
-  const today = todayISODate();
-  if (task.deadline && task.deadline <= today) return;
-  if (task.deadline && !confirm('Move the deadline of "' + task.title + '" from ' + task.deadline + " to today?")) {
-    render(); // put the checkbox back
-    return;
-  }
-  task.deadline = today;
-  applyDeadlineDefault(task);
-  task.last_touched_at = new Date().toISOString();
-  persist();
-  render();
-}
-
 function toggleQuickWin(task) {
   task.is_quick_win = !task.is_quick_win;
   persist();
   render();
 }
 
-// "+ Add to Now": the task form, prefilled as a quick win planned for today with the
+// Now's "+ Add task": the task form, prefilled as a quick win planned for today with the
 // Now-window default deadline already in place (editable before saving).
 function addTaskToNowDirectly() {
   if (folders.length === 0) {
@@ -392,6 +421,19 @@ function addTaskToNowDirectly() {
     is_quick_win: true,
     deadline: defaultNowDeadline(),
   });
+}
+
+// Later's "+ Add task": the plain shared form, no special prefill — unlike Now there's no
+// single default (Plan vs. Backlog falls out of importance/urgency after the fact, not a
+// choice made upfront). The existing deadline requirement (High/Critical can't sit in Plan
+// without one) already applies on save, nothing extra needed here.
+function addTaskToLaterDirectly() {
+  if (folders.length === 0) {
+    alert("Add a folder first.");
+    return;
+  }
+  const candidates = activeCategoryFilter !== "all" ? folders.filter(f => f.category_id === activeCategoryFilter) : folders;
+  openTaskModal({ folder_id: (candidates[0] || folders[0]).id });
 }
 
 // ---------- Now-window deadline prompt ----------

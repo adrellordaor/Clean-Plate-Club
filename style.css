@@ -1065,25 +1065,6 @@ body {
   color: #fff;
 }
 
-.window-promote {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  font-size: 0.7rem;
-  color: var(--text-muted);
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.window-promote input {
-  margin: 0;
-  cursor: pointer;
-}
-
-.window-promote input:disabled {
-  cursor: default;
-}
-
 /* Quick wins are the "knock it out" pile: a slimmer card, no meta line, lighter title. */
 .window-card-quick {
   padding: 0.25rem 0.5rem;
@@ -1105,6 +1086,44 @@ body {
 
 .window-add {
   margin-top: 0.4rem;
+}
+
+/* Empty-Now suggestion: a live-checked highlight (never a stored/dismissible flag) around
+   the top 3 Later tasks by priority, shown whenever Now has nothing planned. Disappears the
+   instant anything lands in Now. */
+.window-suggestion {
+  border: 1px dashed var(--accent);
+  border-radius: 8px;
+  padding: 0.5rem 0.55rem 0.45rem;
+  margin-bottom: 0.5rem;
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+
+.window-suggestion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.window-suggestion-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.window-suggestion-add-all {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.74rem;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.window-suggestion-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
 }
 
 /* Deadline backfill modal rows */
@@ -1255,6 +1274,33 @@ body {
 
 .form-row > label {
   flex: 1;
+}
+
+.form-field-stack {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+/* "Same as do date": only shown (via the native `hidden` attribute) while the form has a
+   do_date set — see updateDeadlineSyncVisibility in app.js. */
+.task-deadline-sync-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.task-deadline-sync-row[hidden] {
+  display: none;
+}
+
+.task-deadline-sync-row input {
+  width: auto;
+  cursor: pointer;
 }
 
 .checkbox-label {
