@@ -146,9 +146,10 @@ function renderWindow(win, ranked, today) {
 
   const focusBtn = document.createElement("button");
   focusBtn.type = "button";
-  focusBtn.className = "link-btn window-focus-btn";
-  focusBtn.textContent = focused ? "Shrink" : "Expand";
-  focusBtn.title = focused ? "Back to equal widths" : "Give this window more room";
+  focusBtn.className = "btn-icon window-focus-btn";
+  focusBtn.innerHTML = focused ? ICONS.minimize : ICONS.maximize;
+  focusBtn.title = focused ? "Shrink: back to equal widths" : "Expand: give this window more room";
+  focusBtn.setAttribute("aria-label", focused ? "Shrink" : "Expand");
   focusBtn.addEventListener("click", () => setWindowPref("focus", focused ? "none" : win.key));
   header.appendChild(focusBtn);
 

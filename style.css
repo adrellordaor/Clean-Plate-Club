@@ -931,8 +931,7 @@ body {
 }
 
 .window-focus-btn {
-  font-size: 0.74rem;
-  padding: 0;
+  padding: 0.1rem;
 }
 
 .window-controls {
