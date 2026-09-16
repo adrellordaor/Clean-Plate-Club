@@ -1080,6 +1080,14 @@ body {
   display: none;
 }
 
+/* No meta line to protect, so the body doesn't need the full 140px reserved for normal
+   cards — that reservation was forcing the (wider) "QUICK WIN" chip to wrap onto its own
+   line before the (narrower) "TACKLE" chip did, making quick wins the taller card at narrow
+   widths, backwards from the compact design intent. */
+.window-card-quick .window-card-body {
+  flex-basis: 60px;
+}
+
 .window-card-quick .window-card-check {
   margin-top: 0.1rem;
 }
