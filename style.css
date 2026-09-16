@@ -11,8 +11,13 @@
   --done: #9a9a94;
   --row-hover: #fafaf8;
 
-  --badge-now-bg: #dcefe6;
-  --badge-now-text: #1f6b45;
+  /* Escalating tag (Do Today < Due Today < Overdue), one slot, most severe wins. */
+  --tag-do-today-bg: #dcefe6;
+  --tag-do-today-text: #1f6b45;
+  --tag-due-today-bg: #fbe8c9;
+  --tag-due-today-text: #93600a;
+  --tag-overdue-bg: #fbdcd8;
+  --tag-overdue-text: #a32d21;
   --badge-high-bg: #e4ecf7;
   --badge-high-text: #4a6fa5;
   --badge-critical-bg: #fbe8c9;
@@ -90,8 +95,12 @@
   --done: #6c6c67;
   --row-hover: #2a2b30;
 
-  --badge-now-bg: #1e3d2e;
-  --badge-now-text: #8fe0b4;
+  --tag-do-today-bg: #1e3d2e;
+  --tag-do-today-text: #8fe0b4;
+  --tag-due-today-bg: #4a3a1a;
+  --tag-due-today-text: #e8bd6f;
+  --tag-overdue-bg: #4a2320;
+  --tag-overdue-text: #f0958b;
   --badge-high-bg: #26374d;
   --badge-high-text: #9cc0f2;
   --badge-critical-bg: #4a3a1a;
@@ -745,10 +754,33 @@ body {
   letter-spacing: 0.02em;
 }
 
-/* "Now": this row is planned for today (do_date == today), i.e. it's in the Now window. */
-.badge-now {
-  background: var(--badge-now-bg);
-  color: var(--badge-now-text);
+/* Escalating tag: the same badge wherever a task appears (list rows, Now/Later cards, the
+   priority panel, the quadrant list). One slot: Overdue beats Due Today beats Do Today. */
+.tag-badge {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.tag-do-today {
+  background: var(--tag-do-today-bg);
+  color: var(--tag-do-today-text);
+}
+
+.tag-due-today {
+  background: var(--tag-due-today-bg);
+  color: var(--tag-due-today-text);
+}
+
+.tag-overdue {
+  background: var(--tag-overdue-bg);
+  color: var(--tag-overdue-text);
+}
+
+/* Inside the single-line, ellipsised titles of the priority panel and quadrant list. */
+.priority-card-title .tag-badge,
+.matrix-item-title .tag-badge {
+  margin-left: 0.35rem;
+  vertical-align: 0.1em;
 }
 
 .badge-high {
@@ -953,6 +985,58 @@ body {
   white-space: nowrap;
 }
 
+/* Sort dropdown: five options is too many for a segmented switch. Sized to sit level with
+   the grouping switch beside it. */
+.window-sort-select {
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  cursor: pointer;
+}
+
+.window-sort-select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Do-date layout: thin rule + tiny label between date groups. */
+.window-date-divider {
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  padding-top: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.window-date-divider-first {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 0;
+}
+
+/* Today / other zones in Now: each a drop target for the divider drag, kept droppable even
+   when empty. */
+.window-date-zone {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-height: 2.4rem;
+  border-radius: 8px;
+}
+
+.window-zone-empty {
+  padding: 0.35rem 0.25rem;
+  font-size: 0.75rem;
+}
+
 .window-body {
   display: flex;
   flex-direction: column;
@@ -1013,10 +1097,49 @@ body {
   gap: 0.1rem;
 }
 
+.window-card-title-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.4rem;
+}
+
 .window-card-title {
   font-size: 0.9rem;
   font-weight: 600;
   overflow-wrap: anywhere;
+}
+
+/* Inline do_date / deadline inputs, expanded cards only. */
+.window-card-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  margin-top: 0.2rem;
+}
+
+.window-card-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+}
+
+.window-card-date input[type="date"] {
+  font: inherit;
+  font-size: 0.72rem;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 0.1rem 0.3rem;
+  cursor: text;
 }
 
 .window-card-meta {
@@ -1080,6 +1203,12 @@ body {
   display: none;
 }
 
+/* Expanded quick wins still get the inline fields and meta line — the slimmer padding is the
+   only thing kept from the compact variant. */
+.window-card-quick.window-card-expanded .window-card-meta {
+  display: block;
+}
+
 /* No meta line to protect, so the body doesn't need the full 140px reserved for normal
    cards — that reservation was forcing the (wider) "QUICK WIN" chip to wrap onto its own
    line before the (narrower) "TACKLE" chip did, making quick wins the taller card at narrow
@@ -1132,6 +1261,67 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
+}
+
+/* "Became Do Today" sub-list inside the digest. */
+.digest-subheading {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin: 0.9rem 0 0.35rem;
+}
+
+/* ---- Focus mode ----
+   On-demand overlay over the page: only Now's do_date == today subset, expanded cards. The
+   dimmed backdrop (the overlay itself) is the deprioritize drop target; the panel isn't. */
+.focus-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: var(--overlay);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 6vh 1rem 2rem;
+  overflow-y: auto;
+}
+
+.focus-overlay.hidden {
+  display: none;
+}
+
+.focus-overlay.drop-target {
+  outline: none;
+  box-shadow: inset 0 0 0 3px var(--accent);
+}
+
+.focus-panel {
+  width: 100%;
+  max-width: 560px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.8rem 0.9rem 0.9rem;
+  box-shadow: 0 12px 40px -12px rgba(0, 0, 0, 0.45);
+}
+
+.focus-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+
+.focus-body {
+  max-height: none;
+  flex: 1;
+  overflow-y: auto;
 }
 
 /* Deadline backfill modal rows */
@@ -1611,6 +1801,15 @@ body {
   r: 9;
   stroke: var(--text);
 }
+
+/* Escalating tag on a dot: a distinct stroke in the tag's colour, and the same colour on the
+   tag suffix of its label. */
+.scatter-dot-group.tag-do-today .scatter-dot { stroke: var(--tag-do-today-text); stroke-width: 2.5; }
+.scatter-dot-group.tag-due-today .scatter-dot { stroke: var(--tag-due-today-text); stroke-width: 2.5; }
+.scatter-dot-group.tag-overdue .scatter-dot { stroke: var(--tag-overdue-text); stroke-width: 2.5; }
+.scatter-label-tagged.tag-do-today { fill: var(--tag-do-today-text); }
+.scatter-label-tagged.tag-due-today { fill: var(--tag-due-today-text); }
+.scatter-label-tagged.tag-overdue { fill: var(--tag-overdue-text); }
 
 .scatter-dot-rank {
   fill: #fff;

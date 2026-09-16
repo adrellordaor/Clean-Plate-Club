@@ -35,25 +35,44 @@ file in an OneDrive-backed folder.
 - deadline (nullable) — the real consequence date, drives the urgency
   engine, Overdue callout, and Calendar Red
 - do_date (nullable) — self-chosen "I intend to tackle this on this day."
-  Set three ways: manually (typed directly, or dragged from the main List
+  Set two ways: manually (typed directly, or dragged from the main List
   view into the Now window, in either case set to today, prompting for a
-  deadline if none exists yet, see Deadline requirement below); once
-  automatically, on the day a task's urgency transitions into the
-  High/Critical bucket (Do or Clear quadrant, whichever importance lands
-  it in, reusing the digest's existing drift-detection); or **defaulted
-  from `deadline`**: whenever a deadline gets set on a task (however it
-  came to be set), `do_date` defaults to that same date unless already set
-  to something else, so a task at minimum surfaces in Now on its deadline
-  day even if never moved earlier.
+  deadline if none exists yet, see Deadline requirement below); or
+  **defaulted from `deadline`**: whenever a deadline gets set on a task
+  (however it came to be set), `do_date` defaults to that same date
+  unless already set to something else. Now's membership is a live
+  union, `do_date == today` OR current live quadrant is Do or Clear, so
+  a genuinely urgent task always shows regardless of `do_date`, no
+  separate write is needed to guarantee that, see the Now window section.
+  **Deprioritizing** (dragging a task out of Now) is the one place
+  `do_date` gets touched deliberately, and it splits on *why* the task is
+  currently urgent:
+  - **Deadline is the true driver** (its deadline-branch urgency alone,
+    ignoring the floor below, already crosses `quadrant_split_score`):
+    dragging out prompts for a new deadline before it will actually
+    leave, no silent "I'll get to it," you have to commit to a real new
+    due date. Choosing one still close enough to independently qualify
+    just means it honestly reappears, the live recalculation makes that
+    obvious immediately, no separate validation needed.
+  - **Not deadline-driven** (staleness, or purely floor-boosted with
+    nothing urgent underneath): this is a genuine, deliberate edit, so it
+    legitimately bumps `last_touched_at` (unlike passive rollover, which
+    must never touch it), resetting the staleness clock. `do_date` resets
+    to `deadline` if one exists, or `null` if not (an undated, stale
+    Clear task, where staleness check-ins remain the ongoing safety net).
+    Because this is a real change, not an override, the task's live
+    quadrant genuinely settles into Plan or Backlog afterward, so Later's
+    plain quadrant-based membership picks it up correctly with no special
+    case needed.
   **Rollover**: an incomplete `do_date` task silently advances to the next
   day, no confirmation needed, this is safe specifically because other
   independent signals keep surfacing a neglected task regardless: dated
   tasks keep escalating toward the Overdue callout on their own real
   schedule, and undated tasks keep getting staleness check-ins on theirs.
   Critically, **rollover must never update `last_touched_at`**, only a
-  genuine edit should, otherwise it would silently reset the staleness
-  clock every day and quietly disable that safety net. Dragging a task out
-  of the Now window back to the main list clears `do_date` entirely.
+  genuine edit (like deprioritizing above) should, otherwise it would
+  silently reset the staleness clock every day and quietly disable that
+  safety net.
   `do_date == today` applies a floor to that task's computed urgency
   (`do_today_urgency_floor`, default 65, deliberately set just above
   `quadrant_split_score` so it actually crosses into the High/Critical
@@ -64,14 +83,16 @@ file in an OneDrive-backed folder.
   appear in the Overdue callout if its `deadline` has separately passed,
   the two are fully independent.
   Note: `deadline` itself never rolls or changes automatically under any
-  circumstance, only an explicit user action changes it (Evening Review
-  may surface extending one as an option, but never does it silently).
+  circumstance, only an explicit user action changes it (the deprioritize
+  prompt above is exactly such an action; Evening Review may also surface
+  extending one as an option, but never does it silently).
 - is_quick_win: bool — "knock it out" (quick win) vs "need to tackle"
   sizing, purely a display/organization tag, no effect on scoring. Defaults
   to true when a task is manually added to Now (dragged or created there
-  directly), false when auto-populated via the urgency-bucket transition
-  above. Toggleable either way from the task's info. Quick-win tasks
-  render as a smaller card in the Now window.
+  directly, i.e. `do_date` was explicitly set to today), false otherwise,
+  including for tasks that qualify for Now purely via the live quadrant
+  check with no `do_date` set. Toggleable either way from the task's
+  info. Quick-win tasks render as a smaller card in the Now window.
 - **Deadline requirement**: a High/Critical importance task that would
   otherwise land in Plan (i.e., its urgency isn't already High/Critical
   through some other means, e.g. staleness reaching "high") must have a
@@ -209,16 +230,25 @@ cost, works offline. Two parts:
    checked first thing each morning, before any edits happen that day.
    Keep a rolling window of the last 2-3 daily snapshots (not unbounded
    history), each recording `deadline`, `importance`, `last_touched_at`,
-   quadrant, and `priority_score` per task (`do_date` is deliberately
-   excluded here, its changes are often automatic via silent rollover or
-   auto-population, including it would falsely classify an ordinary day as
-   "you edited this").
+   quadrant, and `priority_score` per task. `do_date` is excluded from
+   this general set specifically because its changes are often automatic
+   via silent rollover or the deadline default, including it here would
+   falsely classify an ordinary day as "you edited this", but it does get
+   its own narrow, separate tracking below for the "became Do Today"
+   signal specifically.
    - **Primary (automatic drift)**: today's live computed values vs.
      yesterday's stored snapshot. Quadrant/score shifted while all fields
      are unchanged, meaning the shift came purely from time
      passing overnight. This is the digest's core purpose, shown
      prominently with a one-line reason (e.g. "Do: deadline in 2 days" /
-     "Plan: untouched 9 days").
+     "Plan: untouched 9 days"). When the cause is specifically a task's
+     `deadline` reaching 0 days or going negative, phrase the reason using
+     the escalating tag names directly, "became Due Today" / "became
+     Overdue", rather than generic day-count language, one consistent
+     vocabulary with the tag shown everywhere else. No new detection
+     needed here, `deadline` is already tracked in this snapshot and
+     never changes on its own, so this is purely a wording choice on an
+     existing signal.
    - **Secondary (what you edited yesterday)**: yesterday's snapshot vs.
      the day-before-yesterday's snapshot. Any of the three fields differ,
      meaning you made an edit during yesterday's session. Comparing
@@ -226,6 +256,17 @@ cost, works offline. Two parts:
      entirely, yesterday's snapshot already bakes the edit in, so this
      needs its own snapshot-to-snapshot comparison, not a live-vs-snapshot
      one. Shown de-emphasized (e.g. smaller text, collapsed by default).
+   - **"Became Do Today"**: a third, narrow case, since `do_date` is
+     deliberately excluded from the general snapshot fields above (to
+     avoid rollover looking like an edit), it needs its own specific
+     comparison rather than reuse of either tier. Track `do_date` in the
+     snapshot for this one purpose only: report "became Do Today" if
+     today's `do_date == today` and yesterday's stored `do_date` was
+     `null`. If yesterday's `do_date` was already set to anything, even a
+     past date, today's value is mechanically just rollover advancing it
+     by one day, not new information, and must not be reported, this is
+     the same rollover-isn't-a-change principle applied narrowly rather
+     than by excluding the field outright.
 
 Brand-new tasks (no snapshot at all in yesterday's baseline) and tasks
 that finished (done/dropped since yesterday) are tracked separately from
@@ -280,20 +321,25 @@ The app has three views:
   Low/Medium vs High/Critical labels.
   - Layout: Do (top-left), Plan (top-right), Clear (bottom-left),
     Backlog (bottom-right)
+  - Each dot carries the same escalating tag (Do Today/Due Today/
+    Overdue) from the Now window section, one visual language across the
+    whole app rather than a scatter-specific one.
 - **Priority summary panel** (right side): shows top tasks by
   `priority_score` for the day. Inclusion rule: a task shows if its rank
   is within `overview_top_n` (default 3), OR its score is ≥
   `overview_flag_threshold` (default 80), whichever is broader. So 3 tasks
   scoring 70/60/50 all show (top-3 rule); 5 tasks scoring 90/90/90/80/70
   show the first four, the 70 is excluded (outside top-3 and below 80).
-  Directly beneath it in the same sidebar column: the Staleness check-ins
-  card (see Daily Digest), teal-tiered, its own card rather than folded
-  into the "what changed" digest below.
+  Same escalating tag shown per task here too. Directly beneath it in the
+  same sidebar column: the Staleness check-ins card (see Daily Digest),
+  teal-tiered, its own card rather than folded into the "what changed"
+  digest below.
 - **Display mode toggle** (`overview_display_mode`, default `scatter`):
   switches between the scatter view above and the quadrant-list style
-  already built (four boxes, tasks listed inside each), same Do/Plan/
-  Clear/Backlog corner layout either way. Both modes are worth keeping,
-  the list is better for scanning within one quadrant.
+  already built (four boxes, tasks listed inside each, same tag shown per
+  task here as well), same Do/Plan/Clear/Backlog corner layout either
+  way. Both modes are worth keeping, the list is better for scanning
+  within one quadrant.
 - "What changed since yesterday" line(s), unchanged from before
 - Read-only glance, no checking things off here
 
@@ -322,7 +368,9 @@ The app has three views:
   works the same way with lightness alone (no hue), so a task climbing in
   urgency visibly darkens well before it ever crosses into another
   quadrant. Hue tells you *why* a task is prioritized, intensity tells you
-  *how much*, one formula drives both.
+  *how much*, one formula drives both. Every row also carries the same
+  escalating tag (Do Today/Due Today/Overdue) wherever it applies, one
+  visual language across the whole app, not something exclusive to Now.
 - **Overdue callout**: separate from the Top banner, since it answers a
   different question ("act on this exact task right now" vs. "here's
   today's ranking"). Membership-based, not ranked: a task qualifies if its
@@ -333,30 +381,62 @@ The app has three views:
   ad-hoc emergency with no deadline yet is handled by setting `deadline`
   to today, "promote to deadline" in the Now window does exactly this.
 - **Now window** (renamed from "Do Today"): the companion "intention"
-  window, membership-based on `do_date == today` and not yet completed,
-  fully independent of `priority_score` ranking for *membership* (though
-  the floor above does feed the score once a task is in). Together with
-  the Overdue callout, these are the two independent windows: one for
-  real consequences, one for what you told yourself to get done today.
-  - **Auto-population**: any task whose urgency transitions into the
-    High/Critical bucket (landing it in Do or Clear, whichever importance
-    dictates) gets `do_date` set to today automatically, once, on the
-    transition day (see the Data Model note on `do_date`). This is the
-    payoff of the matrix actually informing your daily plan rather than
-    sitting separate from it.
+  window, and the actual replacement for the old manual urgent flag, a
+  consolidated view of what you're assigning yourself to tackle today,
+  independent of the raw urgency number, but still exhaustive of genuine
+  urgency. **Membership**: `do_date == today` **OR** current live
+  quadrant is Do or Clear, not yet completed, checked live rather than
+  relying on any stored write, so a task can never be missed just because
+  nothing happened to flag it. Ranking within Now is fully independent of
+  `priority_score` for *membership* (though the floor does feed the score
+  once `do_date == today` applies). Together with the Overdue callout,
+  these are the two independent windows: one for real consequences, one
+  for what you told yourself to get done today.
+  - **Escalating tag, one slot, most severe wins**: **Do Today**
+    (`do_date == today`) < **Due Today** (`deadline == today`) <
+    **Overdue** (`deadline < today`, still open). Only the most severe
+    applies at any moment, they replace rather than stack, e.g. a task
+    that's both `do_date == today` and overdue shows only "Overdue." This
+    same tag (see below) is shown everywhere a task appears, not just
+    here.
   - **Sorting and view toggle**: a sort-key control offers Priority
-    (`priority_score`, default), Urgency, Importance, or Quick Win
+    (`priority_score`, default), Urgency, Importance, Quick Win
     (`is_quick_win` true surfaces first, `priority_score` as the
-    secondary tiebreak within each group), tasks re-sort by whichever is
-    selected, all values already exist, no new computation needed. A
-    separate toggle switches between a flat sorted list and the existing
-    by-folder grouping, same pattern as `overview_display_mode`.
-  - **Drag-and-drop**: dragging a task from the main List view into Now
-    sets `do_date` to today (applying the urgency floor, which now
-    reclassifies it into Do or Clear; prompts for a deadline first if none
-    exists, see Now-window deadline prompt). Dragging a task out of Now
-    back to the main list clears `do_date` entirely (removing the floor,
-    since it only applies when `do_date == today`).
+    secondary tiebreak within each group), or **Do Date** (chronological
+    ascending, `priority_score` as the secondary tiebreak within each
+    date, with a thin divider line between date groups). Five options is
+    too many for a segmented toggle, so this is a **dropdown**, not the
+    `.view-switch` style used elsewhere. A separate toggle still switches
+    between a flat sorted list and the existing by-folder grouping, same
+    pattern as `overview_display_mode`.
+    - **Drag across the divider** (Do Date sort mode only): a lighter
+      action than deprioritizing below, no reschedule prompt, it just
+      toggles whether `do_date == today` and lets the live quadrant
+      decide the honest outcome. Dragging a card down past the
+      today/future divider clears its "today" status (`do_date` resets
+      to `deadline` if one exists, `null` otherwise); if that was the
+      only reason it qualified for Now, it correctly leaves, if it's
+      still genuinely urgent underneath, it stays, just without the Do
+      Today tag. Dragging a card up past the divider sets `do_date` to
+      today, same effect as the general drag-in.
+  - **Drag-and-drop, in**: dragging a task from the main List view into
+    Now sets `do_date` to today (applying the urgency floor, which
+    reclassifies it into Do or Clear; prompts for a deadline first if
+    none exists, see Now-window deadline prompt).
+  - **Drag-and-drop, out (deprioritizing)**: splits on *why* the task is
+    currently urgent, see the `do_date` entry in the Data Model for the
+    full mechanic. In short: if a close deadline is the true driver, a
+    prompt requires picking a new one before it leaves, no silent "I'll
+    get to it." Otherwise, it's a genuine edit, `do_date` resets (to
+    `deadline` if one exists, `null` otherwise) and `last_touched_at`
+    legitimately updates, correctly resetting staleness so the task's
+    real quadrant settles into Plan or Backlog. This is the heavier
+    action, the divider-drag above is the lighter one, both write to the
+    same field, they're just two different entry points.
+  - **`do_date` is also a plain editable date field** in the shared task
+    form (create or edit), not something reachable only through drag
+    interactions, same principle as everything else in this app, one
+    underlying field, multiple ways to change it.
   - **Deadline sync in the task form**: not a standalone control on the
     rendered card, a checkbox inside the shared task form (create or
     edit), shown only when the form currently has a `do_date` set (this
@@ -373,22 +453,59 @@ The app has three views:
     through the mechanism that already exists.
   - **Quick-win sizing**: see `is_quick_win` in the Data Model, renders as
     a smaller card for quick wins.
-- **Later window** (renamed from "Remember"): the long-view counterpart
-  to Now, aggregating Plan (important, not yet urgent) and Backlog
-  (unimportant) tasks together, both are genuinely "not needed today,"
-  just for different reasons. Same sort-key control as Now (Priority/
-  Urgency/Importance/Quick Win), useful here specifically for spotting
-  the biggest Plan items by Importance or what's creeping closest to
-  urgent by Urgency. Tasks render with their own existing quadrant hue
-  (teal for
+  - **Compact vs. expanded card detail**, symmetric with Later's inline
+    date editing: at default (narrower) width, a card shows just
+    checkbox, title, and the escalating tag, the minimum needed to scan
+    and act. When Now is the expanded/focused panel, cards reveal the
+    fuller meta line (folder/context label, quadrant label, the urgency
+    reason text, e.g. "deadline in 2 days" or "untouched 9 days", and due
+    date), plus inline editable `do_date` and `deadline` fields and an
+    inline quick-win toggle, rather than needing the full edit form for
+    small changes. Proactively editing `deadline` inline here before
+    dragging a task out sidesteps the reschedule prompt entirely, since
+    the deadline's already been dealt with by the time you drag.
+  - **Focus mode**: an on-demand overlay, not a persistent third window,
+    triggered and dismissed by a single button. Filters to strictly the
+    Do Today-tagged subset of Now (not all of Now, not Later), everything
+    else dimmed/hidden behind it. Reuses the exact same drag mechanics as
+    the normal view unchanged, dragging a task out (to the dimmed
+    background) triggers the same reschedule prompt if a close deadline
+    is the true driver, or the ordinary deprioritize reset otherwise. No
+    divider needed here, since everything visible already carries the tag
+    by definition. This is a rendering mode over existing data, not a new
+    membership rule or a new thing to keep in sync, purely a distraction-
+    reduction view.
+- **Later window** (renamed from "Remember"): **membership is current
+  live quadrant Plan or Backlog**, a plain quadrant rule, no special case
+  needed, because deprioritizing (above) always forces a real underlying
+  change rather than overriding one, a task only ever leaves Now by
+  genuinely no longer qualifying, so Later's simple quadrant check always
+  lands correctly with no gap between the two windows. Same sort-key
+  dropdown as Now (Priority/Urgency/Importance/Quick Win/Do Date), useful
+  here specifically for spotting the biggest Plan items by Importance,
+  what's creeping closest to urgent by Urgency, or what's coming up next
+  by Do Date. In Later's case, Do Date's divider splits **with date** vs.
+  **without date** rather than chronological groups, not every Plan or
+  Backlog task carries a `do_date` (only ones with a deadline get one by
+  default), so "chronological" doesn't cleanly apply to the undated ones.
+  Tasks render with their own existing quadrant hue (teal for
   Plan-origin, gray for Backlog-origin), this window doesn't invent a new
-  color scheme, it's a filtered aggregate view of data that already
-  exists elsewhere. Now vs. Later: act on these now, versus don't lose
-  track of these. Renders side by side with Now, both narrower by
-  default; either can be focused/expanded to take more width than the
-  other. Has its own "+ Add task" affordance, opening the same shared
-  task form with no special prefill, unlike Now there's no single default
-  to prefill toward, a task's landing in Plan vs. Backlog is derived after
+  color scheme, it's a filtered view of data that already exists
+  elsewhere. Now vs. Later: act on these now, versus don't lose track of
+  these. Renders side by side with Now, both narrower by default; either
+  can be focused/expanded to take more width than the other.
+  - **Inline date editing, expanded only**: when Later is the expanded/
+    focused panel (not the default narrower width), each card reveals
+    small inline `do_date` and `deadline` fields directly, no need to
+    open the full edit form for a quick date assignment. Collapsed back
+    to default width, cards revert to their compact form without these
+    fields, keeping the everyday side-by-side layout clean. This is the
+    cheaper alternative to a separate Planning Mode, same underlying
+    fields, just surfaced conditionally rather than behind a whole new
+    toggleable state.
+  Has its own "+ Add task" affordance, opening the same shared task form
+  with no special prefill, unlike Now there's no single default to
+  prefill toward, a task's landing in Plan vs. Backlog is derived after
   the fact from importance and urgency, not chosen upfront. The deadline
   requirement still applies automatically if the result would land in
   Plan, that's a global form rule, not something scoped to Now.
@@ -543,14 +660,20 @@ productivity view")
   log
 - Deadline field with the dynamic urgency engine above (also covers
   ad-hoc fires, "promote to deadline" sets it to today)
-- do_date field (separate from deadline) and the Now window: auto-
-  populated from the Do/Clear quadrants (harsher urgency bucket, both
-  count now) plus your own manual additions, priority-sorted with a
-  flat/by-folder toggle, drag-and-drop in and out (now reclassifying
-  quadrant, not just score), silent daily rollover, a checkbox to promote
-  to a real deadline, and quick-win vs. need-to-tackle sizing
-- Later window: aggregates Plan and Backlog quadrant tasks, the
-  long-view counterpart to Now
+- do_date field (separate from deadline) and the Now window: membership
+  is a live union of do_date == today and any task currently in the
+  Do/Clear quadrants, exhaustive by construction, no stored write needed
+  to guarantee it. A "Do Today" tag marks cards where do_date == today
+  specifically. Dragging out deprioritizes rather than just clearing:
+  a close deadline forces a reschedule prompt instead of silent "I'll
+  get to it," otherwise it's a genuine edit that resets do_date and
+  legitimately updates last_touched_at. Sort dropdown offers Priority/
+  Urgency/Importance/Quick Win/Do Date, with a flat/by-folder toggle, a
+  checkbox to promote to a real deadline, and quick-win vs. need-to-
+  tackle sizing
+- Later window: membership is simply current live quadrant Plan or
+  Backlog, no special case needed, since deprioritizing always forces a
+  real quadrant change rather than overriding one
 - Required deadline on High/Critical importance tasks landing in Plan,
   closing the "important but dateless forever" loophole; do_date defaults
   to the deadline so it surfaces at latest by then

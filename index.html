@@ -84,9 +84,11 @@
 
     <div class="main-layout">
       <div class="main-column">
-        <!-- Now (do_date == today) and Later (Plan + Backlog) side by side; see windows.js.
-             Both are drop zones: drag a task into Now to plan it for today, drag a Now card
-             onto Later or the list below to take it back out. -->
+        <!-- Now (live union: do_date == today OR quadrant Do/Clear) and Later (quadrant Plan
+             or Backlog) side by side; see windows.js. Both are drop zones: drag a task into
+             Now to plan it for today, drag a Now card onto Later or the list below to
+             deprioritize it (a close deadline forces a reschedule prompt; otherwise do_date
+             resets and the task settles into Plan/Backlog on its own). -->
         <div id="windows-row" class="windows-row">
           <section id="now-window" class="window-panel window-now" aria-label="Now"></section>
           <section id="later-window" class="window-panel window-later" aria-label="Later"></section>
@@ -157,7 +159,7 @@
           Quick win
         </label>
       </div>
-      <p class="settings-hint">A planned date puts the task in the Now window that day (it rolls forward until done). High/Critical tasks need a deadline.</p>
+      <p class="settings-hint">A planned date puts the task in the Now window that day (it rolls forward until done); anything already in Do or Clear shows there regardless. High/Critical tasks need a deadline.</p>
 
       <p id="task-error" class="settings-error" aria-live="polite"></p>
 
@@ -169,20 +171,36 @@
   </div>
 </div>
 
-<!-- Now-window deadline prompt: a task added to Now by hand without a deadline gets one here -->
+<!-- Deadline prompt, two uses (copy set by windows.js promptForDeadline): a task added to Now
+     by hand without a deadline gets one here, and a deadline-driven task dragged out of Now
+     must pick a new one before it leaves. -->
 <div id="now-deadline-modal" class="modal hidden">
   <div class="modal-content">
-    <h2>Set a deadline</h2>
-    <p class="gate-text">Anything in Now needs a real deadline, so it can't roll forward forever unnoticed. Set one for <strong id="now-deadline-task"></strong>:</p>
+    <h2 id="now-deadline-heading">Set a deadline</h2>
+    <p class="gate-text"><span id="now-deadline-text">Anything in Now needs a real deadline, so it can't roll forward forever unnoticed. Set one for</span> <strong id="now-deadline-task"></strong>:</p>
     <form id="now-deadline-form">
       <label>Deadline
         <input type="date" id="now-deadline-input" required>
       </label>
       <div class="modal-actions">
         <button type="button" id="now-deadline-cancel-btn" class="btn btn-secondary">Cancel</button>
-        <button type="submit" class="btn btn-primary">Add to Now</button>
+        <button type="submit" id="now-deadline-confirm" class="btn btn-primary">Add to Now</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- Focus mode: on-demand overlay showing only the do_date == today subset of Now. The dimmed
+     backdrop is a drop zone (deprioritize), the panel inside holds the cards. See windows.js. -->
+<div id="focus-overlay" class="focus-overlay hidden" role="dialog" aria-label="Focus mode">
+  <div id="focus-panel" class="focus-panel">
+    <div class="focus-header">
+      <h2 class="window-title">Focus</h2>
+      <span id="focus-count" class="window-count">0</span>
+      <span class="window-hint">planned for today · drop on the background to deprioritize</span>
+      <button type="button" id="focus-close-btn" class="btn-icon" aria-label="Close focus mode" title="Close (Esc)"></button>
+    </div>
+    <div id="focus-body" class="window-body focus-body"></div>
   </div>
 </div>
 

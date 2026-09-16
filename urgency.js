@@ -228,6 +228,49 @@ function quadrantFor(impBucket, urgBucket) {
   return urgBucket === "high" ? QUADRANTS.q3 : QUADRANTS.q4;
 }
 
+// ---------- Escalating tag, Now/Later membership ----------
+
+// One slot, most severe wins: Overdue (deadline < today) > Due Today (deadline == today) >
+// Do Today (do_date == today). They replace rather than stack, so a task that's both planned
+// for today and overdue shows only "Overdue". Reads nothing but the two dates vs. today, so
+// no threshold setting can change it. Returns { key, label } or null. Active tasks only.
+const ESCALATING_TAGS = Object.freeze({
+  overdue: Object.freeze({ key: "overdue", label: "Overdue" }),
+  dueToday: Object.freeze({ key: "due-today", label: "Due Today" }),
+  doToday: Object.freeze({ key: "do-today", label: "Do Today" }),
+});
+
+function escalatingTag(task, today) {
+  if (!task || task.status !== "active") return null;
+  if (task.deadline && task.deadline < today) return ESCALATING_TAGS.overdue;
+  if (task.deadline && task.deadline === today) return ESCALATING_TAGS.dueToday;
+  if (task.do_date && task.do_date === today) return ESCALATING_TAGS.doToday;
+  return null;
+}
+
+// Is a close deadline the true driver of this task's urgency? The deadline branch alone —
+// ignoring the do_date floor — already crosses the quadrant split. Decides which way
+// deprioritizing (dragging out of Now) goes: reschedule prompt vs. plain reset.
+function isDeadlineDriven(task, settings, today) {
+  const base = baseUrgency(task, settings, today);
+  return base.basis === "deadline" && base.score >= splitScore(settings);
+}
+
+// Now window membership: a live union, checked on every render, no stored write involved.
+// do_date == today (what you told yourself to do) OR live quadrant Do/Clear (genuinely urgent).
+function isNowMember(task, assessment, today) {
+  if (task.status !== "active") return false;
+  if (task.do_date && task.do_date === today) return true;
+  const q = assessment.quadrant.key;
+  return q === "q1" || q === "q3";
+}
+
+// Later window membership: plain live-quadrant rule, Plan or Backlog.
+function isLaterMember(assessment) {
+  const q = assessment.quadrant.key;
+  return q === "q2" || q === "q4";
+}
+
 // ---------- Priority score ----------
 
 // priority_score = w × importance + (1 − w) × urgency, both on 0-100 scales. Continuous, so
@@ -291,5 +334,6 @@ if (typeof module !== "undefined" && module.exports) {
     deadlineUrgencyScore, stalenessUrgencyScore, urgencyLevel, computeUrgency, baseUrgency,
     importanceScore, splitScore, importanceBucket, urgencyBucket, quadrantFor,
     priorityScore, priorityRangeFor, priorityIntensity, assessTask,
+    ESCALATING_TAGS, escalatingTag, isDeadlineDriven, isNowMember, isLaterMember,
   };
 }

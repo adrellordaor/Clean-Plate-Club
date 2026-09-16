@@ -10,11 +10,15 @@ function makeId() {
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-const DATA_VERSION = 6; // v3: settings object; v4: quadrantHistory (daily digest); v5: quadrantHistory
+const DATA_VERSION = 7; // v3: settings object; v4: quadrantHistory (daily digest); v5: quadrantHistory
 // records enriched with deadline/importance/last_touched_at/priority_score, for the primary
 // (automatic drift) vs secondary (manual edit) digest split; v6: manual_urgent_flag removed
 // (migrated to deadline = today / do_date = today), do_date + is_quick_win added to Task,
-// plannedHistory (permanent per-day frozen "planned" sets for the Calendar) added
+// plannedHistory (permanent per-day frozen "planned" sets for the Calendar) added; v7: Now
+// window rebuilt as a live union (do_date == today OR quadrant Do/Clear) — the old
+// transition-detection auto-population is gone, so quadrantHistory and every do_date written
+// under that design are discarded once (resetToV7), not migrated; snapshot records gain a
+// do_date key for the digest's "became Do Today" check
 
 // Minimalist outline icons (stroke = currentColor, so they inherit button text color).
 const SVG_ATTRS = 'viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
@@ -27,6 +31,8 @@ const ICONS = {
   bump: `<svg ${SVG_ATTRS}><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>`,
   maximize: `<svg ${SVG_ATTRS}><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`,
   minimize: `<svg ${SVG_ATTRS}><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`,
+  focus: `<svg ${SVG_ATTRS}><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/></svg>`,
+  close: `<svg ${SVG_ATTRS}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`,
 };
 
 let categories = []; // Category: top-level grouping, drives the tabs.
@@ -74,8 +80,28 @@ function loadState(data) {
   quadrantHistory = data.quadrantHistory && typeof data.quadrantHistory === "object" ? data.quadrantHistory : {};
   sanitizeQuadrantHistory(quadrantHistory); // drop any pre-v5 day stored as a bare quadrant-key string
   plannedHistory = data.plannedHistory && typeof data.plannedHistory === "object" ? data.plannedHistory : {};
-  if ((Number(data.version) || 0) < 6) migrateTasksToV6(tasks, todayISODate());
+  const version = Number(data.version) || 0;
+  if (version < 6) migrateTasksToV6(tasks, todayISODate());
+  if (version < 7) quadrantHistory = resetToV7(tasks);
   tasks.forEach(normalizeTaskFields);
+}
+
+// One-time v7 reset, gated on the file's version. The pre-v7 Now window auto-populated
+// do_date = today from stored urgency-bucket transitions; that design is gone, and the data it
+// wrote is discarded rather than carried forward:
+//  - quadrantHistory is emptied (its records were also the transition detector's memory).
+//    The digest simply has no baseline until tomorrow. Records written from here on carry a
+//    do_date key, which the "became Do Today" check relies on.
+//  - every do_date is reset to the spec's deadline-default (deadline if set, else null),
+//    wiping any auto-populated "today". A past deadline rolls forward in runDailyMaintenance
+//    as usual, so overdue work still lands in Now on the same load.
+// plannedHistory (the Calendar's frozen record) is deliberately left alone.
+// Returns the fresh quadrantHistory.
+function resetToV7(taskList) {
+  taskList.forEach(task => {
+    task.do_date = task.deadline || null;
+  });
+  return {};
 }
 
 // One-time v6 migration, gated on the file's version so it can't re-run on a later load
@@ -142,7 +168,7 @@ function persistIfSnapshotChanged() {
 
 // ---------- Daily maintenance (do_date) ----------
 // Runs on every load (first open of the day, a synced change from the other device) and at
-// midnight. Three steps, in this order:
+// midnight. Two steps, in this order:
 //  1. Freeze the "planned" set of every past day that hasn't been frozen yet, into
 //     plannedHistory, so the Calendar's Green/Blue/Gray for that day can never be rewritten
 //     by what happens to do_date afterwards. Days are walked one at a time from the day after
@@ -154,10 +180,9 @@ function persistIfSnapshotChanged() {
 //     confirmation: other signals (the deadline path, staleness check-ins) keep surfacing a
 //     neglected task on their own. This must NEVER touch last_touched_at, or it would reset
 //     the staleness clock every day and quietly disable that safety net.
-//  3. Auto-populate Now: any task whose urgency crossed into the High/Critical bucket since
-//     its last recorded snapshot (findUrgencyBucketTransitions, digest.js) gets do_date =
-//     today, once, on the transition day, as a "need to tackle" (is_quick_win false).
-//     Again without touching last_touched_at — nothing here is a user edit.
+// There is no auto-population step: Now's membership is a live union (do_date == today OR
+// quadrant Do/Clear, see isNowMember in urgency.js), so a genuinely urgent task shows up with
+// no stored write at all.
 // Returns true when anything changed (and persists in that case).
 function runDailyMaintenance() {
   const today = todayISODate();
@@ -183,14 +208,6 @@ function runDailyMaintenance() {
       task.do_date = today;
       changed = true;
     }
-  });
-
-  // 3. Auto-populate from urgency-bucket transitions.
-  findUrgencyBucketTransitions(quadrantHistory, tasks, settings, today).forEach(({ task }) => {
-    if (task.do_date === today) return;
-    task.do_date = today;
-    task.is_quick_win = false;
-    changed = true;
   });
 
   if (changed) persist();
@@ -235,7 +252,7 @@ function makeTask(overrides) {
     created_at: now,
     last_touched_at: now,
     deadline: null,       // the real consequence date; drives urgency, never changes on its own
-    do_date: null,        // "YYYY-MM-DD" the user (or auto-population) intends to tackle it; rolls forward daily
+    do_date: null,        // "YYYY-MM-DD" the user intends to tackle it (or the deadline default); rolls forward daily
     importance: "Low",
     is_quick_win: false,  // display/organization tag only ("knock it out" vs "need to tackle"); no scoring effect
     status: "active",
@@ -631,9 +648,7 @@ function renderTaskRow(task) {
   title.textContent = task.title;
   titleLine.appendChild(title);
 
-  if (assessment && isInNow(task, today)) {
-    titleLine.appendChild(makeBadge("Now", "badge-now"));
-  }
+  appendTagBadge(titleLine, task, today);
   if (task.importance === "Critical") {
     titleLine.appendChild(makeBadge("Critical", "badge-critical"));
   } else if (task.importance === "High") {
@@ -722,6 +737,21 @@ function makeBadge(text, cssClass) {
   span.className = "task-badge " + cssClass;
   span.textContent = text;
   return span;
+}
+
+// The escalating tag (Do Today < Due Today < Overdue, one slot, see escalatingTag in
+// urgency.js) as a badge. Same element everywhere a task appears — list rows, Now/Later
+// cards, the priority panel, the quadrant list — so it's one visual language, not a
+// Now-window special.
+function makeTagBadge(tag) {
+  return makeBadge(tag.label, "tag-badge tag-" + tag.key);
+}
+
+// Appends the tag badge to `el` when the task carries one; no-op otherwise.
+function appendTagBadge(el, task, today) {
+  const tag = escalatingTag(task, today);
+  if (tag) el.appendChild(makeTagBadge(tag));
+  return tag;
 }
 
 // One line under the title showing just the quadrant label; the numbers behind it
@@ -1505,7 +1535,7 @@ async function applyLoadResult(result) {
   }
   storageGate.classList.add("hidden");
   loadState(result.data);
-  runDailyMaintenance();      // freeze past planned days, roll do_dates forward, auto-populate Now
+  runDailyMaintenance();      // freeze past planned days, roll do_dates forward
   persistIfSnapshotChanged(); // first open of the day: freeze yesterday, start today's snapshot
   render();
   renderStorageBar();
@@ -1624,7 +1654,7 @@ function scheduleMidnightRender() {
   const now = new Date();
   const next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 1);
   setTimeout(() => {
-    runDailyMaintenance();      // freeze yesterday's planned set, roll do_dates, auto-populate
+    runDailyMaintenance();      // freeze yesterday's planned set, roll do_dates
     persistIfSnapshotChanged();
     render();
     scheduleMidnightRender();

@@ -1,38 +1,49 @@
 // Now / Later windows: the two side-by-side "intention" panels at the top of the List view.
 //
-//   Now   — membership is do_date == today (and not yet completed): what you told yourself
-//           to get done today. Populated by hand (drag a task in, its own "+ Add task", or
-//           type a do_date in the task form) and automatically, once, on the day a task's
-//           urgency crosses into the High/Critical bucket (runDailyMaintenance in app.js).
-//           Being in Now floors the task's urgency (do_today_urgency_floor), which is what
-//           moves it into Do or Clear rather than merely making it look more urgent.
+//   Now   — membership is a LIVE UNION, checked on every render with no stored write behind
+//           it: do_date == today (what you told yourself to do) OR the task's live quadrant is
+//           Do or Clear (genuinely urgent, whatever do_date says). See isNowMember in
+//           urgency.js. A do_date of today also floors the task's urgency
+//           (do_today_urgency_floor), which is what moves a merely-planned task into Do or
+//           Clear rather than just making it look more urgent.
 //   Later — the long-view counterpart: every active task whose live quadrant is Plan or
-//           Backlog, i.e. genuinely "not needed today", for two different reasons. Tasks keep
-//           their own quadrant hue (teal / gray); this is a filtered view, not a new scheme.
-//           Has its own "+ Add task" too, opening the plain shared form with no prefill —
-//           unlike Now, Plan vs. Backlog falls out of importance/urgency after the fact, not
-//           a choice made upfront.
+//           Backlog. A plain quadrant rule with no special case, because leaving Now is always
+//           a real underlying change (see deprioritize below), never an override.
 //
-// Both windows share a sort-key control (Priority / Urgency / Importance / Quick win) and a
-// flat-vs-by-folder grouping toggle, kept as per-device preferences in localStorage (like
-// the theme and folderCountDisplay). Either window can be expanded to take more width.
+// Escalating tag (Do Today < Due Today < Overdue, one slot, most severe wins): every card
+// carries it, the same badge list rows and the Overview use (escalatingTag in urgency.js).
 //
-// Empty-Now suggestion: whenever Now has zero tasks (checked live on every render, never a
-// stored/dismissible flag), the Later window gets a highlighted box around its top 3 tasks
-// by priority (independent of whatever sort/group Later is currently set to), plus an
-// "Add all N" button chaining addToNow across them. The box vanishes the instant Now stops
-// being empty, from that button, a drag, or anything else — there's no state to clear.
+// Sorting: a dropdown (five options is too many for a segmented switch) — Priority (default),
+// Urgency, Importance, Quick win, Do date. Do date draws a thin divider between date groups:
+// in Now that's today / each later date / no date, and the today-vs-rest boundary is
+// draggable across (a lighter action than deprioritizing, it just toggles do_date's "today"
+// status and lets the live quadrant decide); in Later the divider splits with-date from
+// without-date. A separate flat / by-folder toggle nests inside whatever the sort produces.
 //
-// Reads app.js state (tasks, folders, settings, activeView, todayISODate, persist, render,
-// openTaskModal, toggleTaskDone, defaultNowDeadline, ICONS) and
-// overview.js helpers (rankActiveTasks, taskContextLabel) only from inside functions that
-// run after every script has loaded — nothing here touches them at parse time.
+// Compact vs. expanded cards: at default width a card is checkbox + title + tag. When a window
+// is the expanded panel its cards also show the meta line, inline do_date / deadline inputs
+// and the quick-win chip, so small changes don't need the full form.
+//
+// Focus mode (Now only): an on-demand overlay over the page showing just the do_date == today
+// subset of Now, same cards, same drag mechanics (drop on the dimmed backdrop = deprioritize).
+// Rendering mode only, no membership rule of its own, nothing to keep in sync.
+//
+// Empty-Now suggestion: whenever Now has zero tasks (live-checked every render), Later boxes
+// its top 3 by priority with an "Add all N" button chaining addToNow. No state to clear.
+//
+// Per-device prefs (sort, grouping, which window is expanded) live in localStorage like the
+// theme. Reads app.js state (tasks, folders, settings, activeView, todayISODate, persist,
+// render, openTaskModal, toggleTaskDone, defaultNowDeadline, applyDeadlineDefault,
+// isDeadlineViolator, showBackfillIfNeeded, appendTagBadge, ICONS), calendar.js
+// (addDaysISODate) and overview.js (rankActiveTasks, taskContextLabel) only from inside
+// functions that run after every script has loaded.
 
 const WINDOW_SORT_KEYS = [
   { key: "priority", label: "Priority" },
   { key: "urgency", label: "Urgency" },
   { key: "importance", label: "Importance" },
   { key: "quickwin", label: "Quick win" },
+  { key: "dodate", label: "Do date" },
 ];
 
 const WINDOW_GROUP_MODES = [
@@ -48,6 +59,7 @@ const DEFAULT_WINDOW_PREFS = Object.freeze({
 });
 
 let windowPrefs = loadWindowPrefs();
+let focusModeOpen = false; // transient, never persisted
 
 function loadWindowPrefs() {
   let raw = {};
@@ -70,17 +82,21 @@ function setWindowPref(key, value) {
   render();
 }
 
-// ---------- Membership and ordering (pure) ----------
+// ---------- Ordering (pure) ----------
 
-// In the Now window: active with a do_date of today. do_date < today only exists between a
-// day change and the next runDailyMaintenance, so it's treated as "today" here too.
-function isInNow(task, today) {
-  return task.status === "active" && !!task.do_date && task.do_date <= today;
+// null sorts after every real date; equal strings compare equal.
+function compareDoDates(a, b) {
+  const x = a || null;
+  const y = b || null;
+  if (x === y) return 0;
+  if (x === null) return 1;
+  if (y === null) return -1;
+  return x < y ? -1 : 1;
 }
 
 // `entries` are { task, assessment } (from rankActiveTasks). Every key falls back to
-// priority_score, so the order is stable and "Quick win" groups quick wins first then keeps
-// each group priority-sorted, as the spec asks.
+// priority_score, so the order is stable: "Quick win" groups quick wins first, "Do date" runs
+// chronologically ascending (no date last), each with priority as the tiebreak inside a group.
 function sortWindowEntries(entries, key) {
   const byPriority = (a, b) => b.assessment.priorityScore - a.assessment.priorityScore;
   const sorted = entries.slice();
@@ -90,23 +106,59 @@ function sortWindowEntries(entries, key) {
     sorted.sort((a, b) => b.assessment.importanceScore - a.assessment.importanceScore || byPriority(a, b));
   } else if (key === "quickwin") {
     sorted.sort((a, b) => Number(!!b.task.is_quick_win) - Number(!!a.task.is_quick_win) || byPriority(a, b));
+  } else if (key === "dodate") {
+    sorted.sort((a, b) => compareDoDates(a.task.do_date, b.task.do_date) || byPriority(a, b));
   } else {
     sorted.sort(byPriority);
   }
   return sorted;
 }
 
+// Do-date groups for the divider layout. `entries` must already be in "dodate" order.
+//   Now:   { today: [...], other: [{ key, label, entries }, ...] } — one group per later date,
+//          ascending, then "No date". today/other is the draggable boundary.
+//   Later: { withDate: [...], withoutDate: [...] } — not every Plan/Backlog task has a
+//          do_date (only the deadline default gives one), so chronological groups don't apply.
+function splitByDoDate(entries, winKey, today) {
+  if (winKey === "later") {
+    return {
+      withDate: entries.filter(e => !!e.task.do_date),
+      withoutDate: entries.filter(e => !e.task.do_date),
+    };
+  }
+  const todayGroup = entries.filter(e => e.task.do_date === today);
+  const other = [];
+  entries.filter(e => e.task.do_date !== today).forEach(entry => {
+    const key = entry.task.do_date || "";
+    let group = other.find(g => g.key === key);
+    if (!group) {
+      group = { key, label: key ? describeDoDate(key, today) : "No date", entries: [] };
+      other.push(group);
+    }
+    group.entries.push(entry);
+  });
+  return { today: todayGroup, other };
+}
+
+// "Tomorrow", or "Fri 19 Sep" for a date group label.
+function describeDoDate(dateStr, today) {
+  const days = calendarDaysBetween(today, dateStr);
+  if (days === 1) return "Tomorrow";
+  if (days < 0) return "Past · " + dateStr; // only visible between midnight and the next maintenance run
+  return parseLocalDate(dateStr).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+}
+
 const WINDOWS = {
   now: {
-    key: "now", elementId: "now-window", title: "Now", hint: "planned for today",
+    key: "now", elementId: "now-window", title: "Now", hint: "do today · Do · Clear",
     sortPref: "nowSort", groupPref: "nowGroup",
-    member: (entry, today) => isInNow(entry.task, today),
-    empty: "Nothing planned for today. Drag a task here, or add one.",
+    member: (entry, today) => isNowMember(entry.task, entry.assessment, today),
+    empty: "Nothing urgent or planned for today. Drag a task here, or add one.",
   },
   later: {
     key: "later", elementId: "later-window", title: "Later", hint: "Plan + Backlog",
     sortPref: "laterSort", groupPref: "laterGroup",
-    member: entry => entry.assessment.quadrant.key === "q2" || entry.assessment.quadrant.key === "q4",
+    member: entry => isLaterMember(entry.assessment),
     empty: "Nothing in Plan or Backlog.",
   },
 };
@@ -114,7 +166,10 @@ const WINDOWS = {
 // ---------- Rendering ----------
 
 function renderNowLaterWindows() {
-  if (activeView !== "list") return; // hidden with the rest of the List view; skip the work
+  if (activeView !== "list") {
+    renderFocusOverlay(null, null); // hides the overlay if a view switch happened under it
+    return;
+  }
   const today = todayISODate();
   const ranked = rankActiveTasks(today);
 
@@ -126,18 +181,19 @@ function renderNowLaterWindows() {
 
   renderWindow(WINDOWS.now, ranked, today);
   renderWindow(WINDOWS.later, ranked, today, nowIsEmpty);
+  renderFocusOverlay(ranked, today);
 }
 
 function renderWindow(win, ranked, today, nowIsEmpty) {
   const el = document.getElementById(win.elementId);
   el.innerHTML = "";
-  const focused = windowPrefs.focus === win.key;
-  el.classList.toggle("window-focused", focused);
+  const expanded = windowPrefs.focus === win.key;
+  el.classList.toggle("window-focused", expanded);
 
   const unsorted = ranked.filter(entry => win.member(entry, today));
   const entries = sortWindowEntries(unsorted, windowPrefs[win.sortPref]);
 
-  // Header: title, count, hint, expand/shrink.
+  // Header: title, count, hint, focus mode (Now only), expand/shrink.
   const header = document.createElement("div");
   header.className = "window-header";
 
@@ -156,50 +212,42 @@ function renderWindow(win, ranked, today, nowIsEmpty) {
   hint.textContent = win.hint;
   header.appendChild(hint);
 
+  if (win.key === "now") {
+    const focusModeBtn = document.createElement("button");
+    focusModeBtn.type = "button";
+    focusModeBtn.className = "btn-icon window-focusmode-btn";
+    focusModeBtn.innerHTML = ICONS.focus;
+    focusModeBtn.title = "Focus: only what's planned for today";
+    focusModeBtn.setAttribute("aria-label", "Focus mode");
+    focusModeBtn.addEventListener("click", openFocusMode);
+    header.appendChild(focusModeBtn);
+  }
+
   const focusBtn = document.createElement("button");
   focusBtn.type = "button";
   focusBtn.className = "btn-icon window-focus-btn";
-  focusBtn.innerHTML = focused ? ICONS.minimize : ICONS.maximize;
-  focusBtn.title = focused ? "Shrink: back to equal widths" : "Expand: give this window more room";
-  focusBtn.setAttribute("aria-label", focused ? "Shrink" : "Expand");
-  focusBtn.addEventListener("click", () => setWindowPref("focus", focused ? "none" : win.key));
+  focusBtn.innerHTML = expanded ? ICONS.minimize : ICONS.maximize;
+  focusBtn.title = expanded ? "Shrink: back to equal widths" : "Expand: give this window more room and show details";
+  focusBtn.setAttribute("aria-label", expanded ? "Shrink" : "Expand");
+  focusBtn.addEventListener("click", () => setWindowPref("focus", expanded ? "none" : win.key));
   header.appendChild(focusBtn);
 
   el.appendChild(header);
 
-  // Controls: sort key + grouping, two small segmented switches.
+  // Controls: sort dropdown + grouping switch.
   const controls = document.createElement("div");
   controls.className = "window-controls";
-  controls.appendChild(makeWindowSwitch(WINDOW_SORT_KEYS, windowPrefs[win.sortPref], key => setWindowPref(win.sortPref, key), win.title + " sort"));
+  controls.appendChild(makeWindowSortSelect(WINDOW_SORT_KEYS, windowPrefs[win.sortPref], key => setWindowPref(win.sortPref, key), win.title + " sort"));
   controls.appendChild(makeWindowSwitch(WINDOW_GROUP_MODES, windowPrefs[win.groupPref], key => setWindowPref(win.groupPref, key), win.title + " grouping"));
   el.appendChild(controls);
 
   // Empty-Now suggestion (Later only, live-checked every render — see file header).
   if (win.key === "later" && nowIsEmpty) {
     const suggested = sortWindowEntries(unsorted, "priority").slice(0, 3);
-    if (suggested.length) el.appendChild(renderSuggestionBox(suggested));
+    if (suggested.length) el.appendChild(renderSuggestionBox(suggested, expanded));
   }
 
-  // Body.
-  const body = document.createElement("div");
-  body.className = "window-body";
-  if (entries.length === 0) {
-    const empty = document.createElement("div");
-    empty.className = "empty-hint window-empty";
-    empty.textContent = win.empty;
-    body.appendChild(empty);
-  } else if (windowPrefs[win.groupPref] === "folder") {
-    groupEntriesByFolder(entries).forEach(group => {
-      const head = document.createElement("div");
-      head.className = "window-group-header";
-      head.textContent = group.name + " · " + group.entries.length;
-      body.appendChild(head);
-      group.entries.forEach(entry => body.appendChild(renderWindowCard(entry, win)));
-    });
-  } else {
-    entries.forEach(entry => body.appendChild(renderWindowCard(entry, win)));
-  }
-  el.appendChild(body);
+  el.appendChild(renderWindowBody(win, entries, today, expanded));
 
   const addLink = document.createElement("button");
   addLink.type = "button";
@@ -207,6 +255,112 @@ function renderWindow(win, ranked, today, nowIsEmpty) {
   addLink.textContent = "+ Add task";
   addLink.addEventListener("click", win.key === "now" ? addTaskToNowDirectly : addTaskToLaterDirectly);
   el.appendChild(addLink);
+}
+
+function renderWindowBody(win, entries, today, expanded) {
+  const body = document.createElement("div");
+  body.className = "window-body";
+
+  if (windowPrefs[win.sortPref] === "dodate") {
+    renderDoDateBody(body, win, entries, today, expanded);
+    return body;
+  }
+
+  if (entries.length === 0) {
+    body.appendChild(makeEmptyHint(win.empty, "window-empty"));
+  } else {
+    appendCards(body, entries, win, expanded);
+  }
+  return body;
+}
+
+// Do-date layout: thin dividers between groups; in Now the today group and the rest are two
+// drop zones (source "now" only) so a card can be dragged across the boundary.
+function renderDoDateBody(body, win, entries, today, expanded) {
+  if (win.key === "later") {
+    const { withDate, withoutDate } = splitByDoDate(entries, "later", today);
+    body.appendChild(makeDateDivider("With a do date", withDate.length, true));
+    if (withDate.length) appendCards(body, withDate, win, expanded);
+    else body.appendChild(makeEmptyHint("No dated tasks.", "window-zone-empty"));
+    body.appendChild(makeDateDivider("No do date", withoutDate.length));
+    if (withoutDate.length) appendCards(body, withoutDate, win, expanded);
+    else body.appendChild(makeEmptyHint("Everything here has a date.", "window-zone-empty"));
+    return;
+  }
+
+  const { today: todayGroup, other } = splitByDoDate(entries, "now", today);
+
+  const todayZone = document.createElement("div");
+  todayZone.className = "window-date-zone";
+  todayZone.dataset.zone = "today";
+  todayZone.appendChild(makeDateDivider("Today", todayGroup.length, true));
+  if (todayGroup.length) appendCards(todayZone, todayGroup, win, expanded);
+  else todayZone.appendChild(makeEmptyHint("Drop a card here to plan it for today.", "window-zone-empty"));
+  wireDropZone(todayZone, source => source === "now", task => {
+    if (task.do_date !== today) addToNow(task, { manual: true });
+  });
+  body.appendChild(todayZone);
+
+  const otherZone = document.createElement("div");
+  otherZone.className = "window-date-zone";
+  otherZone.dataset.zone = "other";
+  if (other.length) {
+    other.forEach(group => {
+      otherZone.appendChild(makeDateDivider(group.label, group.entries.length));
+      appendCards(otherZone, group.entries, win, expanded);
+    });
+  } else {
+    otherZone.appendChild(makeDateDivider("Later dates", 0));
+    otherZone.appendChild(makeEmptyHint("Drop a card here to clear its today status.", "window-zone-empty"));
+  }
+  wireDropZone(otherZone, source => source === "now", task => {
+    if (task.do_date === today) clearDoToday(task);
+  });
+  body.appendChild(otherZone);
+}
+
+// Cards, nested inside folder groups when that toggle is on.
+function appendCards(container, entries, win, expanded) {
+  if (windowPrefs[win.groupPref] === "folder") {
+    groupEntriesByFolder(entries).forEach(group => {
+      const head = document.createElement("div");
+      head.className = "window-group-header";
+      head.textContent = group.name + " · " + group.entries.length;
+      container.appendChild(head);
+      group.entries.forEach(entry => container.appendChild(renderWindowCard(entry, win, expanded)));
+    });
+  } else {
+    entries.forEach(entry => container.appendChild(renderWindowCard(entry, win, expanded)));
+  }
+}
+
+function makeDateDivider(label, count, first) {
+  const div = document.createElement("div");
+  div.className = "window-date-divider" + (first ? " window-date-divider-first" : "");
+  div.textContent = label + " · " + count;
+  return div;
+}
+
+function makeEmptyHint(text, extraClass) {
+  const empty = document.createElement("div");
+  empty.className = "empty-hint " + extraClass;
+  empty.textContent = text;
+  return empty;
+}
+
+function makeWindowSortSelect(options, active, onPick, label) {
+  const select = document.createElement("select");
+  select.className = "window-sort-select";
+  select.setAttribute("aria-label", label);
+  options.forEach(opt => {
+    const option = document.createElement("option");
+    option.value = opt.key;
+    option.textContent = opt.label;
+    if (opt.key === active) option.selected = true;
+    select.appendChild(option);
+  });
+  select.addEventListener("change", () => onPick(select.value));
+  return select;
 }
 
 function makeWindowSwitch(options, active, onPick, label) {
@@ -242,11 +396,16 @@ function groupEntriesByFolder(entries) {
 }
 
 // One task card. Same heat-map as everywhere else: hue from the live quadrant, --p from
-// priority intensity. Quick wins render as the compact variant.
-function renderWindowCard(entry, win) {
+// priority intensity. Compact = checkbox, title, tag (and the hover pencil). Expanded adds
+// the meta line, inline date inputs and the quick-win chip. Quick wins render slimmer.
+function renderWindowCard(entry, win, expanded) {
   const { task, assessment } = entry;
+  const today = todayISODate();
   const card = document.createElement("div");
-  card.className = "window-card quadrant-" + assessment.quadrant.key + (task.is_quick_win ? " window-card-quick" : "");
+  card.className = "window-card quadrant-" + assessment.quadrant.key
+    + (task.is_quick_win ? " window-card-quick" : "")
+    + (expanded ? " window-card-expanded" : "");
+  card.dataset.taskId = task.id;
   card.style.setProperty("--p", assessment.intensity.toFixed(3));
   card.title = [
     assessment.quadrant.label + " · priority " + assessment.priorityScore,
@@ -269,36 +428,45 @@ function renderWindowCard(entry, win) {
   const body = document.createElement("div");
   body.className = "window-card-body";
 
+  const titleLine = document.createElement("span");
+  titleLine.className = "window-card-title-line";
   const title = document.createElement("span");
   title.className = "window-card-title";
   title.textContent = task.title;
-  body.appendChild(title);
+  titleLine.appendChild(title);
+  appendTagBadge(titleLine, task, today);
+  body.appendChild(titleLine);
 
-  const meta = document.createElement("span");
-  meta.className = "window-card-meta";
-  const context = taskContextLabel(task);
-  meta.textContent = [
-    context || null,
-    assessment.quadrant.label,
-    assessment.urgency.reason,
-    task.deadline ? "due " + task.deadline : null,
-  ].filter(Boolean).join(" · ");
-  body.appendChild(meta);
+  if (expanded) {
+    const meta = document.createElement("span");
+    meta.className = "window-card-meta";
+    const context = taskContextLabel(task);
+    meta.textContent = [
+      context || null,
+      assessment.quadrant.label,
+      assessment.urgency.reason,
+      task.deadline ? "due " + task.deadline : null,
+    ].filter(Boolean).join(" · ");
+    body.appendChild(meta);
+    body.appendChild(renderInlineDates(task, card));
+  }
 
   card.appendChild(body);
 
   const actions = document.createElement("div");
   actions.className = "window-card-actions";
 
-  // Quick-win chip: toggles the display tag. Not a "touch" — it changes nothing about the
-  // task's scheduling, so it must not reset the staleness clock.
-  const chip = document.createElement("button");
-  chip.type = "button";
-  chip.className = "window-chip" + (task.is_quick_win ? " active" : "");
-  chip.textContent = task.is_quick_win ? "quick win" : "tackle";
-  chip.title = task.is_quick_win ? "Quick win — click to mark as something to tackle" : "Need to tackle — click to mark as a quick win";
-  chip.addEventListener("click", () => toggleQuickWin(task));
-  actions.appendChild(chip);
+  if (expanded) {
+    // Quick-win chip: toggles the display tag. Not a "touch" — it changes nothing about the
+    // task's scheduling, so it must not reset the staleness clock.
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "window-chip" + (task.is_quick_win ? " active" : "");
+    chip.textContent = task.is_quick_win ? "quick win" : "tackle";
+    chip.title = task.is_quick_win ? "Quick win — click to mark as something to tackle" : "Need to tackle — click to mark as a quick win";
+    chip.addEventListener("click", () => toggleQuickWin(task));
+    actions.appendChild(chip);
+  }
 
   const editBtn = document.createElement("button");
   editBtn.type = "button";
@@ -313,10 +481,35 @@ function renderWindowCard(entry, win) {
   return card;
 }
 
+// Inline do_date / deadline inputs (expanded cards only). While the pointer is over an input
+// the card stops being draggable, otherwise Chrome starts a drag instead of opening the picker.
+function renderInlineDates(task, card) {
+  const wrap = document.createElement("div");
+  wrap.className = "window-card-dates";
+
+  const make = (labelText, value, onChange) => {
+    const label = document.createElement("label");
+    label.className = "window-card-date";
+    label.textContent = labelText;
+    const input = document.createElement("input");
+    input.type = "date";
+    input.value = value || "";
+    input.addEventListener("pointerenter", () => { card.draggable = false; });
+    input.addEventListener("pointerleave", () => { card.draggable = true; });
+    input.addEventListener("change", () => onChange(input.value));
+    label.appendChild(input);
+    return label;
+  };
+
+  wrap.appendChild(make("Do", task.do_date, value => inlineSetDoDate(task, value)));
+  wrap.appendChild(make("Due", task.deadline, value => inlineSetDeadline(task, value)));
+  return wrap;
+}
+
 // Empty-Now suggestion box: the top 3 Later tasks by priority, boxed up with an "Add all N"
 // button. Cards are the real renderWindowCard, source "later" — draggable into Now exactly
 // like any other Later card; the box is just a highlighted second look at them.
-function renderSuggestionBox(suggested) {
+function renderSuggestionBox(suggested, expanded) {
   const box = document.createElement("div");
   box.className = "window-suggestion";
 
@@ -342,30 +535,76 @@ function renderSuggestionBox(suggested) {
 
   const cards = document.createElement("div");
   cards.className = "window-suggestion-cards";
-  suggested.forEach(entry => cards.appendChild(renderWindowCard(entry, WINDOWS.later)));
+  suggested.forEach(entry => cards.appendChild(renderWindowCard(entry, WINDOWS.later, expanded)));
   box.appendChild(cards);
 
   return box;
 }
 
-// Chains addToNow across the suggested tasks, one at a time — addToNow's deadline prompt can
-// only have one open at a time (promptForNowDeadline cancels any prior one), so these must
-// resolve in sequence rather than fire concurrently.
+// Chains addToNow across the suggested tasks, one at a time — the deadline prompt can only
+// have one open at a time (promptForDeadline cancels any prior one), so these must resolve
+// in sequence rather than fire concurrently.
 async function addSuggestedTasksToNow(tasksToAdd) {
   for (const task of tasksToAdd) {
     await addToNow(task, { manual: true });
   }
 }
 
+// ---------- Focus mode ----------
+// Overlay over the whole page: only the do_date == today subset of Now, expanded cards, same
+// drag mechanics — dropping a card on the dimmed backdrop deprioritizes it exactly as a drop
+// on Later would. Purely a rendering mode over existing data.
+
+const focusOverlay = document.getElementById("focus-overlay");
+const focusPanel = document.getElementById("focus-panel");
+const focusBody = document.getElementById("focus-body");
+
+function openFocusMode() {
+  focusModeOpen = true;
+  render();
+}
+
+function closeFocusMode() {
+  if (!focusModeOpen) return;
+  focusModeOpen = false;
+  render();
+}
+
+function renderFocusOverlay(ranked, today) {
+  const open = focusModeOpen && activeView === "list" && !!ranked;
+  focusOverlay.classList.toggle("hidden", !open);
+  if (!open) return;
+
+  const entries = sortWindowEntries(
+    ranked.filter(entry => WINDOWS.now.member(entry, today) && entry.task.do_date === today),
+    windowPrefs.nowSort
+  );
+  document.getElementById("focus-count").textContent = entries.length;
+  document.getElementById("focus-close-btn").innerHTML = ICONS.close; // ICONS is app.js's, loaded after this file
+  focusBody.innerHTML = "";
+  if (entries.length === 0) {
+    focusBody.appendChild(makeEmptyHint("Nothing planned for today. Close focus and drag something in.", "window-empty"));
+    return;
+  }
+  entries.forEach(entry => focusBody.appendChild(renderWindowCard(entry, WINDOWS.now, true)));
+}
+
+document.getElementById("focus-close-btn").addEventListener("click", closeFocusMode);
+focusOverlay.addEventListener("click", e => {
+  if (e.target === focusOverlay) closeFocusMode();
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && focusModeOpen) closeFocusMode();
+});
+
 // ---------- Actions ----------
 
-// Puts a task in Now for today. `manual` = the user did it (drag, "+ Add task"), which
-// makes it a quick win by default and counts as a genuine edit (touches last_touched_at).
-// A manual add of a task with no deadline first asks for one (Now-window deadline prompt),
-// so nothing can roll forward in Now indefinitely with nothing else forcing it to surface.
-// Auto-population lives in runDailyMaintenance (app.js) and touches nothing.
-// Returns a promise resolving once the add (or its deadline prompt) settles, so callers that
-// need to chain several adds in sequence (the empty-Now "Add all N" suggestion) can await it.
+// Puts a task in Now for today. `manual` = the user did it (drag, "+ Add task", the divider
+// drag), which makes it a quick win by default and counts as a genuine edit (touches
+// last_touched_at). A manual add of a task with no deadline first asks for one (Now-window
+// deadline prompt), so nothing can roll forward in Now indefinitely with nothing else forcing
+// it to surface. Returns a promise resolving once the add (or its prompt) settles, so callers
+// that chain several adds (the empty-Now "Add all N" suggestion) can await it.
 function addToNow(task, opts) {
   const manual = !!(opts && opts.manual);
   const today = todayISODate();
@@ -382,7 +621,7 @@ function addToNow(task, opts) {
   };
 
   if (manual && !task.deadline) {
-    return promptForNowDeadline(task).then(date => {
+    return promptForDeadline(task, NOW_DEADLINE_PROMPT).then(date => {
       if (!date) return; // cancelled: leave the task where it was
       task.deadline = date;
       finish();
@@ -392,17 +631,100 @@ function addToNow(task, opts) {
   return Promise.resolve();
 }
 
-// Dragging out of Now clears do_date entirely (and with it the urgency floor).
-function removeFromNow(task) {
-  if (!task.do_date) return;
-  task.do_date = null;
+// Deprioritize: dragging a task out of Now (onto Later, the main list, or focus mode's
+// backdrop). Splits on WHY the task is in Now:
+//  - a close deadline is the true driver (isDeadlineDriven): it can only leave with a new
+//    deadline, so a prompt asks for one first. No validation — pick one still close enough and
+//    the live recalculation honestly shows it straight back in Now. do_date follows the new
+//    deadline (the deadline default), otherwise do_date == today would keep the floor on.
+//  - otherwise (staleness, or purely floor-boosted): a genuine edit. do_date resets to the
+//    deadline if there is one, null if not, and last_touched_at legitimately updates (unlike
+//    passive rollover, which never touches it). The live quadrant then settles into Plan or
+//    Backlog on its own, which is exactly what Later's plain quadrant rule picks up.
+// Returns a promise, like addToNow.
+function deprioritize(task) {
+  const today = todayISODate();
+  if (task.status !== "active" || !isNowMember(task, assessTask(task, settings, today), today)) return Promise.resolve();
+
+  if (isDeadlineDriven(task, settings, today)) {
+    return promptForDeadline(task, {
+      heading: "Pick a new deadline",
+      text: "This is in Now because its deadline is close. Commit to a new date before it leaves:",
+      confirmLabel: "Reschedule",
+      defaultDate: addDaysISODate(today, Math.max(0, Math.round(settings.deadline_medium_days))),
+    }).then(date => {
+      if (!date) return; // cancelled: it stays
+      task.deadline = date;
+      task.do_date = date;
+      task.last_touched_at = new Date().toISOString();
+      persist();
+      render();
+    });
+  }
+
+  task.do_date = task.deadline || null;
   task.last_touched_at = new Date().toISOString();
+  persist();
+  render();
+  showBackfillIfNeeded(); // an undated High/Critical task that just settled into Plan needs a deadline
+  return Promise.resolve();
+}
+
+// The lighter divider-drag action (Do date sort, Now): clears "today" status only. No prompt,
+// no touch — the live quadrant decides whether the task stays in Now (still urgent underneath)
+// or leaves (today was its only reason).
+function clearDoToday(task) {
+  if (task.do_date !== todayISODate()) return;
+  task.do_date = task.deadline || null;
   persist();
   render();
 }
 
 function toggleQuickWin(task) {
   task.is_quick_win = !task.is_quick_win;
+  persist();
+  render();
+}
+
+// Inline do_date edit (expanded cards). A genuine edit, so it touches last_touched_at. Setting
+// a date on a deadline-less task runs the same deadline prompt as adding to Now would.
+function inlineSetDoDate(task, value) {
+  const next = value || null;
+  if (next === (task.do_date || null)) return;
+  const finish = () => {
+    task.do_date = next;
+    task.last_touched_at = new Date().toISOString();
+    persist();
+    render();
+  };
+  if (next && !task.deadline) {
+    promptForDeadline(task, NOW_DEADLINE_PROMPT).then(date => {
+      if (!date) { render(); return; } // cancelled: re-render puts the old value back
+      task.deadline = date;
+      finish();
+    });
+    return;
+  }
+  finish();
+}
+
+// Inline deadline edit (expanded cards). Same rules as the task form: a newly set deadline
+// defaults do_date (if empty), and the deadline requirement blocks leaving a High/Critical
+// task dateless in Plan. Editing the deadline here before dragging out sidesteps the
+// reschedule prompt entirely — the deadline's already been dealt with.
+function inlineSetDeadline(task, value) {
+  const next = value || null;
+  if (next === (task.deadline || null)) return;
+  const now = new Date().toISOString();
+  const candidate = Object.assign({}, task, { deadline: next, last_touched_at: now });
+  if (isDeadlineViolator(candidate, todayISODate())) {
+    alert("High/Critical tasks need a deadline — without one this would sit in Plan with no target. Set a date (a generous one is fine) or lower the importance.");
+    render();
+    return;
+  }
+  task.deadline = next;
+  if (next) applyDeadlineDefault(task);
+  task.last_touched_at = now;
   persist();
   render();
 }
@@ -436,28 +758,38 @@ function addTaskToLaterDirectly() {
   openTaskModal({ folder_id: (candidates[0] || folders[0]).id });
 }
 
-// ---------- Now-window deadline prompt ----------
-// A small modal: "Set a deadline for <task>", date input defaulted to today +
-// deadline_high_days, Confirm / Cancel. Resolves with the chosen "YYYY-MM-DD" or null.
+// ---------- Deadline prompt ----------
+// One small modal, two uses: "Set a deadline" when a task enters Now without one, and "Pick a
+// new deadline" when a deadline-driven task is dragged out. Resolves with the chosen
+// "YYYY-MM-DD" or null on cancel. Only one can be open at a time; opening another cancels it.
+
+const NOW_DEADLINE_PROMPT = Object.freeze({
+  heading: "Set a deadline",
+  text: "Anything in Now needs a real deadline, so it can't roll forward forever unnoticed. Set one for",
+  confirmLabel: "Add to Now",
+});
 
 const nowDeadlineModal = document.getElementById("now-deadline-modal");
 const nowDeadlineForm = document.getElementById("now-deadline-form");
 const nowDeadlineInput = document.getElementById("now-deadline-input");
 let nowDeadlineResolve = null;
 
-function promptForNowDeadline(task) {
+function promptForDeadline(task, opts) {
   return new Promise(resolve => {
     if (nowDeadlineResolve) nowDeadlineResolve(null); // a previous prompt still open: cancel it
     nowDeadlineResolve = resolve;
+    document.getElementById("now-deadline-heading").textContent = opts.heading;
+    document.getElementById("now-deadline-text").textContent = opts.text;
     document.getElementById("now-deadline-task").textContent = task.title;
-    nowDeadlineInput.value = defaultNowDeadline();
+    document.getElementById("now-deadline-confirm").textContent = opts.confirmLabel;
+    nowDeadlineInput.value = opts.defaultDate || defaultNowDeadline();
     nowDeadlineInput.min = todayISODate();
     nowDeadlineModal.classList.remove("hidden");
     nowDeadlineInput.focus();
   });
 }
 
-function settleNowDeadline(value) {
+function settleDeadlinePrompt(value) {
   nowDeadlineModal.classList.add("hidden");
   const resolve = nowDeadlineResolve;
   nowDeadlineResolve = null;
@@ -467,18 +799,19 @@ function settleNowDeadline(value) {
 nowDeadlineForm.addEventListener("submit", e => {
   e.preventDefault();
   if (!nowDeadlineInput.value) return;
-  settleNowDeadline(nowDeadlineInput.value);
+  settleDeadlinePrompt(nowDeadlineInput.value);
 });
-document.getElementById("now-deadline-cancel-btn").addEventListener("click", () => settleNowDeadline(null));
+document.getElementById("now-deadline-cancel-btn").addEventListener("click", () => settleDeadlinePrompt(null));
 nowDeadlineModal.addEventListener("click", e => {
-  if (e.target === nowDeadlineModal) settleNowDeadline(null);
+  if (e.target === nowDeadlineModal) settleDeadlinePrompt(null);
 });
 
 // ---------- Drag and drop ----------
 // HTML5 DnD. Sources: active rows in the main list ("list"), Now cards ("now"), Later cards
-// ("later"). Drop zones: the Now window (adds, from anywhere but Now itself) and the main
-// list / Later window (removes from Now, only for a drag that started in Now — so dragging
-// a list row and dropping it back on the list is a no-op rather than an accidental removal).
+// ("later"). Drop zones: the Now window (adds, from anywhere but Now itself); the main list,
+// the Later window and focus mode's backdrop (deprioritize, only for a drag that started in
+// Now — so dragging a list row and dropping it back on the list is a no-op); and, in Do date
+// sort, the today / other zones inside Now (the divider drag, source "now" only).
 
 const DRAG_MIME = "text/task-id";
 let dragState = null; // { taskId, source } while a drag is in progress
@@ -502,11 +835,14 @@ function makeTaskDraggable(el, task, source) {
   });
 }
 
-// `accepts(source)` decides whether this zone lights up for the current drag.
+// `accepts(source, event)` decides whether this zone lights up for the current drag. An
+// accepted dragover/drop stops propagating, so a zone nested inside another (the divider
+// zones inside the Now window, the focus panel inside its backdrop) is the only one that acts.
 function wireDropZone(el, accepts, onDrop) {
   el.addEventListener("dragover", e => {
-    if (!dragState || !accepts(dragState.source)) return;
+    if (!dragState || !accepts(dragState.source, e)) return;
     e.preventDefault();
+    e.stopPropagation();
     e.dataTransfer.dropEffect = "move";
     el.classList.add("drop-target");
   });
@@ -514,8 +850,9 @@ function wireDropZone(el, accepts, onDrop) {
     if (!el.contains(e.relatedTarget)) el.classList.remove("drop-target");
   });
   el.addEventListener("drop", e => {
-    if (!dragState || !accepts(dragState.source)) return;
+    if (!dragState || !accepts(dragState.source, e)) return;
     e.preventDefault();
+    e.stopPropagation();
     el.classList.remove("drop-target");
     let id = "";
     try { id = e.dataTransfer.getData(DRAG_MIME); } catch (err) { id = ""; }
@@ -526,9 +863,11 @@ function wireDropZone(el, accepts, onDrop) {
 }
 
 wireDropZone(document.getElementById("now-window"), source => source !== "now", task => addToNow(task, { manual: true }));
-wireDropZone(document.getElementById("later-window"), source => source === "now", task => removeFromNow(task));
-wireDropZone(document.getElementById("folder-list"), source => source === "now", task => removeFromNow(task));
+wireDropZone(document.getElementById("later-window"), source => source === "now", task => deprioritize(task));
+wireDropZone(document.getElementById("folder-list"), source => source === "now", task => deprioritize(task));
+// Focus mode: the dimmed backdrop, not the panel itself, is the drop target.
+wireDropZone(focusOverlay, (source, e) => source === "now" && !focusPanel.contains(e.target), task => deprioritize(task));
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { WINDOW_SORT_KEYS, WINDOW_GROUP_MODES, isInNow, sortWindowEntries, groupEntriesByFolder };
+  module.exports = { WINDOW_SORT_KEYS, WINDOW_GROUP_MODES, compareDoDates, sortWindowEntries, splitByDoDate, groupEntriesByFolder };
 }

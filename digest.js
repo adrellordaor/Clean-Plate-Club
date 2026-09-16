@@ -25,10 +25,10 @@ const QUADRANT_RANK = { q1: 0, q2: 1, q3: 2, q4: 3 };
 
 // The three raw fields that can cause a manual quadrant shift, in the shape both a live task
 // and a stored snapshot record share, so the two can be compared field-for-field.
-// do_date is deliberately NOT here: it changes automatically (silent daily rollover, Now
-// window auto-population), so comparing it would make an ordinary day read as "you edited
-// this". Records saved by older versions may still carry a manual_urgent_flag key; it is
-// simply ignored.
+// do_date is deliberately NOT here: it changes automatically (silent daily rollover, the
+// deadline default), so comparing it would make an ordinary day read as "you edited this".
+// It IS stored on each record (see buildDailySnapshot) for one narrow purpose only: the
+// "became Do Today" check in buildDigest, which never treats it as an edit signal.
 function snapshotFieldsFor(task) {
   return {
     deadline: task.deadline || null,
@@ -56,15 +56,19 @@ function buildDailySnapshot(tasks, settings, today) {
     const assessment = assessTask(task, settings, today);
     snapshot[task.id] = Object.assign(
       { quadrant: assessment.quadrant.key, priorityScore: assessment.priorityScore },
-      snapshotFieldsFor(task)
+      snapshotFieldsFor(task),
+      { do_date: task.do_date || null } // for "became Do Today" only, never an edit signal
     );
   });
   return snapshot;
 }
 
+// Includes do_date so a change to it still refreshes today's stored record (otherwise the
+// "became Do Today" baseline could go stale), even though fieldsDiffer ignores it.
 function snapshotRecordsEqual(a, b) {
   if (!a || !b) return false;
-  return a.quadrant === b.quadrant && a.priorityScore === b.priorityScore && !fieldsDiffer(a, b);
+  return a.quadrant === b.quadrant && a.priorityScore === b.priorityScore && !fieldsDiffer(a, b)
+    && (a.do_date || null) === (b.do_date || null);
 }
 
 function sameSnapshot(a, b) {
@@ -131,7 +135,11 @@ function findDigestBaseline(history, today) {
 
 // One-line reason for a task's quadrant change, built from what moved: the importance
 // bucket (a manual edit) and/or the urgency bucket (the engine, or a deadline edit).
-// The urgency reason is the live one ("due in 2 days", "untouched 9 days", "planned for today").
+// The urgency reason is the live one ("due in 2 days", "untouched 9 days", "planned for today"),
+// except when the deadline has reached 0 days or gone negative: then it's phrased with the
+// escalating tag names ("became Due Today" / "became Overdue"), the same vocabulary the tag
+// uses everywhere else. Pure wording — deadline is already snapshotted and never moves on its
+// own, so no new detection is involved.
 // Used for the primary tier and for newly-entered tasks, both of which compare against a
 // LIVE assessment of the task right now.
 function describeQuadrantChange(fromKey, task, assessment) {
@@ -142,9 +150,15 @@ function describeQuadrantChange(fromKey, task, assessment) {
     parts.push("importance now " + task.importance);
   }
   if (!from || from.urgency !== to.urgency || parts.length === 0) {
-    parts.push(assessment.urgency.reason);
+    parts.push(urgencyReasonWithTag(assessment.urgency));
   }
   return parts.join(", ");
+}
+
+function urgencyReasonWithTag(urgency) {
+  if (urgency.basis === "deadline" && urgency.days === 0) return "became Due Today";
+  if (urgency.basis === "deadline" && urgency.days < 0) return "became Overdue";
+  return urgency.reason;
 }
 
 // One-line reason for the secondary tier, reconstructed purely from two stored snapshot
@@ -169,8 +183,8 @@ function describeStoredEdit(fromRecord, toRecord) {
 }
 
 // Diffs live and stored quadrants against two different snapshot pairs. Returns
-// { baseline, priorBaseline, primary, secondary, entered, left }; every list is sorted
-// most-actionable-first.
+// { baseline, priorBaseline, primary, secondary, entered, left, becameDoToday }; every list
+// is sorted most-actionable-first.
 //   primary:   today's live values vs. yesterday's snapshot (`baseline`). Quadrant shifted
 //              with deadline/importance/last_touched_at all unchanged since yesterday
 //              — automatic drift, the digest's core purpose.
@@ -185,6 +199,13 @@ function describeStoredEdit(fromRecord, toRecord) {
 //   entered:   active tasks with no snapshot in `baseline` (new or reopened since then)
 //              { task, to, reason, sortScore }
 //   left:      tasks in `baseline` no longer active (done/dropped) { task, from, status }
+//   becameDoToday: the narrow third case. do_date is excluded from the edit-signal fields
+//              above (rollover would read as an edit), so it gets its own comparison: an
+//              active task with do_date == today whose baseline record has a do_date key
+//              that is explicitly null. Any non-null stored value, even a past date, means
+//              today's value is just rollover advancing it, not new information — skipped.
+//              A record with NO do_date key at all (pre-rebuild shape, hand-edited file) is
+//              also skipped: a missing key is not a genuine null. { task, to, sortScore }
 // A task whose priority_score moved but stayed in the same quadrant isn't surfaced at all —
 // that's routine daily creep, not the boundary-crossing signal this digest exists to catch.
 // A task edited *today* that also crosses a boundary today shows up in neither tier yet —
@@ -192,12 +213,13 @@ function describeStoredEdit(fromRecord, toRecord) {
 // Deleted tasks can't be named (only their id was stored), so they're skipped.
 function buildDigest(history, tasks, settings, today) {
   const baseline = findNearestSnapshotBefore(history, today);
-  if (!baseline) return { baseline: null, priorBaseline: null, primary: [], secondary: [], entered: [], left: [] };
+  if (!baseline) return { baseline: null, priorBaseline: null, primary: [], secondary: [], entered: [], left: [], becameDoToday: [] };
 
   const yesterday = baseline.snapshot;
   const primary = [];
   const entered = [];
   const left = [];
+  const becameDoToday = [];
 
   tasks.forEach(task => {
     const fromRecord = yesterday[task.id];
@@ -213,6 +235,11 @@ function buildDigest(history, tasks, settings, today) {
       entered.push({ task, to, reason: describeQuadrantChange(null, task, assessment), sortScore: assessment.priorityScore });
       return;
     }
+
+    if (task.do_date === today && Object.prototype.hasOwnProperty.call(fromRecord, "do_date") && fromRecord.do_date === null) {
+      becameDoToday.push({ task, to, sortScore: assessment.priorityScore });
+    }
+
     if (fromRecord.quadrant === to.key) return; // still here, whatever the score did
     if (fieldsDiffer(fromRecord, snapshotFieldsFor(task))) return; // edited today: neither tier yet, surfaces tomorrow
 
@@ -248,8 +275,9 @@ function buildDigest(history, tasks, settings, today) {
   secondary.sort(byDestination);
   entered.sort(byDestination);
   left.sort((a, b) => QUADRANT_RANK[a.from.key] - QUADRANT_RANK[b.from.key] || a.task.title.localeCompare(b.task.title));
+  becameDoToday.sort((a, b) => b.sortScore - a.sortScore);
 
-  return { baseline, priorBaseline, primary, secondary, entered, left };
+  return { baseline, priorBaseline, primary, secondary, entered, left, becameDoToday };
 }
 
 // ---------- Staleness check-ins ----------
@@ -315,32 +343,6 @@ function buildStalenessCheckIns(history, tasks, settings, today) {
   return checkIns;
 }
 
-// ---------- Now window auto-population ----------
-// Reuses the drift snapshots above to spot the day a task's urgency crosses into the
-// High/Critical bucket (landing it in Do or Clear). The "last recorded" state of a task is
-// today's own snapshot record when one exists (the app was already opened today), otherwise
-// the nearest earlier day's — which is exactly what makes this fire once: after the first
-// save of the day today's record already shows the task in Do/Clear, and a task dragged back
-// out of Now rewrites today's record as Plan/Backlog, so neither gets re-added later the same
-// day. A task with no record at all (created today) hasn't transitioned from anything.
-// Returns { task, from, to } for each active task that crossed, live-assessed with `settings`.
-function findUrgencyBucketTransitions(history, tasks, settings, today) {
-  const todayRecords = history[today] || null;
-  const prior = findNearestSnapshotBefore(history, today);
-  const out = [];
-  tasks.forEach(task => {
-    if (task.status !== "active") return;
-    const record = (todayRecords && todayRecords[task.id]) || (prior && prior.snapshot[task.id]) || null;
-    if (!record || !QUADRANTS[record.quadrant]) return;
-    const from = QUADRANTS[record.quadrant];
-    if (from.urgency === "high") return;
-    const to = assessTask(task, settings, today).quadrant;
-    if (to.urgency !== "high") return;
-    out.push({ task, from, to });
-  });
-  return out;
-}
-
 // "yesterday", or "Fri 12 Sep (3 days ago)" when the app wasn't opened yesterday.
 function describeBaseline(baseline) {
   if (baseline.daysAgo <= 1) return "yesterday";
@@ -352,8 +354,8 @@ if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     HISTORY_KEEP_DAYS, QUADRANT_RANK, snapshotFieldsFor, fieldsDiffer, buildDailySnapshot,
     snapshotRecordsEqual, sameSnapshot, sanitizeQuadrantHistory, recordQuadrantSnapshot,
-    findNearestSnapshotBefore, findDigestBaseline, describeQuadrantChange, describeStoredEdit,
-    buildDigest, describeBaseline, stalenessReminderTier, daysUntouchedAt, buildStalenessCheckIns,
-    findUrgencyBucketTransitions,
+    findNearestSnapshotBefore, findDigestBaseline, describeQuadrantChange, urgencyReasonWithTag,
+    describeStoredEdit, buildDigest, describeBaseline, stalenessReminderTier, daysUntouchedAt,
+    buildStalenessCheckIns,
   };
 }

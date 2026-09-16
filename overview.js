@@ -236,12 +236,16 @@ function renderScatter(ranked, summaryIds) {
   container.appendChild(legend);
 }
 
+// The escalating tag rides on the dot as a distinct stroke (class tag-<key>, see CSS) plus a
+// suffix on the title label and a line in the tooltip — same tag as everywhere else.
 function renderScatterDot(entry, x, y, radius, inSummary) {
   const { task, assessment } = entry;
-  const g = svgEl("g", { class: "scatter-dot-group quadrant-" + assessment.quadrant.key, tabindex: "0" });
+  const tag = escalatingTag(task, todayISODate());
+  const g = svgEl("g", { class: "scatter-dot-group quadrant-" + assessment.quadrant.key + (tag ? " tag-" + tag.key : ""), tabindex: "0" });
   g.style.setProperty("--p", assessment.intensity.toFixed(3));
   g.appendChild(svgEl("title", {}, [
     task.title,
+    tag ? tag.label : null,
     taskContextLabel(task),
     assessment.quadrant.label + " · priority " + assessment.priorityScore,
     "urgency " + assessment.urgency.score + " (" + assessment.urgency.reason + ") · importance " + task.importance,
@@ -268,9 +272,11 @@ function renderScatterLabels(svg, placedDots, bounds) {
   svg.appendChild(labels);
   let hidden = 0;
 
+  const today = todayISODate();
   placedDots.forEach(d => {
-    const text = truncateTitle(d.entry.task.title);
-    const el = svgEl("text", { class: "scatter-label" + (d.inSummary ? " scatter-label-summary" : "") }, text);
+    const tag = escalatingTag(d.entry.task, today);
+    const text = truncateTitle(d.entry.task.title) + (tag ? " · " + tag.label : "");
+    const el = svgEl("text", { class: "scatter-label" + (d.inSummary ? " scatter-label-summary" : "") + (tag ? " scatter-label-tagged tag-" + tag.key : "") }, text);
     labels.appendChild(el); // attach first so the width can be measured
     let w = 0;
     try { w = el.getComputedTextLength(); } catch (e) { w = 0; }
@@ -418,7 +424,10 @@ function renderMatrixItem(entry, inSummary) {
 
   const title = document.createElement("span");
   title.className = "matrix-item-title";
-  title.textContent = task.title;
+  const titleText = document.createElement("span");
+  titleText.textContent = task.title;
+  title.appendChild(titleText);
+  appendTagBadge(title, task, todayISODate());
   li.appendChild(title);
 
   const meta = document.createElement("span");
@@ -501,7 +510,10 @@ function renderPriorityCard(entry) {
 
   const title = document.createElement("span");
   title.className = "priority-card-title";
-  title.textContent = task.title;
+  const titleText = document.createElement("span");
+  titleText.textContent = task.title;
+  title.appendChild(titleText);
+  appendTagBadge(title, task, todayISODate());
   body.appendChild(title);
 
   const meta = document.createElement("span");
@@ -527,7 +539,9 @@ function renderPriorityCard(entry) {
 // manual edit caused or contributed to the shift) go in a collapsed, de-emphasized section
 // underneath — still there, just out of the way, since you already knew about that edit.
 // digest.entered (brand-new tasks) is intentionally never rendered here — see the note above
-// `total` below.
+// `total` below. digest.becameDoToday (do_date newly set to today, not rollover) gets its own
+// short list under the main one: it's neither drift nor an edit tier, just the narrow signal
+// the spec carves out for do_date.
 
 function renderDigest(today) {
   const container = document.getElementById("digest");
@@ -552,7 +566,7 @@ function renderDigest(today) {
   // Newly-entered tasks (digest.entered) are deliberately not shown here — a task showing up
   // for the first time isn't a "change" the way a quadrant shift, an edit, or a finish is,
   // and it drowned out the drift signal on days with a lot of new capture.
-  const total = digest.primary.length + digest.secondary.length + digest.left.length;
+  const total = digest.primary.length + digest.secondary.length + digest.left.length + digest.becameDoToday.length;
   if (total === 0) {
     sub.textContent = "No quadrant changes. Everything is where it was at the end of " + digest.baseline.date + ".";
     container.appendChild(sub);
@@ -562,6 +576,7 @@ function renderDigest(today) {
   sub.textContent = [
     digest.primary.length ? digest.primary.length + " automatic" : null,
     digest.left.length ? digest.left.length + " finished" : null,
+    digest.becameDoToday.length ? digest.becameDoToday.length + " became Do Today" : null,
     digest.secondary.length ? digest.secondary.length + " from edits yesterday" : null,
   ].filter(Boolean).join(" · ") + " · compared with the end of " + digest.baseline.date;
   container.appendChild(sub);
@@ -573,11 +588,23 @@ function renderDigest(today) {
     digest.primary.forEach(change => ul.appendChild(renderDigestLine(change.task, change.from, change.to, change.reason)));
     digest.left.forEach(change => ul.appendChild(renderDigestLine(change.task, change.from, null, change.status === "done" ? "completed" : "dropped")));
     container.appendChild(ul);
-  } else if (digest.secondary.length > 0) {
+  } else if (digest.secondary.length > 0 || digest.becameDoToday.length > 0) {
     const note = document.createElement("p");
     note.className = "digest-note";
     note.textContent = "Nothing shifted purely from time passing today.";
     container.appendChild(note);
+  }
+
+  if (digest.becameDoToday.length > 0) {
+    const heading = document.createElement("h3");
+    heading.className = "digest-subheading";
+    heading.textContent = "Became Do Today";
+    container.appendChild(heading);
+
+    const ul = document.createElement("ul");
+    ul.className = "digest-list digest-list-dotoday";
+    digest.becameDoToday.forEach(change => ul.appendChild(renderDigestLine(change.task, null, change.to, "became Do Today")));
+    container.appendChild(ul);
   }
 
   if (digest.secondary.length > 0) {
