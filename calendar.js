@@ -116,8 +116,7 @@ function plannedRecordFor(dateStr, data, today) {
 function recurringScheduledOn(rt, dateStr) {
   if (rt.cadence === "daily") return true;
   if (rt.cadence !== "weekly") return false;
-  const weekday = rt.weekday == null ? 0 : rt.weekday;
-  return parseLocalDate(dateStr).getDay() === weekday;
+  return parseLocalDate(dateStr).getDay() === recurringWeekday(rt); // Sunday when no weekday was picked
 }
 
 // A daily habit is done for a day if it was logged that day. A weekly habit is done for its

@@ -230,69 +230,113 @@ body {
   gap: 0.5rem;
 }
 
-/* Top priority banner: sticky in the header (via .app-header), independent of the
-   category tab filter, so it never disappears while scrolling or switching tabs. */
-.top-banner {
-  display: none;
-}
-
-.top-banner.has-items {
-  display: block;
+/* Overdue callout: sticky in the header (via .app-header), in the slot the old Top banner
+   held. Independent of the category tabs and of the List display mode. Membership only —
+   deadline < today — so it's a single quiet line until something is actually overdue, and
+   only then grows into a strip of cards. */
+.overdue-callout {
   border-top: 1px solid var(--border);
-  padding-top: 0.55rem;
-  margin-bottom: 0.6rem;
+  padding: 0.4rem 0 0.45rem;
 }
 
-.top-banner-label {
-  display: block;
+.overdue-callout.has-items {
+  padding-bottom: 0.6rem;
+}
+
+.overdue-callout-header {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
   font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.overdue-callout-label {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--text-muted);
-  margin-bottom: 0.4rem;
 }
 
-.top-banner-strip {
+.overdue-callout.has-items .overdue-callout-label {
+  color: var(--tag-overdue-text);
+}
+
+.overdue-callout-count {
+  font-weight: 700;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 0.45rem;
+  min-width: 1.4rem;
+  text-align: center;
+  line-height: 1.3;
+}
+
+.overdue-callout.has-items .overdue-callout-count {
+  background: var(--tag-overdue-bg);
+  border-color: var(--tag-overdue-text);
+  color: var(--tag-overdue-text);
+}
+
+.overdue-callout-hint {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.overdue-strip {
   display: flex;
   gap: 0.5rem;
   overflow-x: auto;
+  margin-top: 0.4rem;
   padding-bottom: 0.2rem;
 }
 
-.top-banner-card {
+/* One card per overdue task: the overdue tag's red for the fill (this strip means one
+   thing), the quadrant accent on the left edge so it still ties back to the heat-map. */
+.overdue-card {
   --p: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  flex: 1 1 0;
+  min-width: 170px;
+  max-width: 260px;
+  border: 1px solid color-mix(in srgb, var(--tag-overdue-text) 45%, transparent);
+  border-left: 3px solid var(--row-accent, var(--tag-overdue-text));
+  border-radius: 8px;
+  padding: 0.35rem 0.55rem 0.35rem 0.5rem;
+  background: var(--tag-overdue-bg);
+  color: var(--text);
+}
+
+.overdue-card-check {
+  margin-top: 0.2rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.overdue-card-body {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 0.15rem;
-  flex: 1 1 0;
-  min-width: 140px;
-  max-width: 240px;
+  gap: 0.1rem;
+  min-width: 0;
+  flex: 1;
   text-align: left;
   font: inherit;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.4rem 0.65rem;
-  background: var(--surface);
-  color: var(--text);
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
   cursor: pointer;
 }
 
-.top-banner-card[class*="quadrant-"] {
-  background: var(--row-bg);
-  border-color: var(--row-accent);
+.overdue-card-body:hover .overdue-card-title {
+  text-decoration: underline;
 }
 
-.top-banner-card:hover {
-  box-shadow: inset 0 0 0 100vmax rgba(0, 0, 0, 0.05);
-}
-
-:root[data-theme="dark"] .top-banner-card:hover {
-  box-shadow: inset 0 0 0 100vmax rgba(255, 255, 255, 0.05);
-}
-
-.top-banner-title {
+.overdue-card-title {
   font-size: 0.84rem;
   font-weight: 600;
   white-space: nowrap;
@@ -301,19 +345,13 @@ body {
   max-width: 100%;
 }
 
-.top-banner-meta {
+.overdue-card-meta {
   font-size: 0.7rem;
-  color: var(--text-muted);
+  color: var(--tag-overdue-text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
-}
-
-.top-banner-score {
-  font-size: 0.7rem;
-  font-weight: 700;
-  color: var(--row-accent, var(--text-muted));
 }
 
 .folder-tabs {
@@ -383,6 +421,17 @@ body {
 
 .legend-note {
   font-style: italic;
+}
+
+/* List display-mode toggle (windows / full), in the toolbar next to the legend. */
+.list-mode {
+  margin-left: 0;
+  margin-right: 0.25rem;
+}
+
+.list-mode .view-switch-btn {
+  font-size: 0.76rem;
+  padding: 0.25rem 0.75rem;
 }
 
 /* ---- Heat-map colour maths ----
@@ -1038,7 +1087,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  max-height: 420px;
+  max-height: max(420px, 62vh); /* the windows are the whole page in "windows" mode */
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 2px;
@@ -1220,6 +1269,176 @@ body {
 
 .window-add {
   margin-top: 0.4rem;
+}
+
+/* ---- Nested subtasks on cards ----
+   Same caret and collapsed set as the folder list. Rows sit inside the card body, each with
+   its own quadrant accent (active) or struck through (done), further children indented. */
+.window-card-caret {
+  margin-top: 0.25rem;
+  margin-right: -0.15rem;
+}
+
+.window-card-quick .window-card-caret {
+  margin-top: 0.15rem;
+}
+
+.window-card-subtasks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-top: 0.3rem;
+  padding-left: 0.2rem;
+  border-left: 1px solid color-mix(in srgb, var(--row-accent, var(--border)) 45%, transparent);
+}
+
+.window-subtask {
+  border-radius: 4px;
+  border-left: 2px solid var(--border);
+  padding: 0.1rem 0.2rem 0.1rem 0.35rem;
+  cursor: grab;
+}
+
+.window-subtask[class*="quadrant-"] {
+  border-left-color: var(--row-accent);
+  background: color-mix(in srgb, var(--row-bg) 55%, transparent);
+}
+
+.window-subtask.done {
+  cursor: default;
+}
+
+.window-subtask-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.3rem;
+}
+
+.window-subtask-head > .task-caret {
+  margin-top: 0.2rem;
+}
+
+.window-subtask-head input[type="checkbox"] {
+  margin-top: 0.15rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.window-subtask-title-line {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.35rem;
+}
+
+.window-subtask-title-line .subtask-progress {
+  margin-top: 0;
+}
+
+.window-subtask-title {
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.window-subtask.done .window-subtask-title {
+  text-decoration: line-through;
+  color: var(--done);
+}
+
+.window-subtask-edit {
+  opacity: 0;
+  padding: 0.1rem;
+  transition: opacity 0.1s ease;
+}
+
+.window-subtask:hover > .window-subtask-head > .window-subtask-edit {
+  opacity: 1;
+}
+
+.window-subtask .window-card-subtasks {
+  margin-left: 1.1rem;
+}
+
+/* ---- Habits in Now ----
+   Schedule-filtered view of the Weekly/Daily boxes, under the task cards. Uses the boxes'
+   own violet/sky hues per row so it reads as "different system", never a priority level. */
+.window-habits {
+  margin-top: 0.6rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.5rem;
+}
+
+.window-habits-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  margin-bottom: 0.3rem;
+}
+
+.window-habits-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.window-habits-fraction {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 0.45rem;
+}
+
+.window-habits-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.window-habit {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  border-left: 3px solid hsl(var(--habit-h) var(--recurring-acc-s) var(--recurring-acc-l));
+  background: hsl(var(--habit-h) var(--recurring-body-s) var(--recurring-body-l));
+  cursor: pointer;
+}
+
+.habit-daily { --habit-h: var(--daily-h); }
+.habit-weekly { --habit-h: var(--weekly-h); }
+
+.window-habit input[type="checkbox"] {
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.window-habit-title {
+  font-size: 0.82rem;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.window-habit.done .window-habit-title {
+  text-decoration: line-through;
+  color: var(--done);
+}
+
+.window-habit-meta {
+  font-size: 0.68rem;
+  color: hsl(var(--habit-h) var(--recurring-acc-s) var(--recurring-acc-l));
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 /* Empty-Now suggestion: a live-checked highlight (never a stored/dismissible flag) around
@@ -1711,6 +1930,66 @@ body {
   margin: 0.6rem 0 0;
   font-size: 0.74rem;
   color: var(--text-muted);
+}
+
+/* Expanded panel: every active task, scrollable, with an inline edit row per card. Non-summary
+   cards drop the accent ring/glow so the day's picks still stand out inside the full list. */
+.overview-panel-toggle {
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 0;
+  margin-left: auto;
+}
+
+.overview-panel-list-full {
+  max-height: min(70vh, 640px);
+  overflow-y: auto;
+  padding-right: 3px;
+}
+
+.priority-card-plain {
+  box-shadow: none;
+}
+
+.priority-card-edit-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.6rem;
+  margin-top: 0.25rem;
+}
+
+.priority-card-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+}
+
+.priority-card-field input[type="date"],
+.priority-card-field select {
+  font: inherit;
+  font-size: 0.7rem;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 0.05rem 0.25rem;
+}
+
+.priority-card-edit {
+  padding: 0.1rem;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+.priority-card:hover .priority-card-edit {
+  opacity: 1;
 }
 
 /* Scatter plot */

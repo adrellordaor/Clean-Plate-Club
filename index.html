@@ -29,7 +29,10 @@
   </div>
   <div id="storage-bar" class="storage-bar"></div>
   <nav id="folder-tabs" class="folder-tabs"></nav>
-  <div id="top-banner" class="top-banner"></div>
+  <!-- Overdue callout: every active task whose deadline has passed. Sticky in the header, shown
+       in both List display modes. A single collapsed line when nothing is overdue; only takes
+       real space when there's something to act on. See renderOverdueCallout in app.js. -->
+  <div id="overdue-callout" class="overdue-callout" aria-live="polite"></div>
 </header>
 
 <main class="app-main">
@@ -74,25 +77,31 @@
     </div>
   </section>
 
+  <!-- List view: two display modes (list_display_mode). "windows" is the Now/Later layout;
+       "full" is the original folder-organized page (category tabs in the header, folder
+       sections with heat-map rows, the Recurring habit boxes). One is shown at a time. -->
   <div id="list-view">
     <div class="toolbar">
       <div id="heatmap-legend" class="heatmap-legend"></div>
+      <div id="list-mode" class="view-switch list-mode" role="tablist" aria-label="List display mode"></div>
       <button id="add-category-btn" class="btn btn-secondary">+ Category</button>
       <button id="add-folder-btn" class="btn btn-secondary">+ Folder</button>
       <button id="add-task-btn" class="btn btn-primary">+ Task</button>
     </div>
 
-    <div class="main-layout">
+    <!-- "windows": Now (live union: do_date == today OR quadrant Do/Clear, plus today's habits)
+         and Later (quadrant Plan or Backlog) side by side; see windows.js. Both are drop zones:
+         drag a Later card into Now to plan it for today, drag a Now card onto Later to
+         deprioritize it (a close deadline forces a reschedule prompt; otherwise do_date resets
+         and the task settles into Plan/Backlog on its own). -->
+    <div id="windows-row" class="windows-row">
+      <section id="now-window" class="window-panel window-now" aria-label="Now"></section>
+      <section id="later-window" class="window-panel window-later" aria-label="Later"></section>
+    </div>
+
+    <!-- "full": the folder list and the Recurring habit boxes, exactly as originally built. -->
+    <div id="list-full" class="main-layout">
       <div class="main-column">
-        <!-- Now (live union: do_date == today OR quadrant Do/Clear) and Later (quadrant Plan
-             or Backlog) side by side; see windows.js. Both are drop zones: drag a task into
-             Now to plan it for today, drag a Now card onto Later or the list below to
-             deprioritize it (a close deadline forces a reschedule prompt; otherwise do_date
-             resets and the task settles into Plan/Backlog on its own). -->
-        <div id="windows-row" class="windows-row">
-          <section id="now-window" class="window-panel window-now" aria-label="Now"></section>
-          <section id="later-window" class="window-panel window-later" aria-label="Later"></section>
-        </div>
         <div id="folder-list" class="folder-list"></div>
       </div>
       <aside class="recurring-column">
@@ -279,6 +288,7 @@
 
         <label id="recurring-weekday-label">Weekly on
           <select id="recurring-weekday">
+            <option value="">— no set day (Sunday) —</option>
             <option value="1">Monday</option>
             <option value="2">Tuesday</option>
             <option value="3">Wednesday</option>
@@ -398,6 +408,22 @@
           </label>
         </div>
         <p class="settings-hint">A task planned for today scores at least this much urgency. Keep it above the quadrant split so being in Now genuinely moves a task into Do (important) or Clear (less important), instead of just looking more urgent while it stays in Plan or Backlog. Never lowers a score that a real deadline or staleness already put higher.</p>
+      </fieldset>
+
+      <fieldset class="settings-group">
+        <legend>List view</legend>
+        <div class="form-row">
+          <label>Display mode
+            <select id="setting-list-mode">
+              <option value="windows">Now / Later windows</option>
+              <option value="full">Full folder list</option>
+            </select>
+          </label>
+          <label>Weekly habits in Now: days before week end
+            <input type="number" id="setting-weekly-recurring-now" min="0" max="6" step="1" required>
+          </label>
+        </div>
+        <p class="settings-hint">Windows is the everyday Now/Later layout; Full is the complete folder-organized page with category tabs and the habit boxes. Daily habits always appear in Now; a weekly habit appears on its own weekday and once the (Monday-start) week is this many days from ending — 3 means from Thursday on. Habits never join the scoring.</p>
       </fieldset>
 
       <p id="settings-error" class="settings-error" aria-live="polite"></p>

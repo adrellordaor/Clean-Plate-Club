@@ -1,5 +1,5 @@
-// Urgency engine: pure functions shared by the List view (heat-map rows) and, later, the
-// Matrix/Digest view and top banner. Nothing here touches the DOM or storage.
+// Urgency engine: pure functions shared by the List view (heat-map rows, Now/Later cards,
+// the Overdue callout) and the Overview. Nothing here touches the DOM or storage.
 // Every threshold is read from the settings object passed in (see DEFAULT_SETTINGS for
 // the keys); urgency, priority score and quadrant are always derived, never stored.
 //
@@ -24,6 +24,8 @@ const DEFAULT_SETTINGS = Object.freeze({
   staleness_reminder_high_days: 28,     // check-in color tier: strong at/above this many days
   do_today_urgency_floor: 65,           // Now window: a task with do_date == today scores at least this
   // (just above quadrant_split_score, so "planned for today" genuinely lands it in Do/Clear)
+  weekly_recurring_now_days: 3,         // Now window: a weekly habit shows once the week's end is this close
+  list_display_mode: "windows",         // "windows" (Now/Later) | "full" (the folder-organized page)
 });
 
 const SETTINGS_KEYS = Object.keys(DEFAULT_SETTINGS);
@@ -35,7 +37,10 @@ const FRACTION_SETTINGS = new Set(["priority_importance_weight"]);
 const SCORE_SETTINGS = new Set(["quadrant_split_score", "overview_flag_threshold", "do_today_urgency_floor"]);
 
 // Settings that are a choice between fixed strings rather than a number.
-const CHOICE_SETTINGS = Object.freeze({ overview_display_mode: ["scatter", "list"] });
+const CHOICE_SETTINGS = Object.freeze({
+  overview_display_mode: ["scatter", "list"],
+  list_display_mode: ["windows", "full"],
+});
 
 // Fill gaps with defaults and coerce to sane numbers, so an older data file or a
 // hand-edited one can't break the engine.
@@ -54,7 +59,7 @@ function normalizeSettings(raw) {
       out[key] = Math.min(1, value);
     } else if (SCORE_SETTINGS.has(key)) {
       out[key] = Math.min(100, value);
-    } else if (key === "overview_top_n") {
+    } else if (key === "overview_top_n" || key === "weekly_recurring_now_days") {
       out[key] = Math.round(value);
     } else {
       out[key] = value;
@@ -271,6 +276,30 @@ function isLaterMember(assessment) {
   return q === "q2" || q === "q4";
 }
 
+// ---------- RecurringTasks in Now ----------
+// Habits never enter the matrix (no importance, urgency, quadrant or tag), but they do get
+// surfaced in the Now window on the days they're relevant, as an extra view of the same rows.
+
+// The weekday a weekly habit is scheduled on. Optional at creation; Sunday when left empty.
+function recurringWeekday(rt) {
+  return rt.weekday == null ? 0 : Number(rt.weekday);
+}
+
+// Whole days from `dateStr` to the end of its Monday-start week (Sunday): Mon 6 ... Sun 0.
+function daysUntilWeekEnd(dateStr) {
+  return 6 - ((parseLocalDate(dateStr).getDay() + 6) % 7);
+}
+
+// Daily habits always show; weekly ones when today is their weekday OR the week ends within
+// weekly_recurring_now_days (default 3: Thursday onwards), whichever is true.
+function isRecurringNowMember(rt, settings, today) {
+  if (rt.cadence === "daily") return true;
+  if (rt.cadence !== "weekly") return false;
+  if (parseLocalDate(today).getDay() === recurringWeekday(rt)) return true;
+  const window = Number(settings.weekly_recurring_now_days);
+  return Number.isFinite(window) && daysUntilWeekEnd(today) <= window;
+}
+
 // ---------- Priority score ----------
 
 // priority_score = w × importance + (1 − w) × urgency, both on 0-100 scales. Continuous, so
@@ -335,5 +364,6 @@ if (typeof module !== "undefined" && module.exports) {
     importanceScore, splitScore, importanceBucket, urgencyBucket, quadrantFor,
     priorityScore, priorityRangeFor, priorityIntensity, assessTask,
     ESCALATING_TAGS, escalatingTag, isDeadlineDriven, isNowMember, isLaterMember,
+    recurringWeekday, daysUntilWeekEnd, isRecurringNowMember,
   };
 }

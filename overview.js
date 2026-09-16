@@ -1,9 +1,10 @@
 // Overview: the read-only orientation view (spec: "Overview", formerly Matrix/Digest).
 // Three parts, top to bottom: the task map (scatter plot or quadrant list, chosen by the
 // overview_display_mode setting), the priority summary panel beside it, and the
-// "what changed since yesterday" digest. No checkboxes, no edit/delete, nothing to tick
-// off — that happens in the List view. Only regular Tasks appear; RecurringTasks have no
-// importance/urgency/quadrant and never show up here.
+// "what changed since yesterday" digest. No checkboxes, nothing to tick off — that happens
+// in the List view; the one exception is the priority panel's expanded full list, which
+// allows basic inline edits (importance, dates). Only regular Tasks appear; RecurringTasks
+// have no importance/urgency/quadrant and never show up here.
 //
 // Reads app state (tasks, folders, settings, quadrantHistory, activeView) and the pure
 // helpers in urgency.js / digest.js. Uses the same quadrant-q* / --p CSS heat-map as
@@ -454,26 +455,67 @@ function taskContextLabel(task) {
 }
 
 // ---------- Priority summary panel ----------
+// Default: the top-N-or-flagged summary. Expanded (a per-device preference, like the theme):
+// every active regular task, subtasks included, in priority order — a third access point,
+// "just show me the raw ranking", independent of both List display modes. Expanded rows get
+// basic inline editing (importance, do date, deadline, plus the pencil for the full form);
+// completion still lives in the List view, so there's no checkbox here.
+
+const PANEL_EXPANDED_KEY = "overviewPanelExpanded";
+let overviewPanelExpanded = localStorage.getItem(PANEL_EXPANDED_KEY) === "1";
+
+function setOverviewPanelExpanded(expanded) {
+  overviewPanelExpanded = !!expanded;
+  try { localStorage.setItem(PANEL_EXPANDED_KEY, overviewPanelExpanded ? "1" : "0"); } catch (e) { /* private mode etc. */ }
+  render();
+}
 
 function renderPrioritySummary(ranked, summary) {
   const panel = document.getElementById("overview-panel");
   panel.innerHTML = "";
+  const expanded = overviewPanelExpanded && ranked.length > 0;
+  panel.classList.toggle("overview-panel-expanded", expanded);
+  const summaryIds = new Set(summary.map(entry => entry.task.id));
 
   const header = document.createElement("div");
   header.className = "overview-panel-header";
 
   const title = document.createElement("h2");
   title.className = "overview-panel-title";
-  title.textContent = "Priority today";
+  title.textContent = expanded ? "All by priority" : "Priority today";
   header.appendChild(title);
 
   const rule = document.createElement("span");
   rule.className = "overview-panel-rule";
-  rule.textContent = "top " + settings.overview_top_n + " or score ≥ " + settings.overview_flag_threshold;
-  rule.title = "A task is listed if it ranks within the top " + settings.overview_top_n + " by priority, or scores at least " + settings.overview_flag_threshold + " — whichever includes more.";
+  if (expanded) {
+    rule.textContent = ranked.length + " active · edit inline";
+    rule.title = "Every active task, highest priority first. The glowing ones are the day's summary picks.";
+  } else {
+    rule.textContent = "top " + settings.overview_top_n + " or score ≥ " + settings.overview_flag_threshold;
+    rule.title = "A task is listed if it ranks within the top " + settings.overview_top_n + " by priority, or scores at least " + settings.overview_flag_threshold + " — whichever includes more.";
+  }
   header.appendChild(rule);
 
+  if (ranked.length > 0) {
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "link-btn overview-panel-toggle";
+    toggle.textContent = expanded ? "Summary only" : "Show all " + ranked.length;
+    toggle.setAttribute("aria-expanded", expanded ? "true" : "false");
+    toggle.title = expanded ? "Back to the top-N summary" : "Expand into the full priority-sorted list";
+    toggle.addEventListener("click", () => setOverviewPanelExpanded(!expanded));
+    header.appendChild(toggle);
+  }
+
   panel.appendChild(header);
+
+  if (expanded) {
+    const ol = document.createElement("ol");
+    ol.className = "overview-panel-list overview-panel-list-full";
+    ranked.forEach(entry => ol.appendChild(renderPriorityCard(entry, summaryIds.has(entry.task.id), true)));
+    panel.appendChild(ol);
+    return;
+  }
 
   if (summary.length === 0) {
     const empty = document.createElement("div");
@@ -485,7 +527,7 @@ function renderPrioritySummary(ranked, summary) {
 
   const ol = document.createElement("ol");
   ol.className = "overview-panel-list";
-  summary.forEach(entry => ol.appendChild(renderPriorityCard(entry)));
+  summary.forEach(entry => ol.appendChild(renderPriorityCard(entry, true, false)));
   panel.appendChild(ol);
 
   if (summary.length < ranked.length) {
@@ -496,10 +538,12 @@ function renderPrioritySummary(ranked, summary) {
   }
 }
 
-function renderPriorityCard(entry) {
+// `inSummary` keeps the accent ring/glow (the summary picks, matching their scatter halo);
+// `editable` adds the inline edit row used by the expanded full list.
+function renderPriorityCard(entry, inSummary, editable) {
   const { task, assessment } = entry;
   const li = document.createElement("li");
-  li.className = "priority-card quadrant-" + assessment.quadrant.key;
+  li.className = "priority-card quadrant-" + assessment.quadrant.key + (inSummary ? "" : " priority-card-plain");
   li.style.setProperty("--p", assessment.intensity.toFixed(3));
   li.title = "urgency " + assessment.urgency.score + " (" + assessment.urgency.reason + ") · importance " + task.importance + (task.deadline ? " · due " + task.deadline : "");
 
@@ -522,6 +566,8 @@ function renderPriorityCard(entry) {
   meta.textContent = (context ? context + " · " : "") + assessment.quadrant.label + " · " + assessment.urgency.reason;
   body.appendChild(meta);
 
+  if (editable) body.appendChild(renderPriorityEditRow(task));
+
   li.appendChild(body);
 
   // Tag lives beside the score, not inside the ellipsised title/meta lines, so a long title
@@ -533,9 +579,57 @@ function renderPriorityCard(entry) {
   score.className = "priority-card-score";
   score.textContent = assessment.priorityScore;
   scoreCol.appendChild(score);
+  if (editable) {
+    const editBtn = document.createElement("button");
+    editBtn.type = "button";
+    editBtn.className = "btn-icon priority-card-edit";
+    editBtn.innerHTML = ICONS.pencil;
+    editBtn.setAttribute("aria-label", "Edit task");
+    editBtn.title = "Edit in the full form";
+    editBtn.addEventListener("click", () => openTaskModal(task));
+    scoreCol.appendChild(editBtn);
+  }
   li.appendChild(scoreCol);
 
   return li;
+}
+
+// Inline edit row for the expanded list: importance, do date, deadline. Each write goes
+// through the same setters the Now/Later expanded cards use (windows.js), so the deadline
+// default, the deadline requirement and the Now-window deadline prompt all apply here too.
+function renderPriorityEditRow(task) {
+  const row = document.createElement("div");
+  row.className = "priority-card-edit-row";
+
+  const importance = document.createElement("label");
+  importance.className = "priority-card-field";
+  importance.textContent = "Imp";
+  const select = document.createElement("select");
+  Object.keys(IMPORTANCE_SCORES).forEach(level => {
+    const opt = document.createElement("option");
+    opt.value = level;
+    opt.textContent = level;
+    if (level === task.importance) opt.selected = true;
+    select.appendChild(opt);
+  });
+  select.addEventListener("change", () => inlineSetImportance(task, select.value));
+  importance.appendChild(select);
+  row.appendChild(importance);
+
+  const makeDate = (labelText, value, onChange) => {
+    const label = document.createElement("label");
+    label.className = "priority-card-field";
+    label.textContent = labelText;
+    const input = document.createElement("input");
+    input.type = "date";
+    input.value = value || "";
+    input.addEventListener("change", () => onChange(input.value));
+    label.appendChild(input);
+    return label;
+  };
+  row.appendChild(makeDate("Do", task.do_date, value => inlineSetDoDate(task, value)));
+  row.appendChild(makeDate("Due", task.deadline, value => inlineSetDeadline(task, value)));
+  return row;
 }
 
 // ---------- What changed since yesterday ----------

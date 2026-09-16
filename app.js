@@ -1,5 +1,7 @@
-// List view — categories, folders, nested tasks, add/edit/delete, category filter.
-// Data is persisted through storage.js (folder file via File System Access API, IndexedDB fallback).
+// List view — categories, folders, nested tasks, add/edit/delete, category filter, the
+// Overdue callout, and the windows/full display-mode toggle (the Now/Later windows themselves
+// are in windows.js). Data is persisted through storage.js (folder file via File System
+// Access API, IndexedDB fallback).
 
 // Random ids so tasks created on two devices before a OneDrive sync can't collide.
 function makeId() {
@@ -266,7 +268,8 @@ function makeRecurringTask(overrides) {
     folder_id: null,
     title: "",
     cadence: "daily", // "daily" | "weekly"
-    weekday: null, // 0 (Sun) - 6 (Sat), only meaningful when cadence === "weekly"
+    weekday: null, // 0 (Sun) - 6 (Sat), weekly only; optional, null reads as Sunday (recurringWeekday)
+    // and doubles as the habit's "do date" for Now inclusion (isRecurringNowMember)
     last_completed_date: null, // "YYYY-MM-DD"; checking off sets this to today
   }, overrides);
 }
@@ -361,11 +364,49 @@ function renderViewSwitch() {
     btn.setAttribute("aria-selected", isActive ? "true" : "false");
   });
   const isList = activeView === "list";
+  const listMode = settings.list_display_mode;
   document.getElementById("list-view").hidden = !isList;
-  document.getElementById("folder-tabs").hidden = !isList;
-  document.getElementById("top-banner").hidden = !isList;
+  // The category tabs belong to the folder-organized "full" page; the Overdue callout is a
+  // safety signal and stays up in either List mode.
+  document.getElementById("folder-tabs").hidden = !(isList && listMode === "full");
+  document.getElementById("overdue-callout").hidden = !isList;
+  document.getElementById("windows-row").hidden = !(isList && listMode === "windows");
+  document.getElementById("list-full").hidden = !(isList && listMode === "full");
   document.getElementById("overview-view").hidden = activeView !== "overview";
   document.getElementById("calendar-view").hidden = activeView !== "calendar";
+}
+
+// ---------- List display mode ----------
+// list_display_mode is a real setting (synced in the data file), same two-mode pattern as
+// overview_display_mode and calendar_display_mode: the toggle in the toolbar and the select
+// in the Settings modal are two handles on the same value.
+
+const LIST_MODES = [
+  { key: "windows", label: "Now / Later" },
+  { key: "full", label: "Full list" },
+];
+
+function renderListModeToggle() {
+  const toggle = document.getElementById("list-mode");
+  toggle.innerHTML = "";
+  LIST_MODES.forEach(mode => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    const active = settings.list_display_mode === mode.key;
+    btn.className = "view-switch-btn" + (active ? " active" : "");
+    btn.setAttribute("role", "tab");
+    btn.setAttribute("aria-selected", active ? "true" : "false");
+    btn.textContent = mode.label;
+    btn.addEventListener("click", () => setListDisplayMode(mode.key));
+    toggle.appendChild(btn);
+  });
+}
+
+function setListDisplayMode(mode) {
+  if (settings.list_display_mode === mode) return;
+  settings = normalizeSettings(Object.assign({}, settings, { list_display_mode: mode }));
+  persist();
+  render();
 }
 
 // ---------- Rendering ----------
@@ -373,7 +414,8 @@ function renderViewSwitch() {
 function render() {
   renderViewSwitch();
   renderCategoryTabs();
-  renderTopBanner();
+  renderListModeToggle();
+  renderOverdueCallout();
   renderHeatMapLegend();
   renderNowLaterWindows();
   renderFolderList();
@@ -382,70 +424,94 @@ function render() {
   renderCalendar();
 }
 
-// Top priority banner: top 3-5 tasks by priority_score across ALL folders/categories,
-// independent of activeCategoryFilter, so the highest-priority items are never scrolled
-// out of view or hidden by whichever tab happens to be selected. Lives in the sticky
-// header so it stays visible while scrolling the list below. Recurring tasks never
-// appear here — only regular Tasks carry a priority_score.
-const TOP_BANNER_MAX = 5;
+// ---------- Overdue callout ----------
+// The "firefight" window: every active task whose deadline has passed, most overdue first.
+// Membership only (deadline < today), no ranking rule and no new fields — a stale undated
+// task never lands here, only an actually missed deadline does. Sits in the sticky header,
+// independent of the category tabs and of the List display mode, so it can't be scrolled or
+// toggled out of view. Collapsed to a single quiet line when nothing is overdue; the strip of
+// cards only appears when there's something to act on. Recurring habits never appear here.
 
-function renderTopBanner() {
-  const banner = document.getElementById("top-banner");
-  banner.innerHTML = "";
+function renderOverdueCallout() {
+  const el = document.getElementById("overdue-callout");
+  el.innerHTML = "";
+  const today = todayISODate();
 
-  const ranked = tasks
-    .filter(t => t.status === "active")
-    .map(task => ({ task, assessment: assessTask(task, settings, todayISODate()) }))
-    .sort((a, b) => b.assessment.priorityScore - a.assessment.priorityScore)
-    .slice(0, TOP_BANNER_MAX);
+  const overdue = tasks
+    .filter(t => t.status === "active" && t.deadline && t.deadline < today)
+    .map(task => ({ task, assessment: assessTask(task, settings, today) }))
+    .sort((a, b) => (a.task.deadline < b.task.deadline ? -1 : a.task.deadline > b.task.deadline ? 1 : 0)
+      || b.assessment.priorityScore - a.assessment.priorityScore);
 
-  banner.classList.toggle("has-items", ranked.length > 0);
-  // With fewer than 3-5 active tasks total there's no real "top" to distinguish from the
-  // rest; show whatever exists rather than an empty strip, and skip the banner entirely
-  // once there are zero active tasks.
-  if (ranked.length === 0) return;
+  el.classList.toggle("has-items", overdue.length > 0);
+
+  const header = document.createElement("div");
+  header.className = "overdue-callout-header";
 
   const label = document.createElement("span");
-  label.className = "top-banner-label";
-  label.textContent = "Top priority";
-  banner.appendChild(label);
+  label.className = "overdue-callout-label";
+  label.textContent = "Overdue";
+  header.appendChild(label);
+
+  const count = document.createElement("span");
+  count.className = "overdue-callout-count";
+  count.textContent = overdue.length;
+  header.appendChild(count);
+
+  const hint = document.createElement("span");
+  hint.className = "overdue-callout-hint";
+  hint.textContent = overdue.length === 0
+    ? "nothing past its deadline"
+    : "past deadline · act on these first";
+  header.appendChild(hint);
+
+  el.appendChild(header);
+  if (overdue.length === 0) return;
 
   const strip = document.createElement("div");
-  strip.className = "top-banner-strip";
-  ranked.forEach(({ task, assessment }) => strip.appendChild(renderTopBannerCard(task, assessment)));
-  banner.appendChild(strip);
+  strip.className = "overdue-strip";
+  overdue.forEach(entry => strip.appendChild(renderOverdueCard(entry, today)));
+  el.appendChild(strip);
 }
 
-function renderTopBannerCard(task, assessment) {
-  const folder = folders.find(f => f.id === task.folder_id);
+function renderOverdueCard(entry, today) {
+  const { task, assessment } = entry;
+  const daysOver = calendarDaysBetween(task.deadline, today);
 
-  const card = document.createElement("button");
-  card.type = "button";
-  card.className = "top-banner-card quadrant-" + assessment.quadrant.key;
+  const card = document.createElement("div");
+  card.className = "overdue-card quadrant-" + assessment.quadrant.key;
   card.style.setProperty("--p", assessment.intensity.toFixed(3));
   card.title = [
-    assessment.quadrant.label,
-    "priority " + assessment.priorityScore,
-    "urgency " + assessment.urgency.score + " (" + assessment.urgency.reason + ")",
-    task.deadline ? "due " + task.deadline : null,
-  ].filter(Boolean).join(" · ");
-  card.addEventListener("click", () => openTaskModal(task));
+    assessment.quadrant.label + " · priority " + assessment.priorityScore,
+    "importance " + task.importance,
+    "due " + task.deadline,
+  ].join(" · ");
+
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.className = "overdue-card-check";
+  checkbox.setAttribute("aria-label", "Mark done");
+  checkbox.addEventListener("change", () => toggleTaskDone(task));
+  card.appendChild(checkbox);
+
+  const body = document.createElement("button");
+  body.type = "button";
+  body.className = "overdue-card-body";
+  body.title = "Edit";
+  body.addEventListener("click", () => openTaskModal(task));
 
   const title = document.createElement("span");
-  title.className = "top-banner-title";
+  title.className = "overdue-card-title";
   title.textContent = task.title;
-  card.appendChild(title);
+  body.appendChild(title);
 
   const meta = document.createElement("span");
-  meta.className = "top-banner-meta";
-  meta.textContent = (folder ? folder.name + " · " : "") + assessment.quadrant.label;
-  card.appendChild(meta);
+  meta.className = "overdue-card-meta";
+  const context = taskContextLabel(task);
+  meta.textContent = (context ? context + " · " : "") + "overdue by " + daysOver + (daysOver === 1 ? " day" : " days");
+  body.appendChild(meta);
 
-  const score = document.createElement("span");
-  score.className = "top-banner-score";
-  score.textContent = "priority " + assessment.priorityScore;
-  card.appendChild(score);
-
+  card.appendChild(body);
   return card;
 }
 
@@ -799,7 +865,9 @@ function renderSubtaskProgress(subtasks) {
 
 // ---------- Recurring sidebar (Weekly/Daily boxes) ----------
 // Fully separate from the folder/matrix system: no importance, urgency, or heat-map
-// coloring applies here, just a folder-grouped checklist with a completion fraction.
+// coloring applies here, just a folder-grouped checklist with a completion fraction. The
+// Now window shows a schedule-filtered view of these same rows (renderNowHabits in
+// windows.js); these boxes always show everything.
 
 function renderRecurringSidebar() {
   renderRecurringBox("weekly", "recurring-weekly", "Weekly");
@@ -936,8 +1004,8 @@ function renderRecurringRow(rt) {
   title.textContent = rt.title;
   titleLine.appendChild(title);
 
-  if (rt.cadence === "weekly" && rt.weekday != null) {
-    titleLine.appendChild(makeBadge(WEEKDAY_LABELS[rt.weekday], "badge-recurring"));
+  if (rt.cadence === "weekly") {
+    titleLine.appendChild(makeBadge(WEEKDAY_LABELS[recurringWeekday(rt)], "badge-recurring"));
   }
 
   main.appendChild(titleLine);
@@ -1258,7 +1326,8 @@ function openRecurringModal(prefillOrRt) {
   document.getElementById("recurring-id").value = isEdit ? prefillOrRt.id : "";
   document.getElementById("recurring-title").value = isEdit ? prefillOrRt.title : "";
   recurringCadenceSelect.value = isEdit ? prefillOrRt.cadence : (prefillOrRt.cadence || "daily");
-  recurringWeekdaySelect.value = isEdit && prefillOrRt.weekday != null ? prefillOrRt.weekday : new Date().getDay();
+  // Weekday is optional: no forced choice on a new habit, it reads as Sunday until one is set.
+  recurringWeekdaySelect.value = isEdit && prefillOrRt.weekday != null ? String(prefillOrRt.weekday) : "";
   updateRecurringWeekdayVisibility();
 
   recurringModal.classList.remove("hidden");
@@ -1277,7 +1346,9 @@ recurringForm.addEventListener("submit", e => {
     folder_id: recurringFolderSelect.value,
     title: document.getElementById("recurring-title").value.trim(),
     cadence: recurringCadenceSelect.value,
-    weekday: recurringCadenceSelect.value === "weekly" ? Number(recurringWeekdaySelect.value) : null,
+    weekday: recurringCadenceSelect.value === "weekly" && recurringWeekdaySelect.value !== ""
+      ? Number(recurringWeekdaySelect.value)
+      : null,
   };
 
   if (!data.title || !data.folder_id) return;
@@ -1357,10 +1428,12 @@ const SETTINGS_FIELDS = {
   staleness_reminder_medium_days: "setting-staleness-reminder-medium",
   staleness_reminder_high_days: "setting-staleness-reminder-high",
   do_today_urgency_floor: "setting-do-today-floor",
+  weekly_recurring_now_days: "setting-weekly-recurring-now",
+  list_display_mode: "setting-list-mode",
 };
 
 // Settings read back as a string choice rather than a number.
-const STRING_SETTINGS = new Set(["overview_display_mode"]);
+const STRING_SETTINGS = new Set(["overview_display_mode", "list_display_mode"]);
 
 function fillSettingsForm(values) {
   Object.entries(SETTINGS_FIELDS).forEach(([key, inputId]) => {
@@ -1399,6 +1472,9 @@ function validateSettings(v) {
   if (v.do_today_urgency_floor > 100) return "Now floor is a score from 0 to 100.";
   if (!(v.do_today_urgency_floor > v.quadrant_split_score)) {
     return "Now floor must be above the quadrant split (" + v.quadrant_split_score + "), so a task planned for today actually moves into Do or Clear.";
+  }
+  if (!Number.isInteger(v.weekly_recurring_now_days) || v.weekly_recurring_now_days > 6) {
+    return "Weekly habits in Now: use a whole number of days from 0 (Sunday only) to 6 (all week).";
   }
   return null;
 }

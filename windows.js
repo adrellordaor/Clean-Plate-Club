@@ -24,6 +24,20 @@
 // is the expanded panel its cards also show the meta line, inline do_date / deadline inputs
 // and the quick-win chip, so small changes don't need the full form.
 //
+// Nested subtasks: a card shows its subtasks underneath, collapsible with the same caret and
+// the same shared collapsed set (collapsedTasks) as the folder list, so the structure is one
+// thing in both places. A member whose parent is also a member of the same window renders
+// nested under the parent rather than as a second card; a member whose parent is elsewhere
+// (or top-level) gets its own card. This is what makes the "full" List mode optional for
+// everyday use rather than the only place subtask structure is visible.
+//
+// Habits in Now: a schedule-filtered view of the same RecurringTasks the Weekly/Daily boxes
+// show (isRecurringNowMember in urgency.js — daily always, weekly on its weekday or near the
+// week's end). Rendered as their own block under the task cards: no importance, urgency,
+// quadrant, tag, sort or drag, and ticking one off logs to CompletionLog exactly as the boxes
+// do. Only shown in the "windows" List display mode (list_display_mode); "full" keeps the
+// original folder page and the boxes.
+//
 // Focus mode (Now only): an on-demand overlay over the page showing just the do_date == today
 // subset of Now, same cards, same drag mechanics (drop on the dimmed backdrop = deprioritize).
 // Rendering mode only, no membership rule of its own, nothing to keep in sync.
@@ -166,8 +180,8 @@ const WINDOWS = {
 // ---------- Rendering ----------
 
 function renderNowLaterWindows() {
-  if (activeView !== "list") {
-    renderFocusOverlay(null, null); // hides the overlay if a view switch happened under it
+  if (activeView !== "list" || settings.list_display_mode !== "windows") {
+    renderFocusOverlay(null, null); // hides the overlay if a view/mode switch happened under it
     return;
   }
   const today = todayISODate();
@@ -191,7 +205,8 @@ function renderWindow(win, ranked, today, nowIsEmpty) {
   el.classList.toggle("window-focused", expanded);
 
   const unsorted = ranked.filter(entry => win.member(entry, today));
-  const entries = sortWindowEntries(unsorted, windowPrefs[win.sortPref]);
+  // Members nested under a member parent render inside that parent's card, not as their own.
+  const entries = topLevelEntries(sortWindowEntries(unsorted, windowPrefs[win.sortPref]));
 
   // Header: title, count, hint, focus mode (Now only), expand/shrink.
   const header = document.createElement("div");
@@ -204,7 +219,7 @@ function renderWindow(win, ranked, today, nowIsEmpty) {
 
   const count = document.createElement("span");
   count.className = "window-count";
-  count.textContent = entries.length;
+  count.textContent = unsorted.length; // every member, nested ones included
   header.appendChild(count);
 
   const hint = document.createElement("span");
@@ -249,12 +264,95 @@ function renderWindow(win, ranked, today, nowIsEmpty) {
 
   el.appendChild(renderWindowBody(win, entries, today, expanded));
 
+  if (win.key === "now") {
+    const habits = renderNowHabits(today);
+    if (habits) el.appendChild(habits);
+  }
+
   const addLink = document.createElement("button");
   addLink.type = "button";
   addLink.className = "link-btn window-add";
   addLink.textContent = "+ Add task";
   addLink.addEventListener("click", win.key === "now" ? addTaskToNowDirectly : addTaskToLaterDirectly);
   el.appendChild(addLink);
+}
+
+// Drops every entry whose parent is itself in `entries` — those render nested under the
+// parent's card (renderCardSubtasks) instead. Order is preserved.
+function topLevelEntries(entries) {
+  const ids = new Set(entries.map(e => e.task.id));
+  return entries.filter(e => !e.task.parent_task_id || !ids.has(e.task.parent_task_id));
+}
+
+// ---------- Habits in Now ----------
+// The same RecurringTasks the Weekly/Daily boxes list, filtered to today's schedule. Undone
+// first, then daily before weekly. Done ones stay visible and ticked (like the boxes) so a
+// mis-click can be undone here too. Returns null when no habit is due, so Now stays clean.
+function renderNowHabits(today) {
+  const due = recurringTasks.filter(rt => isRecurringNowMember(rt, settings, today));
+  if (due.length === 0) return null;
+  const cadenceOrder = rt => (rt.cadence === "daily" ? 0 : 1);
+  due.sort((a, b) => Number(isRecurringDoneNow(a)) - Number(isRecurringDoneNow(b)) || cadenceOrder(a) - cadenceOrder(b));
+  const doneCount = due.filter(isRecurringDoneNow).length;
+
+  const block = document.createElement("div");
+  block.className = "window-habits";
+
+  const header = document.createElement("div");
+  header.className = "window-habits-header";
+
+  const title = document.createElement("span");
+  title.className = "window-habits-title";
+  title.textContent = "Habits";
+  header.appendChild(title);
+
+  const fraction = document.createElement("span");
+  fraction.className = "window-habits-fraction";
+  fraction.textContent = doneCount + "/" + due.length;
+  header.appendChild(fraction);
+
+  const hint = document.createElement("span");
+  hint.className = "window-hint";
+  hint.textContent = "daily · weekly due soon";
+  hint.title = "Daily habits every day; weekly ones on their weekday or within " + settings.weekly_recurring_now_days + " day(s) of the week ending. Not scored.";
+  header.appendChild(hint);
+
+  block.appendChild(header);
+
+  const list = document.createElement("div");
+  list.className = "window-habits-list";
+  due.forEach(rt => list.appendChild(renderNowHabitRow(rt)));
+  block.appendChild(list);
+  return block;
+}
+
+function renderNowHabitRow(rt) {
+  const done = isRecurringDoneNow(rt);
+  const row = document.createElement("label");
+  row.className = "window-habit habit-" + rt.cadence + (done ? " done" : "");
+
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.checked = done;
+  checkbox.setAttribute("aria-label", (done ? "Undo " : "Complete ") + rt.title);
+  checkbox.addEventListener("change", () => toggleRecurringTask(rt));
+  row.appendChild(checkbox);
+
+  const title = document.createElement("span");
+  title.className = "window-habit-title";
+  title.textContent = rt.title;
+  row.appendChild(title);
+
+  const folder = folders.find(f => f.id === rt.folder_id);
+  const meta = document.createElement("span");
+  meta.className = "window-habit-meta";
+  meta.textContent = [
+    folder ? folder.name : null,
+    rt.cadence === "weekly" ? WEEKDAY_LABELS[recurringWeekday(rt)] : "daily",
+  ].filter(Boolean).join(" · ");
+  row.appendChild(meta);
+
+  return row;
 }
 
 function renderWindowBody(win, entries, today, expanded) {
@@ -417,6 +515,9 @@ function renderWindowCard(entry, win, expanded) {
   ].filter(Boolean).join(" · ");
   makeTaskDraggable(card, task, win.key);
 
+  const children = tasks.filter(t => t.parent_task_id === task.id);
+  if (children.length > 0) card.appendChild(makeSubtaskCaret(task));
+
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
   checkbox.className = "window-card-check";
@@ -437,6 +538,8 @@ function renderWindowCard(entry, win, expanded) {
   appendTagBadge(titleLine, task, today);
   body.appendChild(titleLine);
 
+  if (children.length > 0) body.appendChild(renderSubtaskProgress(children));
+
   if (expanded) {
     const meta = document.createElement("span");
     meta.className = "window-card-meta";
@@ -449,6 +552,10 @@ function renderWindowCard(entry, win, expanded) {
     ].filter(Boolean).join(" · ");
     body.appendChild(meta);
     body.appendChild(renderInlineDates(task, card));
+  }
+
+  if (children.length > 0 && !collapsedTasks.has(task.id)) {
+    body.appendChild(renderCardSubtasks(children, win, today));
   }
 
   card.appendChild(body);
@@ -479,6 +586,92 @@ function renderWindowCard(entry, win, expanded) {
 
   card.appendChild(actions);
   return card;
+}
+
+// Collapse/expand caret for a card or nested row with subtasks. Shares collapsedTasks with
+// the folder list, so a task folded in one place is folded everywhere.
+function makeSubtaskCaret(task) {
+  const collapsed = collapsedTasks.has(task.id);
+  const caret = document.createElement("button");
+  caret.type = "button";
+  caret.className = "task-caret window-card-caret" + (collapsed ? " collapsed" : "");
+  caret.textContent = "▼";
+  caret.setAttribute("aria-label", collapsed ? "Expand subtasks" : "Collapse subtasks");
+  caret.addEventListener("click", e => {
+    e.stopPropagation();
+    if (collapsedTasks.has(task.id)) collapsedTasks.delete(task.id);
+    else collapsedTasks.add(task.id);
+    render();
+  });
+  return caret;
+}
+
+// Nested subtasks under a card: every child (done ones struck through, like the folder list),
+// each with its own checkbox, tag, and, recursively, its own subtasks. Active rows carry
+// their own live quadrant hue and are draggable with the card's window as source, so a
+// subtask can be planned into Now or deprioritized out of it on its own.
+function renderCardSubtasks(children, win, today) {
+  const list = document.createElement("div");
+  list.className = "window-card-subtasks";
+  children.forEach(child => list.appendChild(renderCardSubtaskRow(child, win, today)));
+  return list;
+}
+
+function renderCardSubtaskRow(task, win, today) {
+  const row = document.createElement("div");
+  row.className = "window-subtask" + (task.status === "done" ? " done" : "");
+  const grandchildren = tasks.filter(t => t.parent_task_id === task.id);
+
+  if (task.status === "active") {
+    const assessment = assessTask(task, settings, today);
+    row.classList.add("quadrant-" + assessment.quadrant.key);
+    row.style.setProperty("--p", assessment.intensity.toFixed(3));
+    row.title = assessment.quadrant.label + " · priority " + assessment.priorityScore + " · urgency " + assessment.urgency.score + " (" + assessment.urgency.reason + ")";
+    makeTaskDraggable(row, task, win.key);
+  }
+
+  const head = document.createElement("div");
+  head.className = "window-subtask-head";
+
+  if (grandchildren.length > 0) head.appendChild(makeSubtaskCaret(task));
+  else {
+    const spacer = document.createElement("span");
+    spacer.className = "task-caret-spacer";
+    head.appendChild(spacer);
+  }
+
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.checked = task.status === "done";
+  checkbox.setAttribute("aria-label", "Mark done");
+  checkbox.addEventListener("change", () => toggleTaskDone(task));
+  head.appendChild(checkbox);
+
+  const titleLine = document.createElement("span");
+  titleLine.className = "window-subtask-title-line";
+  const title = document.createElement("span");
+  title.className = "window-subtask-title";
+  title.textContent = task.title;
+  titleLine.appendChild(title);
+  appendTagBadge(titleLine, task, today);
+  if (grandchildren.length > 0) titleLine.appendChild(renderSubtaskProgress(grandchildren));
+  head.appendChild(titleLine);
+
+  const editBtn = document.createElement("button");
+  editBtn.type = "button";
+  editBtn.className = "btn-icon window-subtask-edit";
+  editBtn.innerHTML = ICONS.pencil;
+  editBtn.setAttribute("aria-label", "Edit subtask");
+  editBtn.title = "Edit";
+  editBtn.addEventListener("click", () => openTaskModal(task));
+  head.appendChild(editBtn);
+
+  row.appendChild(head);
+
+  if (grandchildren.length > 0 && !collapsedTasks.has(task.id)) {
+    row.appendChild(renderCardSubtasks(grandchildren, win, today));
+  }
+  return row;
 }
 
 // Inline do_date / deadline inputs (expanded cards only). While the pointer is over an input
@@ -575,11 +768,9 @@ function renderFocusOverlay(ranked, today) {
   focusOverlay.classList.toggle("hidden", !open);
   if (!open) return;
 
-  const entries = sortWindowEntries(
-    ranked.filter(entry => WINDOWS.now.member(entry, today) && entry.task.do_date === today),
-    windowPrefs.nowSort
-  );
-  document.getElementById("focus-count").textContent = entries.length;
+  const members = ranked.filter(entry => WINDOWS.now.member(entry, today) && entry.task.do_date === today);
+  const entries = topLevelEntries(sortWindowEntries(members, windowPrefs.nowSort));
+  document.getElementById("focus-count").textContent = members.length;
   document.getElementById("focus-close-btn").innerHTML = ICONS.close; // ICONS is app.js's, loaded after this file
   focusBody.innerHTML = "";
   if (entries.length === 0) {
@@ -729,6 +920,23 @@ function inlineSetDeadline(task, value) {
   render();
 }
 
+// Inline importance edit (the Overview's expanded priority list). Same deadline requirement
+// as the form: raising a dateless task to High/Critical while it would sit in Plan is blocked.
+function inlineSetImportance(task, value) {
+  if (!IMPORTANCE_SCORES[value] || value === task.importance) return;
+  const now = new Date().toISOString();
+  const candidate = Object.assign({}, task, { importance: value, last_touched_at: now });
+  if (isDeadlineViolator(candidate, todayISODate())) {
+    alert("High/Critical tasks need a deadline — without one this would sit in Plan with no target. Set a deadline first (a generous one is fine).");
+    render();
+    return;
+  }
+  task.importance = value;
+  task.last_touched_at = now;
+  persist();
+  render();
+}
+
 // Now's "+ Add task": the task form, prefilled as a quick win planned for today with the
 // Now-window default deadline already in place (editable before saving).
 function addTaskToNowDirectly() {
@@ -869,5 +1077,5 @@ wireDropZone(document.getElementById("folder-list"), source => source === "now",
 wireDropZone(focusOverlay, (source, e) => source === "now" && !focusPanel.contains(e.target), task => deprioritize(task));
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { WINDOW_SORT_KEYS, WINDOW_GROUP_MODES, compareDoDates, sortWindowEntries, splitByDoDate, groupEntriesByFolder };
+  module.exports = { WINDOW_SORT_KEYS, WINDOW_GROUP_MODES, compareDoDates, sortWindowEntries, splitByDoDate, groupEntriesByFolder, topLevelEntries };
 }
