@@ -424,10 +424,7 @@ function renderMatrixItem(entry, inSummary) {
 
   const title = document.createElement("span");
   title.className = "matrix-item-title";
-  const titleText = document.createElement("span");
-  titleText.textContent = task.title;
-  title.appendChild(titleText);
-  appendTagBadge(title, task, todayISODate());
+  title.textContent = task.title;
   li.appendChild(title);
 
   const meta = document.createElement("span");
@@ -435,10 +432,16 @@ function renderMatrixItem(entry, inSummary) {
   meta.textContent = taskContextLabel(task);
   li.appendChild(meta);
 
+  // Tag lives beside the score, not inside the ellipsised title/meta lines, so a long title
+  // can never clip it off.
+  const scoreCol = document.createElement("span");
+  scoreCol.className = "matrix-item-score-col";
+  appendTagBadge(scoreCol, task, todayISODate());
   const score = document.createElement("span");
   score.className = "matrix-item-score";
   score.textContent = assessment.priorityScore;
-  li.appendChild(score);
+  scoreCol.appendChild(score);
+  li.appendChild(scoreCol);
 
   return li;
 }
@@ -510,10 +513,7 @@ function renderPriorityCard(entry) {
 
   const title = document.createElement("span");
   title.className = "priority-card-title";
-  const titleText = document.createElement("span");
-  titleText.textContent = task.title;
-  title.appendChild(titleText);
-  appendTagBadge(title, task, todayISODate());
+  title.textContent = task.title;
   body.appendChild(title);
 
   const meta = document.createElement("span");
@@ -524,10 +524,16 @@ function renderPriorityCard(entry) {
 
   li.appendChild(body);
 
+  // Tag lives beside the score, not inside the ellipsised title/meta lines, so a long title
+  // can never clip it off.
+  const scoreCol = document.createElement("span");
+  scoreCol.className = "priority-card-score-col";
+  appendTagBadge(scoreCol, task, todayISODate());
   const score = document.createElement("span");
   score.className = "priority-card-score";
   score.textContent = assessment.priorityScore;
-  li.appendChild(score);
+  scoreCol.appendChild(score);
+  li.appendChild(scoreCol);
 
   return li;
 }

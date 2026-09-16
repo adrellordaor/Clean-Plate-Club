@@ -776,12 +776,9 @@ body {
   color: var(--tag-overdue-text);
 }
 
-/* Inside the single-line, ellipsised titles of the priority panel and quadrant list. */
-.priority-card-title .tag-badge,
-.matrix-item-title .tag-badge {
-  margin-left: 0.35rem;
-  vertical-align: 0.1em;
-}
+/* Stacked with the priority score, not inside the ellipsised title/meta lines (both the
+   priority panel and the quadrant list truncate long titles with white-space: nowrap), so a
+   long task name can never clip the tag off. See .priority-card-score-col / .matrix-item-score-col. */
 
 .badge-high {
   background: var(--badge-high-bg);
@@ -1696,8 +1693,15 @@ body {
   white-space: nowrap;
 }
 
-.priority-card-score {
+.priority-card-score-col {
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
+}
+
+.priority-card-score {
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--row-accent);
@@ -2017,8 +2021,16 @@ body {
   display: none;
 }
 
-.matrix-item-score {
+.matrix-item-score-col {
   grid-area: score;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 0.2rem;
+}
+
+.matrix-item-score {
   font-size: 0.72rem;
   font-weight: 700;
   color: var(--row-accent);
