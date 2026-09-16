@@ -595,7 +595,10 @@ productivity view")
     planned/do-dated for it, this is deliberately a raw "how much did I
     actually do" volume, not scoped to what was intended. Reads directly
     from `completed_at`, no dependency on the frozen `plannedHistory`
-    record.
+    record. **Plus** a flat 1 point per RecurringTask completion that day
+    (via CompletionLog), reusing the same weight quick-win regular Tasks
+    get rather than inventing a new number, this closes a real gap,
+    recurring habits are genuine effort too.
   - **Future days**: effort = sum of the same weight over regular Tasks
     with `do_date` on that day (not `deadline`), since `do_date`
     represents intended effort distribution, exactly its purpose
@@ -606,7 +609,9 @@ productivity view")
     that's honest, not a blind spot. Most future tasks show identical
     results either way, since `do_date` defaults to `deadline` when one's
     set, they only diverge when you've deliberately moved something
-    earlier.
+    earlier. **Plus** a flat 1 point per RecurringTask scheduled that day
+    (daily: every future day; weekly: only its scheduled day), same
+    signal source as Now's RecurringTask inclusion logic.
   - **Rendering, same for both directions**: `effort / daily_capacity_points`
     as a continuous intensity gradient, one neutral hue, pale → vivid,
     purely descriptive volume with no red/green judgment baked in, same
@@ -615,9 +620,10 @@ productivity view")
     deliberately not reusing Pace's red hue, since "busy/overloaded" and
     "missed something important" are different claims and shouldn't look
     identical.
-  RecurringTasks don't carry `is_quick_win` and stay outside this
-  entirely, consistent with how they're isolated everywhere else in the
-  matrix system.
+  RecurringTasks still don't carry `is_quick_win` themselves, they use
+  the flat weight above instead, everything else about their isolation
+  from the scoring system (no importance, urgency, or quadrant) stays
+  exactly as designed.
 - **Color reflects overall pace**, not just habits, in strict priority
 
   order (matches the override pattern used elsewhere, e.g. the do_date
@@ -677,7 +683,13 @@ productivity view")
   Overview's priority summary panel (rank within `overview_top_n` OR score
   ≥ `overview_flag_threshold`, same definition of "top priority" used
   everywhere else in the app) get a visually distinct marker, larger or
-  accented, versus a plain dot for other upcoming deadlines.
+  accented, versus a plain dot for other upcoming deadlines. **Weekly
+  RecurringTasks also get a marker** on their scheduled weekday, since
+  that's genuinely informative, "Tuesday is laundry day" tells you
+  something. **Daily RecurringTasks deliberately don't**, a marker on
+  every single day by definition isn't information, it's constant noise,
+  and they're already surfaced twice elsewhere (the Recurring habit boxes
+  and Now), a third reminder as a calendar dot adds nothing.
 - **Click a day** to expand a repository view: every task completed that
   day, regular and recurring, pulled from `completed_at` and CompletionLog
   respectively. No new storage, just a query against data already kept.
