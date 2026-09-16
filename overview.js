@@ -9,7 +9,7 @@
 // helpers in urgency.js / digest.js. Uses the same quadrant-q* / --p CSS heat-map as
 // List rows, so a dot, a card and a list row for the same task are always the same colour.
 
-// Corner layout shared by both display modes: Do top-left, Remember top-right,
+// Corner layout shared by both display modes: Do top-left, Plan top-right,
 // Clear bottom-left, Backlog bottom-right. Urgency therefore runs high -> low from left
 // to right, importance high -> low from top to bottom.
 const OVERVIEW_CORNERS = [QUADRANTS.q1, QUADRANTS.q2, QUADRANTS.q3, QUADRANTS.q4];
@@ -599,7 +599,7 @@ function renderDigest(today) {
 
 // Its own card under the Priority Today panel, not part of the "what changed" digest above —
 // low-key re-flags for undated tasks, re-fired every staleness_reminder_interval_days once
-// they cross a new multiple of it, color-tiered teal (the Remember quadrant's hue) by how
+// they cross a new multiple of it, color-tiered teal (the Plan quadrant's hue) by how
 // long they've sat untouched.
 function renderStalenessCheckIns(today) {
   const container = document.getElementById("digest-staleness");

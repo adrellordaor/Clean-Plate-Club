@@ -70,7 +70,7 @@ const URGENCY_LEVEL_SCORES = Object.freeze({ Low: 10, Medium: 40, High: 75, Crit
 // Hue is fixed per quadrant ("why is this a priority"); intensity comes from priority_score.
 const QUADRANTS = Object.freeze({
   q1: Object.freeze({ key: "q1", label: "Do", importance: "high", urgency: "high" }),
-  q2: Object.freeze({ key: "q2", label: "Remember", importance: "high", urgency: "low" }),
+  q2: Object.freeze({ key: "q2", label: "Plan", importance: "high", urgency: "low" }),
   q3: Object.freeze({ key: "q3", label: "Clear", importance: "low", urgency: "high" }),
   q4: Object.freeze({ key: "q4", label: "Backlog", importance: "low", urgency: "low" }),
 });

@@ -42,8 +42,8 @@
   --day-gold-soft: rgba(224, 166, 22, 0.45);
 
   /* Staleness check-in tiers: mild -> medium -> strong, shades of the same teal as the
-     Remember quadrant (--h: 173) — an undated task quietly aging is exactly the "important,
-     not urgent, don't forget it" case Remember exists for. Light theme deepens and saturates
+     Plan quadrant (--h: 173) — an undated task quietly aging is exactly the "important,
+     not urgent, don't forget it" case Plan exists for. Light theme deepens and saturates
      with severity; wording never escalates, only these colors do. */
   --staleness-low-text: #5b8c86;
   --staleness-medium-text: #1f7a6c;
@@ -378,7 +378,7 @@ body {
 
 /* ---- Heat-map colour maths ----
    Hue per quadrant is fixed; --chroma 0 turns Backlog into a pure lightness ramp.
-   Do keeps the coral family, Remember the teal, Clear the amber. */
+   Do keeps the coral family, Plan the teal, Clear the amber. */
 .quadrant-q1 { --h: 8;   --chroma: 1; }
 .quadrant-q2 { --h: 173; --chroma: 1; }
 .quadrant-q3 { --h: 39;  --chroma: 1; }
@@ -1322,7 +1322,7 @@ body {
 }
 
 /* Explicit placement (not auto-flow), same corners as the scatter plot: Do top-left,
-   Remember top-right, Clear bottom-left, Backlog bottom-right. */
+   Plan top-right, Clear bottom-left, Backlog bottom-right. */
 .matrix-corner { grid-column: 1; grid-row: 1; }
 .matrix-axis-col-high { grid-column: 2; grid-row: 1; }
 .matrix-axis-col-low { grid-column: 3; grid-row: 1; }
@@ -1636,8 +1636,8 @@ body {
 
 /* Staleness check-ins: its own card under the Priority Today panel, not part of the "what
    changed" digest above — a different kind of signal (undated tasks aging in place, not a
-   quadrant shift). Teal throughout, the same hue as the Remember quadrant, since staleness on
-   an undated task is exactly the "important but not urgent, don't forget it" case Remember
+   quadrant shift). Teal throughout, the same hue as the Plan quadrant, since staleness on
+   an undated task is exactly the "important but not urgent, don't forget it" case Plan
    exists for. Severity is carried by color alone (border stripe + message tint), the wording
    never escalates. */
 .digest-staleness {
@@ -1662,7 +1662,7 @@ body {
 }
 
 /* Left edge is the task's own quadrant color (same --row-accent formula as the digest chips
-   and priority cards), so a stale task still reads as Do/Remember/Clear/Backlog at a glance.
+   and priority cards), so a stale task still reads as Do/Plan/Clear/Backlog at a glance.
    The teal tier ramp below is reserved for the message text alone — the two colors answer
    different questions (why this task is prioritized vs. how overdue this reminder is) and
    can disagree, e.g. a Backlog task deep into a "strong" staleness tier. */
