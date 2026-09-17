@@ -417,17 +417,23 @@ function toggleFolderCountDisplay() {
 }
 
 // ---------- Views ----------
-// "list" is where work happens; "overview" is the read-only orientation glance. Which one is
-// showing is a per-device preference (like theme), not synced task data.
+// "list" is where work happens; "overview" is the read-only orientation glance. Navigating
+// between them within a session is just in-memory state — a fresh page load always starts
+// back at Overview, the orientation glance, rather than resuming wherever the last session
+// left off.
 
 const VALID_VIEWS = new Set(["overview", "list", "calendar"]);
-const savedView = localStorage.getItem("view");
-let activeView = savedView === "matrix" ? "overview" // pre-rename value
-  : VALID_VIEWS.has(savedView) ? savedView : "list";
+let activeView = "overview";
 
 function setActiveView(view) {
-  activeView = VALID_VIEWS.has(view) ? view : "list";
-  localStorage.setItem("view", activeView);
+  const next = VALID_VIEWS.has(view) ? view : "overview";
+  // Clicking Checklist always starts from Daily Plate expanded — an opinionated fresh default
+  // every time that tab is clicked, even if it was already showing (clicking outside the
+  // windows, in windows.js, is what un-expands it again from there). Unconditional on purpose:
+  // gating this on "arriving from another tab" silently did nothing when Checklist was already
+  // the active view.
+  if (next === "list") setWindowPref("focus", "now");
+  activeView = next;
   render();
 }
 

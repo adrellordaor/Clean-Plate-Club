@@ -70,7 +70,7 @@ const WINDOW_SORT_KEYS = [
 
 const WINDOW_GROUP_MODES = [
   { key: "flat", label: "Flat" },
-  { key: "folder", label: "By folder" },
+  { key: "folder", label: "Folder" },
 ];
 
 const WINDOW_PREFS_KEY = "windowPrefs";
@@ -264,9 +264,11 @@ function renderNowLaterWindows() {
   const today = todayISODate();
   const ranked = rankActiveTasks(today);
 
-  // The one grouping switch for both windows sits above them.
+  // The shared sort dropdown and grouping switch for both windows sit above them, side by
+  // side — one shared value each, not something that needs its own copy per window.
   const toolbar = document.getElementById("windows-toolbar");
   toolbar.innerHTML = "";
+  toolbar.appendChild(makeWindowSortSelect(WINDOW_SORT_KEYS, windowPrefs.sort, key => setWindowPref("sort", key), "Sort (both windows)"));
   toolbar.appendChild(makeWindowSwitch(WINDOW_GROUP_MODES, windowPrefs.group, key => setWindowPref("group", key), "Window grouping"));
 
   const row = document.getElementById("windows-row");
@@ -340,14 +342,11 @@ function renderWindow(win, ranked, today, nowIsEmpty) {
   const toggleExpand = () => setWindowPref("focus", expanded ? "none" : win.key);
 
   // Header: expand/focus icon (plate/fridge), title, pile-size indicator, hint, focus mode
-  // (Now only), expand/shrink. The whole bar (not just the icon) triggers expand/shrink —
-  // except any actual control inside it, which keeps its own click behavior.
+  // (Now only), expand/shrink. Clicking non-interactive space anywhere in the window (not
+  // just the header) triggers this same toggle — see wireWindowExpandClick, wired once on
+  // `el` itself further down, not re-attached per render.
   const header = document.createElement("div");
-  header.className = "window-header window-clickable-toggle";
-  header.addEventListener("click", e => {
-    if (e.target.closest("button, select, input, a")) return;
-    toggleExpand();
-  });
+  header.className = "window-header";
 
   // The plate/fridge icon doubles as the expand/shrink control. State (expanded or not) shows
   // through the icon's own content — food on the plate, the fridge door open — and its fill,
@@ -389,17 +388,11 @@ function renderWindow(win, ranked, today, nowIsEmpty) {
 
   el.appendChild(header);
 
-  // Controls: the (shared) sort dropdown, and the plain global "+" on the right — no bucket
-  // defaults, for when none of the per-bucket pre-fills is what you want. Empty space in this
-  // row also toggles expand/shrink, same as the header, except the dropdown (needs its own
-  // click-to-open) and the add icon (its own action).
+  // Controls: just the plain global "+" on the right — no bucket defaults, for when none of
+  // the per-bucket pre-fills is what you want. The sort dropdown lives in the shared toolbar
+  // now, alongside the flat/folder grouping switch, not duplicated per window.
   const controls = document.createElement("div");
-  controls.className = "window-controls window-clickable-toggle";
-  controls.addEventListener("click", e => {
-    if (e.target.closest("button, select, input, a")) return;
-    toggleExpand();
-  });
-  controls.appendChild(makeWindowSortSelect(WINDOW_SORT_KEYS, windowPrefs.sort, key => setWindowPref("sort", key), "Sort (both windows)"));
+  controls.className = "window-controls";
   const addIcon = document.createElement("button");
   addIcon.type = "button";
   addIcon.className = "btn-icon window-add-icon";
@@ -1425,6 +1418,52 @@ wireDropZone(document.getElementById("later-window"), source => source === "now"
 wireDropZone(document.getElementById("folder-list"), source => source === "now", task => deprioritize(task));
 // Focus mode: the dimmed backdrop, not the panel itself, is the drop target.
 wireDropZone(focusOverlay, (source, e) => source === "now" && !focusPanel.contains(e.target), task => deprioritize(task));
+
+// Clicking non-interactive space anywhere inside a window — not just its header/controls, the
+// whole panel — also expands it, same toggle the plate/fridge icon uses. Excludes anything
+// with its own click behavior: buttons, the sort/add controls, links, inputs, and task-like
+// rows (cards, subtasks, habits, Completed Today rows) that carry their own checkbox or drag
+// behavior, so a plain click on one never also resizes the window around it. Wired once on the
+// stable panel element (never recreated by render, unlike its children), not re-attached every
+// render like the old header/controls-only listeners it replaces.
+function wireWindowExpandClick(el, win) {
+  el.addEventListener("click", e => {
+    if (e.target.closest("button, select, input, a, .window-card, .window-subtask, .window-habit, .window-completed-row")) return;
+    const expanded = windowPrefs.focus === win.key;
+    setWindowPref("focus", expanded ? "none" : win.key);
+  });
+}
+wireWindowExpandClick(document.getElementById("now-window"), WINDOWS.now);
+wireWindowExpandClick(document.getElementById("later-window"), WINDOWS.later);
+
+// Clicking anywhere outside the two windows collapses whichever one is expanded back to equal
+// widths — a click-away-to-deselect pattern, same idea as a dropdown closing when you click
+// elsewhere. A click inside an open modal, the Focus mode overlay, or the view-switch tabs
+// doesn't count as "outside": those are their own dialogs or their own navigation, not a
+// dismissal click on the page around the windows (switching into Checklist sets its own
+// expanded default instead, see setActiveView in app.js).
+//
+// Uses composedPath(), not e.target/.closest(): the click that expands a window (the plate/
+// fridge icon, the header, a bucket's own controls) re-renders that window's contents
+// synchronously — el.innerHTML = "" followed by a rebuild — which detaches the actual clicked
+// element from the live tree before this listener runs. .closest() on a detached node can't
+// walk back up to an ancestor the rebuild already severed it from, so it always looked
+// "outside" and undid the very expand that just happened. composedPath() is a snapshot of the
+// event's real path taken at dispatch time, before any handler had a chance to mutate the DOM.
+const windowsRowEl = document.getElementById("windows-row");
+document.addEventListener("click", e => {
+  if (windowPrefs.focus === "none") return;
+  if (activeView !== "list" || settings.list_display_mode !== "windows") return;
+  const path = e.composedPath();
+  const isExempt = path.some(node =>
+    node === windowsRowEl ||
+    (node.classList && node.classList.contains("modal")) ||
+    node.id === "focus-overlay" ||
+    node.id === "view-switch"
+  );
+  if (isExempt) return;
+  setWindowPref("focus", "none");
+});
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = { WINDOW_SORT_KEYS, WINDOW_GROUP_MODES, compareDoDates, sortWindowEntries, bucketWindowEntries, bucketsTakeHabits, groupEntriesByFolder, topLevelEntries };

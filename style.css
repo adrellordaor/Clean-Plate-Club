@@ -1006,12 +1006,16 @@ body {
   }
 }
 
+/* Non-interactive space anywhere in the panel doubles as a big expand/shrink hit target (see
+   wireWindowExpandClick in windows.js) — cursor:pointer signals that everywhere, and cards,
+   buttons, inputs and selects all set their own cursor anyway so this never fights them. */
 .window-panel {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.7rem 0.8rem 0.6rem;
   min-width: 0;
+  cursor: pointer;
   transition: box-shadow 0.1s ease;
 }
 
@@ -1046,18 +1050,6 @@ body {
   gap: 0.45rem;
   flex-wrap: wrap;
   margin-bottom: 0.45rem;
-}
-
-/* The header bar and the controls row both double as a big expand/shrink hit target — click
-   anywhere empty in either one. Their own interactive children (buttons, the sort select)
-   override this back to their normal cursor so they don't look like part of the same target. */
-.window-clickable-toggle {
-  cursor: pointer;
-}
-
-.window-clickable-toggle > button,
-.window-clickable-toggle > select {
-  cursor: pointer;
 }
 
 .window-title {
@@ -3201,11 +3193,14 @@ body {
   }
 }
 
-/* ---- Windows: shared grouping strip, global "+" icons ---- */
-/* The one flat / by-folder switch for both windows, right-aligned above them. */
+/* ---- Windows: shared toolbar, global "+" icons ---- */
+/* The shared sort dropdown and flat/folder switch for both windows, right-aligned above them. */
 .windows-toolbar {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   justify-content: flex-end;
+  gap: 0.5rem;
   margin-bottom: 0.5rem;
 }
 
