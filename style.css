@@ -2149,7 +2149,11 @@ body {
 .matrix-grid {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
-  grid-template-rows: auto 1fr 1fr;
+  /* auto, not 1fr: with an indefinite container height, equal-fr row tracks all resolve to
+     the same size (the tallest row's content) rather than sizing independently — Do/Plan
+     would end up as tall as Clear/Backlog even with far fewer cards. auto rows size to their
+     own content; align-items: stretch below still matches heights WITHIN each row. */
+  grid-template-rows: auto auto auto;
   gap: 0.75rem;
   align-items: stretch;
 }
