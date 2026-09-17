@@ -36,11 +36,50 @@ const ICONS = {
   plus: `<svg ${SVG_ATTRS}><path d="M12 5v14"/><path d="M5 12h14"/></svg>`,
   // Bite-size marker: a small apple with a bite out of it, drawn at 12px on cards.
   bite: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6c-1.5-1.5-4.5-1.5-6 1-2 3-1 8 1.5 11 1.2 1.5 3 1.5 4.5.5 1.5 1 3.3 1 4.5-.5a10 10 0 0 0 2.2-4.5c-2.5-.2-4.2-2.3-3.7-4.8-1-.3-2-1.5-3-2.7Z"/><path d="M12 6c0-2 1-3 3-3.5"/></svg>`,
-  // Daily Plate: a plate seen from above (rim + well) — doubles as that window's expand control.
-  plate: `<svg ${SVG_ATTRS}><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>`,
-  // Fridge: a minimalist door with a freezer divide and handle — Fridge window's expand control.
-  fridge: `<svg ${SVG_ATTRS}><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="5" y1="8.5" x2="19" y2="8.5"/><line x1="8" y1="4.5" x2="8" y2="6.5"/><line x1="8" y1="11" x2="8" y2="14"/></svg>`,
 };
+
+// Daily Plate / Fridge icons: bigger than the rest of the icon set (this pair doubles as each
+// window's expand/focus control, so they need to read as more than a generic small glyph) and
+// state-aware — plate shows food when Daily Plate is expanded, fridge shows its door open when
+// Fridge is expanded, empty/closed otherwise, the same on/off-through-appearance language as
+// the Bite-size toggle rather than a text or icon-shape swap for "expand" vs. "shrink".
+const PLACE_ICON_ATTRS = 'viewBox="0 0 28 22" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"';
+
+function plateIcon(hasFood) {
+  const food = hasFood
+    ? '<circle cx="12.5" cy="9.5" r="1.9" fill="currentColor" stroke="none"/>'
+      + '<circle cx="16" cy="11.5" r="1.5" fill="currentColor" stroke="none"/>'
+      + '<circle cx="12.5" cy="13.5" r="1.7" fill="currentColor" stroke="none"/>'
+    : "";
+  // Fork (left, three tines merging into a stem) — plate (center circle) — knife (right,
+  // a blade that bulges out then tapers back into its handle).
+  return `<svg ${PLACE_ICON_ATTRS}>`
+    + '<circle cx="14" cy="11" r="6.5"/>'
+    + '<path d="M2 2v5"/><path d="M3.5 2v5"/><path d="M5 2v5"/><path d="M3.5 7v13"/>'
+    + '<path d="M24 2c1.3 0 2 1.6 2 3.5S25.3 9 24 9"/><path d="M24 9v11"/>'
+    + food
+    + "</svg>";
+}
+
+function fridgeIcon(open) {
+  if (open) {
+    // Body (interior) rect, a door leaf swung open to the left, two shelf lines standing in
+    // for the handle marks a closed door would show instead.
+    return `<svg ${PLACE_ICON_ATTRS}>`
+      + '<rect x="10" y="2" width="15" height="18" rx="2"/>'
+      + '<path d="M10 3 3 5v14l7-2"/>'
+      + '<line x1="13" y1="8" x2="22" y2="8"/>'
+      + '<line x1="13" y1="13" x2="22" y2="13"/>'
+      + "</svg>";
+  }
+  // Closed: a plain door rect, the freezer divide near the top, two small handle ticks.
+  return `<svg ${PLACE_ICON_ATTRS}>`
+    + '<rect x="7" y="2" width="15" height="18" rx="2"/>'
+    + '<line x1="7" y1="8" x2="22" y2="8"/>'
+    + '<line x1="10" y1="4.5" x2="10" y2="6.5"/>'
+    + '<line x1="10" y1="10.5" x2="10" y2="13"/>'
+    + "</svg>";
+}
 
 let categories = []; // Category: top-level grouping, drives the tabs.
 let folders = [];    // Folder: a named grouping within a category (e.g. "Finances" inside Errands).
@@ -421,7 +460,7 @@ function renderViewSwitch() {
 // in the Settings modal are two handles on the same value.
 
 const LIST_MODES = [
-  { key: "windows", label: "Now / Later" },
+  { key: "windows", label: "Plate" },
   { key: "full", label: "Full list" },
 ];
 
@@ -597,6 +636,15 @@ function renderCategoryTabs() {
   });
 }
 
+// A completed task keeps showing (struck through) in its folder for the rest of the day it
+// was completed, same as always, but stops showing at all from the next day on — the
+// Calendar's day-repository is the only remaining way to see it. Active tasks are always
+// visible; this rule only ever hides done ones.
+function visibleInFolderList(task, today) {
+  if (task.status !== "done") return true;
+  return !!task.completed_at && toLocalDateString(task.completed_at) === today;
+}
+
 function renderFolderList() {
   const container = document.getElementById("folder-list");
   container.innerHTML = "";
@@ -618,7 +666,8 @@ function renderFolderList() {
 }
 
 function renderFolderSection(folder) {
-  const topLevelTasks = tasks.filter(t => t.folder_id === folder.id && !t.parent_task_id);
+  const today = todayISODate();
+  const topLevelTasks = tasks.filter(t => t.folder_id === folder.id && !t.parent_task_id && visibleInFolderList(t, today));
 
   const section = document.createElement("div");
   section.className = "folder-section" + (collapsedFolders.has(folder.id) ? " collapsed" : "");
@@ -712,10 +761,15 @@ function renderTaskRow(task) {
     makeTaskDraggable(row, task); // into the Now window (see windows.js)
   }
 
+  // `children` (full, done included) drives the honest subtask-progress percentage; a task
+  // whose subtasks are all done still reports 100% even once they've aged out of the visible
+  // list below. `visibleChildren` is what actually renders — the same day-after-completion
+  // hiding rule as the folder itself, applied one level down.
   const children = tasks.filter(t => t.parent_task_id === task.id);
+  const visibleChildren = children.filter(t => visibleInFolderList(t, today));
   const isCollapsed = collapsedTasks.has(task.id);
 
-  if (children.length > 0) {
+  if (visibleChildren.length > 0) {
     const caret = document.createElement("button");
     caret.type = "button";
     caret.className = "task-caret" + (isCollapsed ? " collapsed" : "");
@@ -783,10 +837,10 @@ function renderTaskRow(task) {
     main.appendChild(notes);
   }
 
-  if (children.length > 0) {
+  if (visibleChildren.length > 0) {
     const subtaskContainer = document.createElement("div");
     subtaskContainer.className = "subtask-container" + (isCollapsed ? " collapsed" : "");
-    subtaskContainer.appendChild(renderTaskList(children));
+    subtaskContainer.appendChild(renderTaskList(visibleChildren));
     main.appendChild(subtaskContainer);
   }
 
@@ -1604,12 +1658,12 @@ function validateSettings(v) {
   if (!(v.staleness_reminder_low_days <= v.staleness_reminder_medium_days && v.staleness_reminder_medium_days <= v.staleness_reminder_high_days)) {
     return "Staleness check-in colors must run mild ≤ medium ≤ strong (e.g. 7 / 14 / 28).";
   }
-  if (v.do_today_urgency_floor > 100) return "Now floor is a score from 0 to 100.";
+  if (v.do_today_urgency_floor > 100) return "Daily Plate floor is a score from 0 to 100.";
   if (!(v.do_today_urgency_floor > v.quadrant_split_score)) {
-    return "Now floor must be above the quadrant split (" + v.quadrant_split_score + "), so a task planned for today actually moves into Do or Clear.";
+    return "Daily Plate floor must be above the quadrant split (" + v.quadrant_split_score + "), so a task planned for today actually moves into Do or Clear.";
   }
   if (!Number.isInteger(v.weekly_recurring_now_days) || v.weekly_recurring_now_days > 6) {
-    return "Weekly habits in Now: use a whole number of days from 0 (Sunday only) to 6 (all week).";
+    return "Weekly habits in Daily Plate: use a whole number of days from 0 (Sunday only) to 6 (all week).";
   }
   if (v.daily_capacity_points <= 0) return "Daily capacity must be greater than 0.";
   return null;

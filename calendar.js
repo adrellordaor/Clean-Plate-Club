@@ -292,19 +292,25 @@ function completionsOnDay(dateStr, data) {
   return regular.concat(recurring);
 }
 
-// Everything the Weekly Accomplishments panel needs for the week starting `weekStartDate`
-// (a Monday). Days after `today` carry no data yet, so they're excluded from `cleared` and
-// `biggestWin` rather than silently counting as if nothing happened.
+// Everything the Weekly Accomplishments panel needs for the week starting `weekStartDate` (a
+// Monday). Days after `today` carry no data yet, so they're excluded rather than silently
+// counting as if nothing happened. `cleared` is a categorical tally (count per category,
+// regular Tasks and RecurringTasks combined, most active first) rather than a title-by-title
+// list — the Calendar's day-repository already covers that level of per-day detail, so a
+// plain list here was redundant regardless of which period it spanned. A weekly aggregate by
+// category is the thing that doesn't exist anywhere else.
 function computeWeekSummary(weekStartDate, data, settings, today) {
   const dates = weekDates(weekStartDate);
   const daysSoFar = dates.filter(d => d <= today);
 
-  const cleared = [];
+  const categoryCounts = new Map(); // category name -> count, first-seen order
   let biggestWin = null;
 
   daysSoFar.forEach(dateStr => {
     completionsOnDay(dateStr, data).forEach(entry => {
-      cleared.push({ title: entry.task.title, kind: entry.kind, date: dateStr });
+      const category = entry.folder ? data.categories.find(c => c.id === entry.folder.category_id) : null;
+      const label = category ? category.name : "Uncategorized";
+      categoryCounts.set(label, (categoryCounts.get(label) || 0) + 1);
 
       // Only regular Tasks carry a priority_score (RecurringTasks live outside the
       // Eisenhower matrix entirely), so the biggest-win pool is regular tasks only.
@@ -316,6 +322,10 @@ function computeWeekSummary(weekStartDate, data, settings, today) {
       }
     });
   });
+
+  const cleared = [...categoryCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, count]) => ({ name, count }));
 
   return {
     weekStartDate,
@@ -357,7 +367,7 @@ function renderCalendar() {
   // overview_top_n OR score ≥ overview_flag_threshold), so the accented future-deadline
   // marker means "top priority" by the same definition used everywhere else in the app.
   const topPriorityIds = new Set(selectPrioritySummary(rankActiveTasks(today), settings).map(e => e.task.id));
-  const data = { tasks, folders, recurringTasks, completionLog, plannedHistory, topPriorityIds };
+  const data = { tasks, folders, categories, recurringTasks, completionLog, plannedHistory, topPriorityIds };
 
   renderCalendarToolbar();
   renderCalendarModeToggle();
@@ -775,14 +785,10 @@ function renderCalendarWeeklyPanel(data, today) {
   if (summary.cleared.length === 0) {
     panel.appendChild(makeCalendarEmptyHint("Nothing completed yet this week."));
   } else {
-    const ul = document.createElement("ul");
-    ul.className = "calendar-weekly-list";
-    summary.cleared.forEach(item => {
-      const li = document.createElement("li");
-      li.textContent = item.title;
-      ul.appendChild(li);
-    });
-    panel.appendChild(ul);
+    const line = document.createElement("div");
+    line.className = "calendar-weekly-summary";
+    line.textContent = summary.cleared.map(c => c.count + " " + c.name).join(", ");
+    panel.appendChild(line);
   }
 
   appendCalendarSubhead(panel, "Biggest win");

@@ -189,11 +189,11 @@ function bucketWindowEntries(entries, sortKey, winKey, today, habits) {
   if (sortKey === "dodate") {
     if (!isNow) {
       return [
-        make("with", "With a do date", "Planned for a day (habits always have one)",
+        make("with", "With date", "Planned for a day (habits always have one)",
           e => !!e.task.do_date,
           task => { if (!task.do_date) setDoDateExplicit(task, tomorrow); },
           { do_date: tomorrow }, () => true),
-        make("without", "No do date", "Not planned for any day yet",
+        make("without", "No date", "Not planned for any day yet",
           e => !e.task.do_date, task => clearDoDate(task), {}, null),
       ];
     }
@@ -307,7 +307,10 @@ function renderPileIndicator(win, count) {
     p.style.left = (8 + Math.random() * 84) + "%";
     p.style.animationDuration = ((1 + Math.random() * 0.9) / (0.4 + fullness)).toFixed(2) + "s";
     p.style.animationDelay = (Math.random() * 1.4).toFixed(2) + "s";
-    if (win.key === "later") p.style.setProperty("--dx", (Math.random() * 14 - 7).toFixed(1) + "px");
+    if (win.key === "later") {
+      p.style.setProperty("--dx", (Math.random() * 14 - 7).toFixed(1) + "px");
+      p.style.setProperty("--spin", (140 + Math.random() * 160).toFixed(0) + "deg"); // tumble, not a fixed spin
+    }
     particles.appendChild(p);
   }
   wrap.appendChild(particles);
@@ -329,23 +332,33 @@ function renderWindow(win, ranked, today, nowIsEmpty) {
   const unsorted = ranked.filter(entry => win.member(entry, today));
   // Members nested under a member parent render inside that parent's card, not as their own.
   const entries = topLevelEntries(sortWindowEntries(unsorted, windowPrefs.sort));
+  // Every habit currently due in this window, regardless of whether the active sort mode
+  // buckets them in or keeps them in the standalone Habits block below — the header count
+  // reflects the true size of what's showing, RecurringTasks included.
+  const habitsDue = windowHabits(win, today);
+
+  const toggleExpand = () => setWindowPref("focus", expanded ? "none" : win.key);
 
   // Header: expand/focus icon (plate/fridge), title, pile-size indicator, hint, focus mode
-  // (Now only), expand/shrink.
+  // (Now only), expand/shrink. The whole bar (not just the icon) triggers expand/shrink —
+  // except any actual control inside it, which keeps its own click behavior.
   const header = document.createElement("div");
-  header.className = "window-header";
+  header.className = "window-header window-clickable-toggle";
+  header.addEventListener("click", e => {
+    if (e.target.closest("button, select, input, a")) return;
+    toggleExpand();
+  });
 
-  // The plate/fridge icon doubles as the expand/shrink control — same action as before
-  // (window-focus-btn), just skinned per window instead of a generic maximize/minimize glyph.
-  // State (expanded or not) shows through the icon's own fill, same pattern as the Bite-size
-  // toggle: no icon-swap, no text change, just filled vs. outline.
+  // The plate/fridge icon doubles as the expand/shrink control. State (expanded or not) shows
+  // through the icon's own content — food on the plate, the fridge door open — and its fill,
+  // same pattern as the Bite-size toggle: no text change, just appearance.
   const focusBtn = document.createElement("button");
   focusBtn.type = "button";
   focusBtn.className = "btn-icon window-focus-btn window-focus-icon-" + win.key + (expanded ? " active" : "");
-  focusBtn.innerHTML = win.key === "now" ? ICONS.plate : ICONS.fridge;
+  focusBtn.innerHTML = win.key === "now" ? plateIcon(expanded) : fridgeIcon(expanded);
   focusBtn.title = expanded ? "Shrink: back to equal widths" : "Expand: give this window more room and show details";
   focusBtn.setAttribute("aria-label", expanded ? "Shrink " + win.title : "Expand " + win.title);
-  focusBtn.addEventListener("click", () => setWindowPref("focus", expanded ? "none" : win.key));
+  focusBtn.addEventListener("click", toggleExpand);
   header.appendChild(focusBtn);
 
   const title = document.createElement("h2");
@@ -353,9 +366,10 @@ function renderWindow(win, ranked, today, nowIsEmpty) {
   title.textContent = win.title;
   header.appendChild(title);
 
-  // Pile-size indicator: the count badge wrapped in a fire (Daily Plate) or ice (Fridge)
-  // particle effect that scales with how full the window is, instead of a static number.
-  header.appendChild(renderPileIndicator(win, unsorted.length));
+  // Pile-size indicator: the count badge (regular tasks + due habits) wrapped in a fire
+  // (Daily Plate) or ice (Fridge) particle effect that scales with how full the window is,
+  // instead of a static number.
+  header.appendChild(renderPileIndicator(win, unsorted.length + habitsDue.length));
 
   const hint = document.createElement("span");
   hint.className = "window-hint";
@@ -376,9 +390,15 @@ function renderWindow(win, ranked, today, nowIsEmpty) {
   el.appendChild(header);
 
   // Controls: the (shared) sort dropdown, and the plain global "+" on the right — no bucket
-  // defaults, for when none of the per-bucket pre-fills is what you want.
+  // defaults, for when none of the per-bucket pre-fills is what you want. Empty space in this
+  // row also toggles expand/shrink, same as the header, except the dropdown (needs its own
+  // click-to-open) and the add icon (its own action).
   const controls = document.createElement("div");
-  controls.className = "window-controls";
+  controls.className = "window-controls window-clickable-toggle";
+  controls.addEventListener("click", e => {
+    if (e.target.closest("button, select, input, a")) return;
+    toggleExpand();
+  });
   controls.appendChild(makeWindowSortSelect(WINDOW_SORT_KEYS, windowPrefs.sort, key => setWindowPref("sort", key), "Sort (both windows)"));
   const addIcon = document.createElement("button");
   addIcon.type = "button";
@@ -407,13 +427,6 @@ function renderWindow(win, ranked, today, nowIsEmpty) {
     const habits = renderWindowHabits(win, today);
     if (habits) el.appendChild(habits);
   }
-
-  const addLink = document.createElement("button");
-  addLink.type = "button";
-  addLink.className = "link-btn window-add";
-  addLink.textContent = "+ Add task";
-  addLink.addEventListener("click", win.add);
-  el.appendChild(addLink);
 }
 
 // Drops every entry whose parent is itself in `entries` — those render nested under the
@@ -531,13 +544,13 @@ function renderWindowBody(win, entries, today, expanded) {
     const zone = document.createElement("div");
     zone.className = "window-bucket";
     zone.dataset.bucket = bucket.key;
-    const onAdd = bucket.addPrefill ? () => addTaskFromBucket(bucket.addPrefill) : null;
-    zone.appendChild(makeBucketHeader(bucket.label, bucket.entries.length + bucket.habits.length, i === 0, bucket.hint, onAdd));
+    zone.appendChild(makeBucketHeader(bucket.label, bucket.entries.length + bucket.habits.length, i === 0, bucket.hint));
     if (bucket.entries.length) appendCards(zone, bucket.entries, win, expanded);
     bucket.habits.forEach(rt => zone.appendChild(renderWindowHabitRow(rt, today)));
     if (!bucket.entries.length && !bucket.habits.length) {
       zone.appendChild(makeEmptyHint(bucket.drop ? "Drop a card here." : "Nothing here.", "window-zone-empty"));
     }
+    if (bucket.addPrefill) zone.appendChild(makeBucketAddIcon(bucket.label, () => addTaskFromBucket(bucket.addPrefill)));
     wireBucketDrop(zone, win, bucket);
     body.appendChild(zone);
   });
@@ -561,23 +574,25 @@ function wireBucketDrop(zone, win, bucket) {
   }
 }
 
-// Cards, nested inside folder groups when that toggle is on.
+// Cards, nested inside folder groups when that toggle is on. A folder group is a bucket like
+// any other here: same header component, same bottom "+" add icon, pre-filling that folder.
 function appendCards(container, entries, win, expanded) {
   if (windowPrefs.group === "folder") {
-    groupEntriesByFolder(entries).forEach(group => {
-      const head = document.createElement("div");
-      head.className = "window-group-header";
-      head.textContent = group.name + " · " + group.entries.length;
-      container.appendChild(head);
+    groupEntriesByFolder(entries).forEach((group, i) => {
+      container.appendChild(makeBucketHeader(group.name, group.entries.length, i === 0));
       group.entries.forEach(entry => container.appendChild(renderWindowCard(entry, win, expanded)));
+      if (group.folderId) {
+        container.appendChild(makeBucketAddIcon(group.name, () => addTaskFromBucket({ folder_id: group.folderId })));
+      }
     });
   } else {
     entries.forEach(entry => container.appendChild(renderWindowCard(entry, win, expanded)));
   }
 }
 
-// Bucket divider: label · count on the left, the bucket's own "+" on the right.
-function makeBucketHeader(label, count, first, hint, onAdd) {
+// Bucket divider: just label · count. The bucket's own add control lives at the bottom of the
+// bucket instead (makeBucketAddIcon), not up here.
+function makeBucketHeader(label, count, first, hint) {
   const div = document.createElement("div");
   div.className = "window-bucket-header" + (first ? " window-bucket-header-first" : "");
   const text = document.createElement("span");
@@ -585,17 +600,23 @@ function makeBucketHeader(label, count, first, hint, onAdd) {
   text.textContent = label + " · " + count;
   if (hint) text.title = hint;
   div.appendChild(text);
-  if (onAdd) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "btn-icon window-bucket-add";
-    btn.innerHTML = ICONS.plus;
-    btn.title = "Add a task here (" + label + ")";
-    btn.setAttribute("aria-label", "Add task to " + label);
-    btn.addEventListener("click", onAdd);
-    div.appendChild(btn);
-  }
   return div;
+}
+
+// Bucket-bottom "+": below the last card in the bucket (or the empty hint, if it has none) —
+// this is where the single generic "+ Add task" link used to sit at the bottom of the whole
+// window, before bucketing existed; now every bucket gets its own, in that same spot, pre-
+// filling whatever fields make an added task genuinely belong there. A plain icon rather than
+// a text link, since it's tucked at the end of a list rather than standing on its own.
+function makeBucketAddIcon(label, onAdd) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "btn-icon window-bucket-add";
+  btn.innerHTML = ICONS.plus;
+  btn.title = "Add a task here (" + label + ")";
+  btn.setAttribute("aria-label", "Add task to " + label);
+  btn.addEventListener("click", onAdd);
+  return btn;
 }
 
 function makeEmptyHint(text, extraClass) {
@@ -644,11 +665,13 @@ function groupEntriesByFolder(entries) {
   const groups = [];
   folders.forEach(folder => {
     const inFolder = entries.filter(e => e.task.folder_id === folder.id);
-    if (inFolder.length) groups.push({ name: folder.name, entries: inFolder });
+    if (inFolder.length) groups.push({ name: folder.name, folderId: folder.id, entries: inFolder });
   });
   const known = new Set(folders.map(f => f.id));
   const unfiled = entries.filter(e => !known.has(e.task.folder_id));
-  if (unfiled.length) groups.push({ name: "Unfiled", entries: unfiled });
+  // No real folder behind "Unfiled" to pre-fill, so it never gets an add link — same as any
+  // other bucket with no natural default (see Importance's "no addPrefill" case).
+  if (unfiled.length) groups.push({ name: "Unfiled", folderId: null, entries: unfiled });
   return groups;
 }
 
@@ -759,6 +782,8 @@ function renderWindowCard(entry, win, expanded) {
     body.appendChild(renderCardSubtasks(children, win, today));
   }
 
+  body.appendChild(makeAddSubtaskLink(task));
+
   card.appendChild(body);
 
   const actions = document.createElement("div");
@@ -802,6 +827,20 @@ function renderWindowCard(entry, win, expanded) {
 
   card.appendChild(actions);
   return card;
+}
+
+// "+" add-subtask: same inline affordance the original folder-based list has always had,
+// opening the shared task form pre-filled to nest under `task` — a bare symbol here rather
+// than a text label, the cards are tighter on space than the folder list rows.
+function makeAddSubtaskLink(task) {
+  const addSub = document.createElement("button");
+  addSub.type = "button";
+  addSub.className = "link-btn window-card-add-subtask";
+  addSub.textContent = "+";
+  addSub.title = "Add subtask";
+  addSub.setAttribute("aria-label", "Add subtask to " + task.title);
+  addSub.addEventListener("click", () => openTaskModal({ folder_id: task.folder_id, parent_task_id: task.id }));
+  return addSub;
 }
 
 // Collapse/expand caret for a card or nested row with subtasks. Shares collapsedTasks with
@@ -892,6 +931,9 @@ function renderCardSubtaskRow(task, win, today) {
   if (grandchildren.length > 0 && !collapsedTasks.has(task.id)) {
     row.appendChild(renderCardSubtasks(grandchildren, win, today));
   }
+
+  row.appendChild(makeAddSubtaskLink(task));
+
   return row;
 }
 

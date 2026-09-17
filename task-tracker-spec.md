@@ -1,5 +1,8 @@
 # Daily Task Tracker — Product Spec (v1)
 
+**App title: "Let him cook"** (fits the Daily Plate / Fridge / Fire-Ice theme).
+Shown wherever the app displays its name (browser tab title, header, etc.).
+
 ## Overview
 A local-first web app for managing tasks across three categories (Work, Errands,
 Recruiting), organized around a **dynamic Eisenhower Matrix**: tasks shift
@@ -88,18 +91,19 @@ file in an OneDrive-backed folder.
   circumstance, only an explicit user action changes it (the deprioritize
   prompt above is exactly such an action; Evening Review may also surface
   extending one as an option, but never does it silently).
-- is_quick_win: bool — "Bite-size" vs. "Main Course" sizing, purely a
-  display/organization tag, no effect on scoring. **Defaults to true for
-  every newly created task**, universally, not conditional on how or
+- is_quick_win: bool — **"Bite-size" is the only stated label**, the off
+  state doesn't need its own name, it's just the unmarked default. Purely
+  a display/organization tag, no effect on scoring. **Defaults to true
+  for every newly created task**, universally, not conditional on how or
   where it's added. A weekly-recurring "sort field" also treats daily
   RecurringTasks as equivalent to `true` for sort placement only (see
   Size sort under the Now/Fridge sections), without giving them the
   field or the tag itself, they're a different entity entirely. In the
-  task form, this is a **toggle, not a checkbox**, its displayed text
-  changes with its state ("Bite-size" / "Main Course") rather than a
-  static label with a checkmark. Bite-size tasks render as a smaller
-  card, with the further distinctions described in the Now window
-  section.
+  task form, this is a **toggle, not a checkbox**, always labeled "Bite-
+  size," its **visual state** (filled/highlighted when on, muted/outline
+  when off) shows the boolean, the text itself never changes. Bite-size
+  tasks render as a smaller card, with the further distinctions described
+  in the Now window section.
 - do_date_rollover_count: int, default 0 — counts consecutive silent
   rollovers, closing a real gap where nothing previously distinguished a
   task just added today from one that's been quietly dodged for a week,
@@ -115,8 +119,9 @@ file in an OneDrive-backed folder.
   form, show 7 boxes, today first, labeled with weekday letters, one tap
   picks a day, this is what makes scheduling something for tomorrow
   genuinely frictionless instead of opening a full date picker for a
-  single-day choice. A calendar expansion is available for anything
-  further out than a week.
+  single-day choice. The full calendar/date input for anything further
+  out than a week is **always visible alongside the 7 boxes**, not
+  behind a "More dates" click, both are just there together.
 - **Deadline requirement**: a High/Critical importance task that would
   otherwise land in Plan (i.e., its urgency isn't already High/Critical
   through some other means, e.g. staleness reaching "high") must have a
@@ -396,8 +401,10 @@ The app has three views:
 **2. List view** (primary, where work actually happens)
 - **Display mode toggle** (`list_display_mode`, default `windows`): the
   third of three views with this same two-mode pattern
-  (`overview_display_mode`, `calendar_display_mode`). **"windows"** is
-  the Now/Later layout described below. **"full"** is the original
+  (`overview_display_mode`, `calendar_display_mode`). **"windows"**
+  (labeled just **"Plate"** in the UI, shorter than spelling out both
+  window names) is the Daily Plate/Fridge layout described below.
+  **"full"** is the original
   folder/category-based list (category tabs, heat-map rows, Recurring
   habit boxes, everything else in this section as originally specified),
   kept fully intact as a secondary page, not removed, since Now/Later
@@ -433,6 +440,14 @@ The app has three views:
   *how much*, one formula drives both. Every row also carries the same
   escalating tag (Do Today/Due Today/Overdue) wherever it applies, one
   visual language across the whole app, not something exclusive to Now.
+- **Completed tasks hide from the main list starting the next day**: a
+  task completed today still shows (struck through) in its folder for
+  the rest of today, same as it always has, but from the next day onward
+  it's no longer shown here at all. The only remaining way to see it is
+  through the Calendar's day-repository (click a day to see everything
+  completed that day). This keeps the folder-organized list from slowly
+  filling with historical clutter, the Calendar is already the dedicated
+  place for looking backward.
 - **Overdue callout**: separate from Now, since it answers a different
   question ("act on this exact task right now" vs. "here's what you're
   planning for today"). Membership-based, not ranked: a task qualifies if its
@@ -459,7 +474,13 @@ The app has three views:
   `priority_score` for *membership* (though the floor does feed the score
   once `do_date == today` applies). Together with the Overdue callout,
   these are the two independent windows: one for real consequences, one
-  for what you told yourself to get done today.
+  for what you told yourself to get done today. **Header count includes
+  habits**: the number shown in the window header counts everything
+  currently visible there, RecurringTasks included, not just regular
+  Tasks, it should reflect the true size of what's on the plate.
+  **Cards support adding nested subtasks directly**, a bare "+", not a
+  text label, same underlying action the original folder-based list has
+  always had, not something that requires opening the full edit form.
   - **RecurringTasks also surface here**, as a filtered view of the same
     Recurring habit boxes (see Views, "full" List mode below), not a
     second storage location: daily RecurringTasks always show; weekly
@@ -496,13 +517,19 @@ The app has three views:
     **dropdown**, not the `.view-switch` style used elsewhere. **Both
     this and the flat/by-folder grouping toggle are global**, one shared
     choice across both Daily Plate and Fridge rather than set separately
-    per window, changing either in one place updates both.
+    per window, changing either in one place updates both. **When
+    grouped by folder**, each folder gets the same per-bucket "+ Add
+    task" link described below, pre-filling that folder, same mechanic
+    as the date/importance/size buckets, a folder group is functionally
+    just another bucket here.
     - **Which sort keys produce buckets, and why**: Priority stays a
       flat/unbucketed list, it's a continuous score with no non-arbitrary
       split. Importance buckets into all **four** levels (Low/Medium/
       High/Critical), not just the two used for quadrant placement, a
       finer breakdown than the quadrant split alone. Size buckets into
-      **Bite-size** vs. **Main Course**. Do Date and Urgency both bucket
+      **Bite-size** and everything else, unlabeled/neutral rather than a
+      stated second name, matching the toggle itself, only the on-state
+      needs a name. Do Date and Urgency both bucket
       using the same **Today / Tomorrow / Later Dates** scheme, but only
       in Daily Plate, Fridge keeps Urgency flat too, same reasoning as
       its own Do Date exception below, a day-by-day breakdown doesn't fit
@@ -516,8 +543,8 @@ The app has three views:
     - **Do Date buckets, Daily Plate specifically**: **Today**,
       **Tomorrow**, **Later Dates** (everything from the day after
       tomorrow onward, collapsed into one bucket rather than one group
-      per individual date). Fridge keeps its existing **with date** /
-      **without date** split unchanged, a day-by-day breakdown doesn't
+      per individual date). Fridge keeps its existing **"With date"** /
+      **"No date"** split unchanged, a day-by-day breakdown doesn't
       fit Fridge's planning-ahead purpose the way it fits Daily Plate's
       immediate one.
     - **RecurringTasks in the Do Date bucketing**: previously always
@@ -532,13 +559,20 @@ The app has three views:
       dropping into Tomorrow sets `do_date` to tomorrow; dropping into
       Later Dates sets it to the day after tomorrow, as that bucket's
       representative earliest value.
-    - **Per-bucket "+ Add" button**: in any bucketed sort mode, each
+    - **Per-bucket "+ Add task" link**: in any bucketed sort mode, each
       bucket gets its own add-task affordance that pre-fills whatever
       field values are needed to genuinely belong there (e.g., adding
       from the Tomorrow bucket pre-fills `do_date` to tomorrow; adding
       from the High-importance bucket pre-fills `importance` to High).
       This applies in both Daily Plate and Fridge, for whichever
-      bucketing scheme is active in each.
+      bucketing scheme is active in each. **Styled as a clear text link**
+      ("+ Add task"), not a small icon-only button, this replaces the
+      single generic "+ Add task" link that used to sit at the bottom of
+      the whole window before bucketing existed, that one is retired
+      now, its job is fulfilled by one per bucket instead of one for the
+      entire window. This is deliberately distinct in style and job from
+      the global icon below, so the two are never confused for each
+      other.
     - **Drag into any bucket also updates the task's attributes to
       genuinely match it, not just visually relocate it**, provided doing
       so doesn't bypass an existing hard rule, e.g. dragging a task into
@@ -546,10 +580,11 @@ The app has three views:
       Deadline requirement rather than silently violating it. A drag is a
       shortcut for making the underlying change, never a way around a
       rule that would otherwise block it.
-    - **Global "+ Add" icon**: in the top-right corner of each window,
-      where the by-folder grouping toggle used to sit before it became
-      global, a plain add-task icon with no bucket-specific defaults, for
-      when you don't want any of the per-bucket pre-fills.
+    - **Global "+ Add" icon**: a small icon (not a text link) in the
+      top-right corner of each window, where the by-folder grouping
+      toggle used to sit before it became global, a plain add-task icon
+      with no bucket-specific defaults, for when you don't want any of
+      the per-bucket pre-fills.
     - **Drag across the divider** (Do Date sort mode only): a lighter
       action than deprioritizing below, no reschedule prompt, it just
       toggles whether `do_date == today` and lets the live quadrant
@@ -602,8 +637,9 @@ The app has three views:
     urgency engine already scores a 0-days-out deadline at critical (100),
     so this naturally bumps `priority_score` through the mechanism that
     already exists.
-  - **Quick-win distinction, renamed to "Bite-size" (vs. "Main Course"
-    for the non-quick-win state)**: three compounded signals rather than
+  - **Quick-win distinction, renamed to "Bite-size"** (the off state has
+    no stated name, it's just the unmarked default): three compounded
+    signals rather than
     relying on size alone, which wasn't reading as distinct enough in
     practice: a small distinct icon, a smaller card, and Bite-size cards
     never show the expanded meta line even when the window itself is
@@ -688,8 +724,8 @@ The app has three views:
   Plan items separated from Backlog at a glance). Urgency stays flat here
   rather than bucketing into Today/Tomorrow/Later Dates the way it does
   in Daily Plate, same reasoning as Fridge's own Do Date exception below.
-  Do Date's divider splits **with
-  date** vs. **without date** rather than the Today/Tomorrow/Later Dates
+  Do Date's divider splits **"With date"**
+  vs. **"No date"** rather than the Today/Tomorrow/Later Dates
   split Daily Plate uses, not every Plan or Backlog task carries a
   `do_date` (only ones with a deadline get one by default), so a
   day-by-day breakdown doesn't fit Fridge's forward-planning purpose the
@@ -886,8 +922,13 @@ productivity view")
   respectively. No new storage, just a query against data already kept.
 - **Weekly Accomplishments panel**: a highlights reel, never a score,
   covering the current (or selected) week:
-  - **What you cleared this week**: plain list of completed task titles,
-    regular and recurring, no framing, just the evidence.
+  - **What you cleared this week**: not a plain list, that's redundant
+    with the Calendar's day-repository which already shows exactly that
+    detail per day. Instead, a categorical summary of completions across
+    the week (e.g. "6 Work, 3 Errands, 2 Recruiting"), descriptive counts
+    only, no judgment implied, this genuinely isn't available anywhere
+    else since the day-repository is scoped per-day, not aggregated
+    across a week.
   - **Biggest win**: the single highest-`priority_score` task completed
     that week, called out specifically, this is the important-but-not-
     urgent task finally getting done, exactly the case this whole app
@@ -915,7 +956,7 @@ productivity view")
   split exists (Importance, Size, Do Date), flat where it wouldn't
   (Priority, Urgency), with per-bucket add buttons and drag-to-
   reclassify, a global flat/by-folder toggle, a checkbox to promote to a
-  real deadline, and Bite-size vs. Main Course sizing
+  real deadline, and Bite-size sizing (the off state is unlabeled)
 - Later window: membership is simply current live quadrant Plan or
   Backlog, no special case needed, since deprioritizing always forces a
   real quadrant change rather than overriding one

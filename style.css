@@ -1048,6 +1048,18 @@ body {
   margin-bottom: 0.45rem;
 }
 
+/* The header bar and the controls row both double as a big expand/shrink hit target — click
+   anywhere empty in either one. Their own interactive children (buttons, the sort select)
+   override this back to their normal cursor so they don't look like part of the same target. */
+.window-clickable-toggle {
+  cursor: pointer;
+}
+
+.window-clickable-toggle > button,
+.window-clickable-toggle > select {
+  cursor: pointer;
+}
+
 .window-title {
   margin: 0;
   font-size: 1rem;
@@ -1148,35 +1160,44 @@ body {
 .pile-particle {
   position: absolute;
   bottom: 0;
-  border-radius: 50%;
 }
 
+/* Fire: an organic flame silhouette (clip-path, not a circle) that flickers — a small
+   rotate/scale wobble layered on top of a straight rise — echoing real flame movement rather
+   than a generic floating dot. */
 .pile-fire .pile-particle {
-  background: radial-gradient(circle at 45% 35%, var(--fire-core), var(--fire-mid) 45%, var(--fire-outer) 85%);
+  background: radial-gradient(circle at 45% 30%, var(--fire-core), var(--fire-mid) 45%, var(--fire-outer) 90%);
   box-shadow: 0 0 4px var(--fire-glow);
+  clip-path: polygon(50% 0%, 78% 22%, 66% 42%, 88% 58%, 58% 100%, 42% 100%, 12% 58%, 34% 42%, 22% 22%);
   animation-name: pile-flame-rise;
   animation-timing-function: ease-out;
   animation-iteration-count: infinite;
 }
 
+/* Ice: a crisp geometric shard (diamond clip-path, sharp not organic) that tumbles downward —
+   the opposite motion from fire's rise, angular instead of soft, falling instead of floating
+   up — distinct in silhouette and motion, not just hue. */
 .pile-ice .pile-particle {
-  background: radial-gradient(circle at 40% 40%, var(--ice-core), var(--ice-mid) 55%, var(--ice-outer) 100%);
+  background: radial-gradient(circle at 40% 35%, var(--ice-core), var(--ice-mid) 55%, var(--ice-outer) 100%);
   box-shadow: 0 0 4px var(--ice-glow);
-  animation-name: pile-ice-drift;
-  animation-timing-function: ease-in-out;
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+  animation-name: pile-ice-fall;
+  animation-timing-function: ease-in;
   animation-iteration-count: infinite;
 }
 
 @keyframes pile-flame-rise {
-  0% { transform: translateY(2px) scale(0.5); opacity: 0; }
-  20% { opacity: 1; }
-  100% { transform: translateY(-20px) scale(0.15); opacity: 0; }
+  0% { transform: translateY(3px) scale(0.5) rotate(-6deg); opacity: 0; }
+  15% { opacity: 1; }
+  45% { transform: translateY(-9px) scale(1.05) rotate(5deg); }
+  70% { transform: translateY(-14px) scale(0.7) rotate(-6deg); }
+  100% { transform: translateY(-21px) scale(0.2) rotate(4deg); opacity: 0; }
 }
 
-@keyframes pile-ice-drift {
-  0% { transform: translate(0, 2px) rotate(0deg) scale(0.6); opacity: 0; }
-  25% { opacity: 1; }
-  100% { transform: translate(var(--dx, 6px), -16px) rotate(200deg) scale(0.9); opacity: 0; }
+@keyframes pile-ice-fall {
+  0% { transform: translate(0, -4px) rotate(0deg) scale(0.55); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translate(var(--dx, 6px), 18px) rotate(var(--spin, 220deg)) scale(0.85); opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1224,7 +1245,8 @@ body {
   outline-offset: 1px;
 }
 
-/* Bucket divider: thin rule + tiny label on the left, the bucket's own "+" on the right. */
+/* Bucket divider: thin rule + tiny label, just the count — the bucket's own add control sits
+   at the bottom instead (.window-bucket-add below). */
 .window-bucket-header {
   display: flex;
   align-items: center;
@@ -1250,13 +1272,15 @@ body {
   min-width: 0;
 }
 
+/* Bottom-left "+", below the last card (or the empty hint) in the bucket — where the old
+   bottom-of-window add link used to sit, now one per bucket. Same pill treatment as the
+   global add icon up in the controls row, so the two read as the same kind of control. */
 .window-bucket-add {
-  padding: 0.05rem;
-  opacity: 0.55;
-}
-
-.window-bucket-add:hover {
-  opacity: 1;
+  align-self: flex-start;
+  padding: 0.15rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
 }
 
 /* Buckets: each a drop target that makes a dropped card belong there, kept droppable even
@@ -1294,19 +1318,6 @@ body {
 
 .window-empty {
   padding: 0.6rem 0.25rem;
-}
-
-.window-group-header {
-  font-size: 0.68rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-  margin: 0.35rem 0 0;
-}
-
-.window-group-header:first-child {
-  margin-top: 0;
 }
 
 /* Task card: the priority-card look (accent stripe, tinted background), draggable. The
@@ -1461,10 +1472,6 @@ body {
   margin-top: 0.1rem;
 }
 
-.window-add {
-  margin-top: 0.4rem;
-}
-
 /* ---- Nested subtasks on cards ----
    Same caret and collapsed set as the folder list. Rows sit inside the card body, each with
    its own quadrant accent (active) or struck through (done), further children indented. */
@@ -1553,6 +1560,24 @@ body {
 
 .window-subtask .window-card-subtasks {
   margin-left: 1.1rem;
+}
+
+/* "+" add-subtask: same inline affordance the folder list has always had, now on cards too —
+   a bare symbol, not a text label, so it sits inline instead of claiming its own line. Hidden
+   until hover, like the edit/delete icons, so a compact card doesn't carry it by default. */
+.window-card-add-subtask {
+  align-self: flex-start;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0.05rem 0.3rem;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+.window-card:hover .window-card-add-subtask,
+.window-subtask:hover > .window-card-add-subtask {
+  opacity: 1;
 }
 
 /* ---- Habits in Now ----
@@ -3137,13 +3162,11 @@ body {
   margin-top: 0;
 }
 
-.calendar-weekly-list {
-  margin: 0;
-  padding-left: 1.1rem;
+/* Categorical tally ("6 Work, 3 Errands, 2 Recruiting") rather than a title-by-title list —
+   the day-repository already covers that level of detail. */
+.calendar-weekly-summary {
   font-size: 0.85rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
+  color: var(--text);
 }
 
 .calendar-biggest-win {
