@@ -12,43 +12,51 @@
 //
 // Escalating tag (Do Today < Due Today < Overdue, one slot, most severe wins): every card
 // carries it, the same badge list rows and the Overview use (escalatingTag in urgency.js).
+// Expanded Now cards add a "Due in N" countdown while a deadline is approaching (1..
+// deadline_high_days out); at 0 the tag takes over, so the two never show together.
 //
-// Sorting: a dropdown (five options is too many for a segmented switch) — Priority (default),
-// Urgency, Importance, Quick win, Do date. Do date draws a thin divider between date groups:
-// in Now that's today / each later date / no date, and the today-vs-rest boundary is
-// draggable across (a lighter action than deprioritizing, it just toggles do_date's "today"
-// status and lets the live quadrant decide); in Later the divider splits with-date from
-// without-date. A separate flat / by-folder toggle nests inside whatever the sort produces.
+// Sorting: one GLOBAL sort key and one global flat / by-folder grouping, shared by both
+// windows (changing either in one place changes both). The dropdown offers Priority
+// (default), Urgency, Importance, Size, Do date. Sort keys with a real, non-arbitrary split
+// render as BUCKETS (bucketWindowEntries): Importance into its four levels, Size into
+// Bite-size / Main Course, Do date and Urgency into Today / Tomorrow / Later dates — but only
+// in Now; in Later, Do date keeps its with-date / without-date split and Urgency stays flat,
+// like Priority everywhere. Each bucket is a drop zone that makes the task genuinely belong
+// there (do_date, deadline, importance or sizing updated, never bypassing a rule that would
+// otherwise block the change), and carries its own "+" that pre-fills the form to match.
 //
-// Compact vs. expanded cards: at default width a card is checkbox + title + tag. When a window
-// is the expanded panel its cards also show the meta line, inline do_date / deadline inputs
-// and the quick-win chip, so small changes don't need the full form.
+// Habits (RecurringTasks) in the windows: Now shows the ones due soon (isRecurringNowMember —
+// daily always, weekly/monthly on their day or near their period's end), Later the exact
+// complement (isRecurringLaterMember), so every habit is in exactly one window. In Do date and
+// Size sorts they sit inside the buckets (a habit has a real next day, and counts as
+// Bite-size for placement only); in the score-based sorts they stay in their own block, since
+// they never join the scoring. Never draggable, no tag, no importance — the same isolation
+// from the matrix as always. Ticking one off logs to CompletionLog exactly as the boxes do.
+//
+// Compact vs. expanded cards: at default width a card is checkbox + title + tag. Expanded,
+// a card also shows the meta line (never on Bite-size cards — small by definition), the
+// sizing chip, and in Later an inline do_date input (with a guard rail against planning a
+// task after its deadline). Now shows the countdown instead of any editable date.
+//
+// Completing a task: the card strikes through at once and, after a short grace period, the
+// task moves into Now's collapsed "Completed Today" folder (completed_at == today — no new
+// storage), where it stays for the rest of the day as evidence. There is exactly one such
+// folder, in Now; a task completed from Later lands there too.
 //
 // Nested subtasks: a card shows its subtasks underneath, collapsible with the same caret and
-// the same shared collapsed set (collapsedTasks) as the folder list, so the structure is one
-// thing in both places. A member whose parent is also a member of the same window renders
-// nested under the parent rather than as a second card; a member whose parent is elsewhere
-// (or top-level) gets its own card. This is what makes the "full" List mode optional for
-// everyday use rather than the only place subtask structure is visible.
-//
-// Habits in Now: a schedule-filtered view of the same RecurringTasks the Weekly/Daily boxes
-// show (isRecurringNowMember in urgency.js — daily always, weekly on its weekday or near the
-// week's end). Rendered as their own block under the task cards: no importance, urgency,
-// quadrant, tag, sort or drag, and ticking one off logs to CompletionLog exactly as the boxes
-// do. Only shown in the "windows" List display mode (list_display_mode); "full" keeps the
-// original folder page and the boxes.
+// the same shared collapsed set (collapsedTasks) as the folder list.
 //
 // Focus mode (Now only): an on-demand overlay over the page showing just the do_date == today
 // subset of Now, same cards, same drag mechanics (drop on the dimmed backdrop = deprioritize).
-// Rendering mode only, no membership rule of its own, nothing to keep in sync.
 //
 // Empty-Now suggestion: whenever Now has zero tasks (live-checked every render), Later boxes
 // its top 3 by priority with an "Add all N" button chaining addToNow. No state to clear.
 //
 // Per-device prefs (sort, grouping, which window is expanded) live in localStorage like the
-// theme. Reads app.js state (tasks, folders, settings, activeView, todayISODate, persist,
-// render, openTaskModal, toggleTaskDone, defaultNowDeadline, applyDeadlineDefault,
-// isDeadlineViolator, showBackfillIfNeeded, appendTagBadge, ICONS), calendar.js
+// theme. Reads app.js state (tasks, folders, recurringTasks, settings, activeView,
+// todayISODate, persist, render, openTaskModal, toggleTaskDone, defaultNowDeadline,
+// applyDeadlineDefault, isDeadlineViolator, showBackfillIfNeeded, appendTagBadge,
+// appendRolloverBadge, appendMissedBadge, recurringScheduleLabel, ICONS), calendar.js
 // (addDaysISODate) and overview.js (rankActiveTasks, taskContextLabel) only from inside
 // functions that run after every script has loaded.
 
@@ -56,7 +64,7 @@ const WINDOW_SORT_KEYS = [
   { key: "priority", label: "Priority" },
   { key: "urgency", label: "Urgency" },
   { key: "importance", label: "Importance" },
-  { key: "quickwin", label: "Quick win" },
+  { key: "size", label: "Size" },
   { key: "dodate", label: "Do date" },
 ];
 
@@ -67,25 +75,32 @@ const WINDOW_GROUP_MODES = [
 
 const WINDOW_PREFS_KEY = "windowPrefs";
 const DEFAULT_WINDOW_PREFS = Object.freeze({
-  focus: "none",       // "none" | "now" | "later" — which window is expanded
-  nowSort: "priority", laterSort: "priority",
-  nowGroup: "flat",    laterGroup: "flat",
+  focus: "none",     // "none" | "now" | "later" — which window is expanded
+  sort: "priority",  // one shared sort key for both windows
+  group: "flat",     // one shared flat / by-folder grouping for both windows
 });
 
-let windowPrefs = loadWindowPrefs();
-let focusModeOpen = false; // transient, never persisted
+const DONE_GRACE_MS = 700; // strikethrough-then-move delay on completing a card
 
+let windowPrefs = loadWindowPrefs();
+let focusModeOpen = false;        // transient, never persisted
+let completedTodayOpen = false;   // the Completed Today folder, collapsed by default
+const pendingDone = new Map();    // taskId -> timeout, while a checked card waits out its grace period
+
+// Older prefs stored a sort/grouping per window (nowSort / laterSort ...); the Now value
+// carries over as the shared one. The old "quickwin" sort key is now "size".
 function loadWindowPrefs() {
   let raw = {};
   try { raw = JSON.parse(localStorage.getItem(WINDOW_PREFS_KEY) || "{}") || {}; } catch (e) { raw = {}; }
   const sortKeys = WINDOW_SORT_KEYS.map(s => s.key);
   const groupKeys = WINDOW_GROUP_MODES.map(g => g.key);
+  let sort = raw.sort !== undefined ? raw.sort : raw.nowSort;
+  if (sort === "quickwin") sort = "size";
+  const group = raw.group !== undefined ? raw.group : raw.nowGroup;
   return {
     focus: ["none", "now", "later"].includes(raw.focus) ? raw.focus : DEFAULT_WINDOW_PREFS.focus,
-    nowSort: sortKeys.includes(raw.nowSort) ? raw.nowSort : DEFAULT_WINDOW_PREFS.nowSort,
-    laterSort: sortKeys.includes(raw.laterSort) ? raw.laterSort : DEFAULT_WINDOW_PREFS.laterSort,
-    nowGroup: groupKeys.includes(raw.nowGroup) ? raw.nowGroup : DEFAULT_WINDOW_PREFS.nowGroup,
-    laterGroup: groupKeys.includes(raw.laterGroup) ? raw.laterGroup : DEFAULT_WINDOW_PREFS.laterGroup,
+    sort: sortKeys.includes(sort) ? sort : DEFAULT_WINDOW_PREFS.sort,
+    group: groupKeys.includes(group) ? group : DEFAULT_WINDOW_PREFS.group,
   };
 }
 
@@ -109,7 +124,7 @@ function compareDoDates(a, b) {
 }
 
 // `entries` are { task, assessment } (from rankActiveTasks). Every key falls back to
-// priority_score, so the order is stable: "Quick win" groups quick wins first, "Do date" runs
+// priority_score, so the order is stable: "Size" puts Bite-size first, "Do date" runs
 // chronologically ascending (no date last), each with priority as the tiebreak inside a group.
 function sortWindowEntries(entries, key) {
   const byPriority = (a, b) => b.assessment.priorityScore - a.assessment.priorityScore;
@@ -118,7 +133,7 @@ function sortWindowEntries(entries, key) {
     sorted.sort((a, b) => b.assessment.urgency.score - a.assessment.urgency.score || byPriority(a, b));
   } else if (key === "importance") {
     sorted.sort((a, b) => b.assessment.importanceScore - a.assessment.importanceScore || byPriority(a, b));
-  } else if (key === "quickwin") {
+  } else if (key === "size") {
     sorted.sort((a, b) => Number(!!b.task.is_quick_win) - Number(!!a.task.is_quick_win) || byPriority(a, b));
   } else if (key === "dodate") {
     sorted.sort((a, b) => compareDoDates(a.task.do_date, b.task.do_date) || byPriority(a, b));
@@ -128,52 +143,114 @@ function sortWindowEntries(entries, key) {
   return sorted;
 }
 
-// Do-date groups for the divider layout. `entries` must already be in "dodate" order.
-//   Now:   { today: [...], other: [{ key, label, entries }, ...] } — one group per later date,
-//          ascending, then "No date". today/other is the draggable boundary.
-//   Later: { withDate: [...], withoutDate: [...] } — not every Plan/Backlog task has a
-//          do_date (only the deadline default gives one), so chronological groups don't apply.
-function splitByDoDate(entries, winKey, today) {
-  if (winKey === "later") {
-    return {
-      withDate: entries.filter(e => !!e.task.do_date),
-      withoutDate: entries.filter(e => !e.task.do_date),
-    };
-  }
-  const todayGroup = entries.filter(e => e.task.do_date === today);
-  const other = [];
-  entries.filter(e => e.task.do_date !== today).forEach(entry => {
-    const key = entry.task.do_date || "";
-    let group = other.find(g => g.key === key);
-    if (!group) {
-      group = { key, label: key ? describeDoDate(key, today) : "No date", entries: [] };
-      other.push(group);
-    }
-    group.entries.push(entry);
-  });
-  return { today: todayGroup, other };
+// Do date and Size are the sorts where a habit has a natural place (a real next day; small
+// by nature). The score-based sorts keep habits in their own block.
+function bucketsTakeHabits(sortKey) {
+  return sortKey === "dodate" || sortKey === "size";
 }
 
-// "Tomorrow", or "Fri 19 Sep" for a date group label.
-function describeDoDate(dateStr, today) {
-  const days = calendarDaysBetween(today, dateStr);
-  if (days === 1) return "Tomorrow";
-  if (days < 0) return "Past · " + dateStr; // only visible between midnight and the next maintenance run
-  return parseLocalDate(dateStr).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+// The bucket layout for a sort key, or null for a flat list. `entries` must already be in
+// sort order (bucket contents keep it). Each bucket:
+//   { key, label, hint, entries, habits, drop(task) | null, addPrefill | null }
+// drop makes a dropped task genuinely belong (through the same setters the inline edits use,
+// so every rule — deadline prompt, deadline requirement, guard rail — still applies);
+// addPrefill is what that bucket's "+" hands the task form.
+function bucketWindowEntries(entries, sortKey, winKey, today, habits) {
+  const isNow = winKey === "now";
+  const tomorrow = addDaysISODate(today, 1);
+  const later = addDaysISODate(today, 2);
+  const allHabits = habits || [];
+  const make = (key, label, hint, filter, drop, addPrefill, habitFilter) => ({
+    key, label, hint,
+    entries: entries.filter(filter),
+    habits: habitFilter ? allHabits.filter(habitFilter) : [],
+    drop, addPrefill,
+  });
+
+  if (sortKey === "importance") {
+    return ["Critical", "High", "Medium", "Low"].map(level => make(
+      level.toLowerCase(), level, "Importance " + level,
+      e => e.task.importance === level,
+      task => inlineSetImportance(task, level),
+      { importance: level },
+      null,
+    ));
+  }
+
+  if (sortKey === "size") {
+    return [
+      make("bite", "Bite-size", "Quick ones (habits count as bite-size here)",
+        e => !!e.task.is_quick_win, task => setQuickWin(task, true), { is_quick_win: true }, () => true),
+      make("main", "Main Course", "Things to sit down and tackle",
+        e => !e.task.is_quick_win, task => setQuickWin(task, false), { is_quick_win: false }, null),
+    ];
+  }
+
+  if (sortKey === "dodate") {
+    if (!isNow) {
+      return [
+        make("with", "With a do date", "Planned for a day (habits always have one)",
+          e => !!e.task.do_date,
+          task => { if (!task.do_date) setDoDateExplicit(task, tomorrow); },
+          { do_date: tomorrow }, () => true),
+        make("without", "No do date", "Not planned for any day yet",
+          e => !e.task.do_date, task => clearDoDate(task), {}, null),
+      ];
+    }
+    const next = rt => nextRecurringOccurrence(rt, today);
+    return [
+      make("today", "Today", "do_date is today",
+        e => !!e.task.do_date && e.task.do_date <= today,
+        task => addToNow(task, { manual: true }),
+        { do_date: today, deadline: today }, rt => next(rt) <= today),
+      make("tomorrow", "Tomorrow", "do_date is tomorrow",
+        e => e.task.do_date === tomorrow,
+        task => setDoDateExplicit(task, tomorrow),
+        { do_date: tomorrow, deadline: tomorrow }, rt => next(rt) === tomorrow),
+      make("later", "Later dates", "do_date from the day after tomorrow on (or none: here through urgency alone)",
+        e => !e.task.do_date || e.task.do_date >= later,
+        task => setDoDateExplicit(task, later),
+        { do_date: later, deadline: later }, rt => next(rt) >= later),
+    ];
+  }
+
+  if (sortKey === "urgency" && isNow) {
+    const deadline = e => e.task.deadline || null;
+    return [
+      make("today", "Today", "Deadline today (or already passed)",
+        e => !!deadline(e) && deadline(e) <= today,
+        task => inlineSetDeadline(task, today),
+        { do_date: today, deadline: today }, null),
+      make("tomorrow", "Tomorrow", "Deadline tomorrow",
+        e => deadline(e) === tomorrow,
+        task => inlineSetDeadline(task, tomorrow),
+        { do_date: tomorrow, deadline: tomorrow }, null),
+      make("later", "Later dates", "Deadline further out, or none (urgent through staleness)",
+        e => !deadline(e) || deadline(e) >= later,
+        task => inlineSetDeadline(task, later),
+        { do_date: later, deadline: later }, null),
+    ];
+  }
+
+  return null;
 }
 
 const WINDOWS = {
   now: {
     key: "now", elementId: "now-window", title: "Now", hint: "do today · Do · Clear",
-    sortPref: "nowSort", groupPref: "nowGroup",
     member: (entry, today) => isNowMember(entry.task, entry.assessment, today),
+    habitMember: (rt, today) => isRecurringNowMember(rt, settings, today),
+    habitHint: "daily · weekly · monthly due soon",
     empty: "Nothing urgent or planned for today. Drag a task here, or add one.",
+    add: () => addTaskToNowDirectly(),
   },
   later: {
     key: "later", elementId: "later-window", title: "Later", hint: "Plan + Backlog",
-    sortPref: "laterSort", groupPref: "laterGroup",
     member: entry => isLaterMember(entry.assessment),
+    habitMember: (rt, today) => isRecurringLaterMember(rt, settings, today),
+    habitHint: "weekly · monthly, not due soon",
     empty: "Nothing in Plan or Backlog.",
+    add: () => addTaskToLaterDirectly(),
   },
 };
 
@@ -186,6 +263,11 @@ function renderNowLaterWindows() {
   }
   const today = todayISODate();
   const ranked = rankActiveTasks(today);
+
+  // The one grouping switch for both windows sits above them.
+  const toolbar = document.getElementById("windows-toolbar");
+  toolbar.innerHTML = "";
+  toolbar.appendChild(makeWindowSwitch(WINDOW_GROUP_MODES, windowPrefs.group, key => setWindowPref("group", key), "Window grouping"));
 
   const row = document.getElementById("windows-row");
   row.classList.toggle("focus-now", windowPrefs.focus === "now");
@@ -206,7 +288,7 @@ function renderWindow(win, ranked, today, nowIsEmpty) {
 
   const unsorted = ranked.filter(entry => win.member(entry, today));
   // Members nested under a member parent render inside that parent's card, not as their own.
-  const entries = topLevelEntries(sortWindowEntries(unsorted, windowPrefs[win.sortPref]));
+  const entries = topLevelEntries(sortWindowEntries(unsorted, windowPrefs.sort));
 
   // Header: title, count, hint, focus mode (Now only), expand/shrink.
   const header = document.createElement("div");
@@ -219,7 +301,7 @@ function renderWindow(win, ranked, today, nowIsEmpty) {
 
   const count = document.createElement("span");
   count.className = "window-count";
-  count.textContent = unsorted.length; // every member, nested ones included
+  count.textContent = unsorted.length; // every active member, nested ones included; never habits or done tasks
   header.appendChild(count);
 
   const hint = document.createElement("span");
@@ -249,11 +331,19 @@ function renderWindow(win, ranked, today, nowIsEmpty) {
 
   el.appendChild(header);
 
-  // Controls: sort dropdown + grouping switch.
+  // Controls: the (shared) sort dropdown, and the plain global "+" on the right — no bucket
+  // defaults, for when none of the per-bucket pre-fills is what you want.
   const controls = document.createElement("div");
   controls.className = "window-controls";
-  controls.appendChild(makeWindowSortSelect(WINDOW_SORT_KEYS, windowPrefs[win.sortPref], key => setWindowPref(win.sortPref, key), win.title + " sort"));
-  controls.appendChild(makeWindowSwitch(WINDOW_GROUP_MODES, windowPrefs[win.groupPref], key => setWindowPref(win.groupPref, key), win.title + " grouping"));
+  controls.appendChild(makeWindowSortSelect(WINDOW_SORT_KEYS, windowPrefs.sort, key => setWindowPref("sort", key), "Sort (both windows)"));
+  const addIcon = document.createElement("button");
+  addIcon.type = "button";
+  addIcon.className = "btn-icon window-add-icon";
+  addIcon.innerHTML = ICONS.plus;
+  addIcon.title = win.key === "now" ? "Add a task to Now (planned for today)" : "Add a task";
+  addIcon.setAttribute("aria-label", "Add task to " + win.title);
+  addIcon.addEventListener("click", win.add);
+  controls.appendChild(addIcon);
   el.appendChild(controls);
 
   // Empty-Now suggestion (Later only, live-checked every render — see file header).
@@ -265,7 +355,12 @@ function renderWindow(win, ranked, today, nowIsEmpty) {
   el.appendChild(renderWindowBody(win, entries, today, expanded));
 
   if (win.key === "now") {
-    const habits = renderNowHabits(today);
+    const completed = renderCompletedToday(today);
+    if (completed) el.appendChild(completed);
+  }
+
+  if (!bucketsTakeHabits(windowPrefs.sort)) {
+    const habits = renderWindowHabits(win, today);
     if (habits) el.appendChild(habits);
   }
 
@@ -273,7 +368,7 @@ function renderWindow(win, ranked, today, nowIsEmpty) {
   addLink.type = "button";
   addLink.className = "link-btn window-add";
   addLink.textContent = "+ Add task";
-  addLink.addEventListener("click", win.key === "now" ? addTaskToNowDirectly : addTaskToLaterDirectly);
+  addLink.addEventListener("click", win.add);
   el.appendChild(addLink);
 }
 
@@ -284,15 +379,27 @@ function topLevelEntries(entries) {
   return entries.filter(e => !e.task.parent_task_id || !ids.has(e.task.parent_task_id));
 }
 
-// ---------- Habits in Now ----------
-// The same RecurringTasks the Weekly/Daily boxes list, filtered to today's schedule. Undone
-// first, then daily before weekly. Done ones stay visible and ticked (like the boxes) so a
-// mis-click can be undone here too. Returns null when no habit is due, so Now stays clean.
-function renderNowHabits(today) {
-  const due = recurringTasks.filter(rt => isRecurringNowMember(rt, settings, today));
+// ---------- Habits in the windows ----------
+// The same RecurringTasks the habit boxes show, split between the windows by schedule
+// (see file header). Undone first, then by next occurrence, then daily < weekly < monthly.
+// Done ones stay visible and ticked (like the boxes) so a mis-click can be undone here too.
+
+const CADENCE_ORDER = Object.freeze({ daily: 0, weekly: 1, monthly: 2 });
+
+function windowHabits(win, today) {
+  const due = recurringTasks.filter(rt => win.habitMember(rt, today));
+  const cadenceOrder = rt => (CADENCE_ORDER[rt.cadence] !== undefined ? CADENCE_ORDER[rt.cadence] : 3);
+  due.sort((a, b) => Number(isRecurringDoneNow(a)) - Number(isRecurringDoneNow(b))
+    || compareDoDates(nextRecurringOccurrence(a, today), nextRecurringOccurrence(b, today))
+    || cadenceOrder(a) - cadenceOrder(b));
+  return due;
+}
+
+// The standalone Habits block (score-based sorts). Returns null when the window has no
+// habit, so it stays clean.
+function renderWindowHabits(win, today) {
+  const due = windowHabits(win, today);
   if (due.length === 0) return null;
-  const cadenceOrder = rt => (rt.cadence === "daily" ? 0 : 1);
-  due.sort((a, b) => Number(isRecurringDoneNow(a)) - Number(isRecurringDoneNow(b)) || cadenceOrder(a) - cadenceOrder(b));
   const doneCount = due.filter(isRecurringDoneNow).length;
 
   const block = document.createElement("div");
@@ -313,20 +420,24 @@ function renderNowHabits(today) {
 
   const hint = document.createElement("span");
   hint.className = "window-hint";
-  hint.textContent = "daily · weekly due soon";
-  hint.title = "Daily habits every day; weekly ones on their weekday or within " + settings.weekly_recurring_now_days + " day(s) of the week ending. Not scored.";
+  hint.textContent = win.habitHint;
+  hint.title = win.key === "now"
+    ? "Daily habits every day; weekly ones on their weekday or within " + settings.weekly_recurring_now_days + " day(s) of the week ending; monthly ones on their day or within " + settings.monthly_recurring_now_days + " day(s) of the month ending. Not scored."
+    : "Weekly and monthly habits that aren't due soon — the exact complement of Now's. Not scored.";
   header.appendChild(hint);
 
   block.appendChild(header);
 
   const list = document.createElement("div");
   list.className = "window-habits-list";
-  due.forEach(rt => list.appendChild(renderNowHabitRow(rt)));
+  due.forEach(rt => list.appendChild(renderWindowHabitRow(rt, today)));
   block.appendChild(list);
   return block;
 }
 
-function renderNowHabitRow(rt) {
+// One habit row: checkbox, title, missed flag, "folder · schedule". Deliberately not
+// draggable — a habit's day is fixed or deliberately left at the default, never rescheduled.
+function renderWindowHabitRow(rt, today) {
   const done = isRecurringDoneNow(rt);
   const row = document.createElement("label");
   row.className = "window-habit habit-" + rt.cadence + (done ? " done" : "");
@@ -343,83 +454,72 @@ function renderNowHabitRow(rt) {
   title.textContent = rt.title;
   row.appendChild(title);
 
+  appendMissedBadge(row, rt);
+
   const folder = folders.find(f => f.id === rt.folder_id);
   const meta = document.createElement("span");
   meta.className = "window-habit-meta";
-  meta.textContent = [
-    folder ? folder.name : null,
-    rt.cadence === "weekly" ? WEEKDAY_LABELS[recurringWeekday(rt)] : "daily",
-  ].filter(Boolean).join(" · ");
+  const schedule = recurringScheduleLabel(rt) || "daily";
+  const next = nextRecurringOccurrence(rt, today);
+  meta.textContent = [folder ? folder.name : null, schedule].filter(Boolean).join(" · ");
+  meta.title = rt.cadence === "daily" ? "Every day" : "Next: " + next;
   row.appendChild(meta);
 
   return row;
 }
 
+// ---------- Body: flat list or buckets ----------
+
 function renderWindowBody(win, entries, today, expanded) {
   const body = document.createElement("div");
   body.className = "window-body";
 
-  if (windowPrefs[win.sortPref] === "dodate") {
-    renderDoDateBody(body, win, entries, today, expanded);
+  const habits = bucketsTakeHabits(windowPrefs.sort) ? windowHabits(win, today) : [];
+  const buckets = bucketWindowEntries(entries, windowPrefs.sort, win.key, today, habits);
+
+  if (!buckets) {
+    if (entries.length === 0) body.appendChild(makeEmptyHint(win.empty, "window-empty"));
+    else appendCards(body, entries, win, expanded);
     return body;
   }
 
-  if (entries.length === 0) {
-    body.appendChild(makeEmptyHint(win.empty, "window-empty"));
-  } else {
-    appendCards(body, entries, win, expanded);
-  }
+  buckets.forEach((bucket, i) => {
+    const zone = document.createElement("div");
+    zone.className = "window-bucket";
+    zone.dataset.bucket = bucket.key;
+    const onAdd = bucket.addPrefill ? () => addTaskFromBucket(bucket.addPrefill) : null;
+    zone.appendChild(makeBucketHeader(bucket.label, bucket.entries.length + bucket.habits.length, i === 0, bucket.hint, onAdd));
+    if (bucket.entries.length) appendCards(zone, bucket.entries, win, expanded);
+    bucket.habits.forEach(rt => zone.appendChild(renderWindowHabitRow(rt, today)));
+    if (!bucket.entries.length && !bucket.habits.length) {
+      zone.appendChild(makeEmptyHint(bucket.drop ? "Drop a card here." : "Nothing here.", "window-zone-empty"));
+    }
+    wireBucketDrop(zone, win, bucket);
+    body.appendChild(zone);
+  });
   return body;
 }
 
-// Do-date layout: thin dividers between groups; in Now the today group and the rest are two
-// drop zones (source "now" only) so a card can be dragged across the boundary.
-function renderDoDateBody(body, win, entries, today, expanded) {
-  if (win.key === "later") {
-    const { withDate, withoutDate } = splitByDoDate(entries, "later", today);
-    body.appendChild(makeDateDivider("With a do date", withDate.length, true));
-    if (withDate.length) appendCards(body, withDate, win, expanded);
-    else body.appendChild(makeEmptyHint("No dated tasks.", "window-zone-empty"));
-    body.appendChild(makeDateDivider("No do date", withoutDate.length));
-    if (withoutDate.length) appendCards(body, withoutDate, win, expanded);
-    else body.appendChild(makeEmptyHint("Everything here has a date.", "window-zone-empty"));
-    return;
-  }
-
-  const { today: todayGroup, other } = splitByDoDate(entries, "now", today);
-
-  const todayZone = document.createElement("div");
-  todayZone.className = "window-date-zone";
-  todayZone.dataset.zone = "today";
-  todayZone.appendChild(makeDateDivider("Today", todayGroup.length, true));
-  if (todayGroup.length) appendCards(todayZone, todayGroup, win, expanded);
-  else todayZone.appendChild(makeEmptyHint("Drop a card here to plan it for today.", "window-zone-empty"));
-  wireDropZone(todayZone, source => source === "now", task => {
-    if (task.do_date !== today) addToNow(task, { manual: true });
-  });
-  body.appendChild(todayZone);
-
-  const otherZone = document.createElement("div");
-  otherZone.className = "window-date-zone";
-  otherZone.dataset.zone = "other";
-  if (other.length) {
-    other.forEach(group => {
-      otherZone.appendChild(makeDateDivider(group.label, group.entries.length));
-      appendCards(otherZone, group.entries, win, expanded);
+// A bucket is a drop zone that makes the dropped task belong there. In Now, a card from
+// anywhere is accepted: from outside Now it's first added to Now (the usual manual add, with
+// its deadline prompt), then reclassified; from inside, just reclassified. Later's buckets
+// only accept Later's own cards — a Now card dropped anywhere on Later still hits the window
+// zone and deprioritizes, as before.
+function wireBucketDrop(zone, win, bucket) {
+  if (!bucket.drop) return;
+  if (win.key === "now") {
+    wireDropZone(zone, () => true, (task, source) => {
+      if (source === "now") { bucket.drop(task); return; }
+      addToNow(task, { manual: true }).then(added => { if (added) bucket.drop(task); });
     });
   } else {
-    otherZone.appendChild(makeDateDivider("Later dates", 0));
-    otherZone.appendChild(makeEmptyHint("Drop a card here to clear its today status.", "window-zone-empty"));
+    wireDropZone(zone, source => source === "later", task => bucket.drop(task));
   }
-  wireDropZone(otherZone, source => source === "now", task => {
-    if (task.do_date === today) clearDoToday(task);
-  });
-  body.appendChild(otherZone);
 }
 
 // Cards, nested inside folder groups when that toggle is on.
 function appendCards(container, entries, win, expanded) {
-  if (windowPrefs[win.groupPref] === "folder") {
+  if (windowPrefs.group === "folder") {
     groupEntriesByFolder(entries).forEach(group => {
       const head = document.createElement("div");
       head.className = "window-group-header";
@@ -432,10 +532,25 @@ function appendCards(container, entries, win, expanded) {
   }
 }
 
-function makeDateDivider(label, count, first) {
+// Bucket divider: label · count on the left, the bucket's own "+" on the right.
+function makeBucketHeader(label, count, first, hint, onAdd) {
   const div = document.createElement("div");
-  div.className = "window-date-divider" + (first ? " window-date-divider-first" : "");
-  div.textContent = label + " · " + count;
+  div.className = "window-bucket-header" + (first ? " window-bucket-header-first" : "");
+  const text = document.createElement("span");
+  text.className = "window-bucket-label";
+  text.textContent = label + " · " + count;
+  if (hint) text.title = hint;
+  div.appendChild(text);
+  if (onAdd) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn-icon window-bucket-add";
+    btn.innerHTML = ICONS.plus;
+    btn.title = "Add a task here (" + label + ")";
+    btn.setAttribute("aria-label", "Add task to " + label);
+    btn.addEventListener("click", onAdd);
+    div.appendChild(btn);
+  }
   return div;
 }
 
@@ -493,16 +608,49 @@ function groupEntriesByFolder(entries) {
   return groups;
 }
 
+// ---------- Cards ----------
+
+// "Due in N" while a deadline is 1..deadline_high_days out. At 0 or past, escalatingTag
+// already shows Due Today / Overdue instead, so a card never carries both.
+function appendDeadlineCountdown(el, task, today) {
+  if (!task.deadline) return;
+  const days = calendarDaysBetween(today, task.deadline);
+  const limit = Math.max(1, Math.round(Number(settings.deadline_high_days)));
+  if (days >= 1 && days <= limit) el.appendChild(makeBadge("Due in " + days, "tag-badge tag-countdown"));
+}
+
+// Completing from a card: strike through at once, move after a short grace period (a second
+// click within it cancels). The grace period survives a re-render, since the timer, not the
+// element, is what's pending.
+function scheduleCardDone(task, el, checked) {
+  if (checked) {
+    if (pendingDone.has(task.id)) return;
+    el.classList.add("done-pending");
+    const timer = setTimeout(() => {
+      pendingDone.delete(task.id);
+      if (task.status === "active") toggleTaskDone(task);
+    }, DONE_GRACE_MS);
+    pendingDone.set(task.id, timer);
+  } else {
+    clearTimeout(pendingDone.get(task.id));
+    pendingDone.delete(task.id);
+    el.classList.remove("done-pending");
+  }
+}
+
 // One task card. Same heat-map as everywhere else: hue from the live quadrant, --p from
-// priority intensity. Compact = checkbox, title, tag (and the hover pencil). Expanded adds
-// the meta line, inline date inputs and the quick-win chip. Quick wins render slimmer.
+// priority intensity. Compact = checkbox, title, tags (and the hover pencil). Expanded adds
+// the meta line (not on Bite-size cards), the sizing chip, Now's countdown, Later's inline
+// do_date input. Bite-size cards render slimmer with a small bite icon.
 function renderWindowCard(entry, win, expanded) {
   const { task, assessment } = entry;
   const today = todayISODate();
+  const pending = pendingDone.has(task.id);
   const card = document.createElement("div");
   card.className = "window-card quadrant-" + assessment.quadrant.key
     + (task.is_quick_win ? " window-card-quick" : "")
-    + (expanded ? " window-card-expanded" : "");
+    + (expanded ? " window-card-expanded" : "")
+    + (pending ? " done-pending" : "");
   card.dataset.taskId = task.id;
   card.style.setProperty("--p", assessment.intensity.toFixed(3));
   card.title = [
@@ -511,7 +659,7 @@ function renderWindowCard(entry, win, expanded) {
     "importance " + task.importance,
     task.deadline ? "due " + task.deadline : "no deadline",
     task.do_date ? "planned " + task.do_date : null,
-    task.is_quick_win ? "quick win" : null,
+    task.is_quick_win ? "bite-size" : "main course",
   ].filter(Boolean).join(" · ");
   makeTaskDraggable(card, task, win.key);
 
@@ -521,9 +669,9 @@ function renderWindowCard(entry, win, expanded) {
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
   checkbox.className = "window-card-check";
-  checkbox.checked = false;
+  checkbox.checked = pending;
   checkbox.setAttribute("aria-label", "Mark done");
-  checkbox.addEventListener("change", () => toggleTaskDone(task));
+  checkbox.addEventListener("change", () => scheduleCardDone(task, card, checkbox.checked));
   card.appendChild(checkbox);
 
   const body = document.createElement("div");
@@ -531,16 +679,25 @@ function renderWindowCard(entry, win, expanded) {
 
   const titleLine = document.createElement("span");
   titleLine.className = "window-card-title-line";
+  if (task.is_quick_win) {
+    const icon = document.createElement("span");
+    icon.className = "window-card-bite";
+    icon.innerHTML = ICONS.bite;
+    icon.title = "Bite-size";
+    titleLine.appendChild(icon);
+  }
   const title = document.createElement("span");
   title.className = "window-card-title";
   title.textContent = task.title;
   titleLine.appendChild(title);
   appendTagBadge(titleLine, task, today);
+  if (win.key === "now" && expanded) appendDeadlineCountdown(titleLine, task, today);
+  appendRolloverBadge(titleLine, task);
   body.appendChild(titleLine);
 
   if (children.length > 0) body.appendChild(renderSubtaskProgress(children));
 
-  if (expanded) {
+  if (expanded && !task.is_quick_win) {
     const meta = document.createElement("span");
     meta.className = "window-card-meta";
     const context = taskContextLabel(task);
@@ -548,11 +705,11 @@ function renderWindowCard(entry, win, expanded) {
       context || null,
       assessment.quadrant.label,
       assessment.urgency.reason,
-      task.deadline ? "due " + task.deadline : null,
+      win.key === "later" && task.deadline ? "due " + task.deadline : null,
     ].filter(Boolean).join(" · ");
     body.appendChild(meta);
-    body.appendChild(renderInlineDates(task, card));
   }
+  if (expanded && win.key === "later") body.appendChild(renderInlineDates(task, card));
 
   if (children.length > 0 && !collapsedTasks.has(task.id)) {
     body.appendChild(renderCardSubtasks(children, win, today));
@@ -564,13 +721,13 @@ function renderWindowCard(entry, win, expanded) {
   actions.className = "window-card-actions";
 
   if (expanded) {
-    // Quick-win chip: toggles the display tag. Not a "touch" — it changes nothing about the
+    // Sizing chip: toggles the display tag. Not a "touch" — it changes nothing about the
     // task's scheduling, so it must not reset the staleness clock.
     const chip = document.createElement("button");
     chip.type = "button";
     chip.className = "window-chip" + (task.is_quick_win ? " active" : "");
-    chip.textContent = task.is_quick_win ? "quick win" : "tackle";
-    chip.title = task.is_quick_win ? "Quick win — click to mark as something to tackle" : "Need to tackle — click to mark as a quick win";
+    chip.textContent = task.is_quick_win ? "Bite-size" : "Main Course";
+    chip.title = task.is_quick_win ? "Bite-size — click to mark as a Main Course" : "Main Course — click to mark as Bite-size";
     chip.addEventListener("click", () => toggleQuickWin(task));
     actions.appendChild(chip);
   }
@@ -619,7 +776,8 @@ function renderCardSubtasks(children, win, today) {
 
 function renderCardSubtaskRow(task, win, today) {
   const row = document.createElement("div");
-  row.className = "window-subtask" + (task.status === "done" ? " done" : "");
+  const pending = pendingDone.has(task.id);
+  row.className = "window-subtask" + (task.status === "done" ? " done" : "") + (pending ? " done-pending" : "");
   const grandchildren = tasks.filter(t => t.parent_task_id === task.id);
 
   if (task.status === "active") {
@@ -642,9 +800,12 @@ function renderCardSubtaskRow(task, win, today) {
 
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
-  checkbox.checked = task.status === "done";
+  checkbox.checked = task.status === "done" || pending;
   checkbox.setAttribute("aria-label", "Mark done");
-  checkbox.addEventListener("change", () => toggleTaskDone(task));
+  checkbox.addEventListener("change", () => {
+    if (task.status === "done") toggleTaskDone(task); // undo is immediate
+    else scheduleCardDone(task, row, checkbox.checked);
+  });
   head.appendChild(checkbox);
 
   const titleLine = document.createElement("span");
@@ -654,6 +815,7 @@ function renderCardSubtaskRow(task, win, today) {
   title.textContent = task.title;
   titleLine.appendChild(title);
   appendTagBadge(titleLine, task, today);
+  appendRolloverBadge(titleLine, task);
   if (grandchildren.length > 0) titleLine.appendChild(renderSubtaskProgress(grandchildren));
   head.appendChild(titleLine);
 
@@ -674,34 +836,95 @@ function renderCardSubtaskRow(task, win, today) {
   return row;
 }
 
-// Inline do_date / deadline inputs (expanded cards only). While the pointer is over an input
-// the card stops being draggable, otherwise Chrome starts a drag instead of opening the picker.
+// Inline do_date input (Later's expanded cards only — Now shows the countdown instead).
+// Empty is a legitimate state. While the pointer is over the input the card stops being
+// draggable, otherwise Chrome starts a drag instead of opening the picker.
 function renderInlineDates(task, card) {
   const wrap = document.createElement("div");
   wrap.className = "window-card-dates";
 
-  const make = (labelText, value, onChange) => {
-    const label = document.createElement("label");
-    label.className = "window-card-date";
-    label.textContent = labelText;
-    const input = document.createElement("input");
-    input.type = "date";
-    input.value = value || "";
-    input.addEventListener("pointerenter", () => { card.draggable = false; });
-    input.addEventListener("pointerleave", () => { card.draggable = true; });
-    input.addEventListener("change", () => onChange(input.value));
-    label.appendChild(input);
-    return label;
-  };
-
-  wrap.appendChild(make("Do", task.do_date, value => inlineSetDoDate(task, value)));
-  wrap.appendChild(make("Due", task.deadline, value => inlineSetDeadline(task, value)));
+  const label = document.createElement("label");
+  label.className = "window-card-date";
+  label.textContent = "Do";
+  const input = document.createElement("input");
+  input.type = "date";
+  input.value = task.do_date || "";
+  input.addEventListener("pointerenter", () => { card.draggable = false; });
+  input.addEventListener("pointerleave", () => { card.draggable = true; });
+  input.addEventListener("change", () => inlineSetDoDate(task, input.value));
+  label.appendChild(input);
+  wrap.appendChild(label);
   return wrap;
 }
 
-// Empty-Now suggestion box: the top 3 Later tasks by priority, boxed up with an "Add all N"
-// button. Cards are the real renderWindowCard, source "later" — draggable into Now exactly
-// like any other Later card; the box is just a highlighted second look at them.
+// ---------- Completed Today (Now only) ----------
+// Every task completed today (completed_at's local date == today, whichever window or list it
+// was checked off in), in a folder collapsed by default at the bottom of Now. Nothing stored:
+// the set clears itself at the next day boundary because the date test is live.
+function renderCompletedToday(today) {
+  const done = tasks.filter(t => t.status === "done" && t.completed_at && toLocalDateString(t.completed_at) === today);
+  if (done.length === 0) return null;
+  done.sort((a, b) => (a.completed_at < b.completed_at ? 1 : a.completed_at > b.completed_at ? -1 : 0)); // newest first
+
+  const block = document.createElement("div");
+  block.className = "window-completed" + (completedTodayOpen ? " open" : "");
+
+  const header = document.createElement("button");
+  header.type = "button";
+  header.className = "window-completed-header";
+  header.setAttribute("aria-expanded", completedTodayOpen ? "true" : "false");
+  const caret = document.createElement("span");
+  caret.className = "folder-caret";
+  caret.textContent = "▼";
+  header.appendChild(caret);
+  const label = document.createElement("span");
+  label.className = "window-completed-label";
+  label.textContent = "Completed Today";
+  header.appendChild(label);
+  const count = document.createElement("span");
+  count.className = "window-count";
+  count.textContent = done.length;
+  header.appendChild(count);
+  header.addEventListener("click", () => {
+    completedTodayOpen = !completedTodayOpen;
+    render();
+  });
+  block.appendChild(header);
+
+  if (completedTodayOpen) {
+    const list = document.createElement("div");
+    list.className = "window-completed-list";
+    done.forEach(task => {
+      const row = document.createElement("label");
+      row.className = "window-completed-row";
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = true;
+      checkbox.setAttribute("aria-label", "Reopen " + task.title);
+      checkbox.addEventListener("change", () => toggleTaskDone(task));
+      row.appendChild(checkbox);
+      const title = document.createElement("span");
+      title.className = "window-completed-title";
+      title.textContent = task.title;
+      row.appendChild(title);
+      const context = taskContextLabel(task);
+      if (context) {
+        const meta = document.createElement("span");
+        meta.className = "window-habit-meta";
+        meta.textContent = context;
+        row.appendChild(meta);
+      }
+      list.appendChild(row);
+    });
+    block.appendChild(list);
+  }
+  return block;
+}
+
+// ---------- Empty-Now suggestion ----------
+// The top 3 Later tasks by priority, boxed up with an "Add all N" button. Cards are the real
+// renderWindowCard, source "later" — draggable into Now exactly like any other Later card;
+// the box is just a highlighted second look at them.
 function renderSuggestionBox(suggested, expanded) {
   const box = document.createElement("div");
   box.className = "window-suggestion";
@@ -769,7 +992,7 @@ function renderFocusOverlay(ranked, today) {
   if (!open) return;
 
   const members = ranked.filter(entry => WINDOWS.now.member(entry, today) && entry.task.do_date === today);
-  const entries = topLevelEntries(sortWindowEntries(members, windowPrefs.nowSort));
+  const entries = topLevelEntries(sortWindowEntries(members, windowPrefs.sort));
   document.getElementById("focus-count").textContent = members.length;
   document.getElementById("focus-close-btn").innerHTML = ICONS.close; // ICONS is app.js's, loaded after this file
   focusBody.innerHTML = "";
@@ -790,36 +1013,35 @@ document.addEventListener("keydown", e => {
 
 // ---------- Actions ----------
 
-// Puts a task in Now for today. `manual` = the user did it (drag, "+ Add task", the divider
-// drag), which makes it a quick win by default and counts as a genuine edit (touches
-// last_touched_at). A manual add of a task with no deadline first asks for one (Now-window
-// deadline prompt), so nothing can roll forward in Now indefinitely with nothing else forcing
-// it to surface. Returns a promise resolving once the add (or its prompt) settles, so callers
-// that chain several adds (the empty-Now "Add all N" suggestion) can await it.
+// Puts a task in Now for today. `manual` = the user did it (drag, "+ Add", a bucket drop),
+// which counts as a genuine edit (touches last_touched_at). A manual add of a task with no
+// deadline first asks for one (Now-window deadline prompt), so nothing can roll forward in
+// Now indefinitely with nothing else forcing it to surface. A genuine do_date write, so the
+// rollover count starts over. Resolves true once the task is in Now for today, false if the
+// prompt was cancelled or there was nothing to do.
 function addToNow(task, opts) {
   const manual = !!(opts && opts.manual);
   const today = todayISODate();
-  if (task.status !== "active" || task.do_date === today) return Promise.resolve();
+  if (task.status !== "active" || task.do_date === today) return Promise.resolve(false);
 
   const finish = () => {
     task.do_date = today;
-    if (manual) {
-      task.is_quick_win = true;
-      task.last_touched_at = new Date().toISOString();
-    }
+    task.do_date_rollover_count = 0;
+    if (manual) task.last_touched_at = new Date().toISOString();
     persist();
     render();
   };
 
   if (manual && !task.deadline) {
     return promptForDeadline(task, NOW_DEADLINE_PROMPT).then(date => {
-      if (!date) return; // cancelled: leave the task where it was
+      if (!date) return false; // cancelled: leave the task where it was
       task.deadline = date;
       finish();
+      return true;
     });
   }
   finish();
-  return Promise.resolve();
+  return Promise.resolve(true);
 }
 
 // Deprioritize: dragging a task out of Now (onto Later, the main list, or focus mode's
@@ -832,7 +1054,7 @@ function addToNow(task, opts) {
 //    deadline if there is one, null if not, and last_touched_at legitimately updates (unlike
 //    passive rollover, which never touches it). The live quadrant then settles into Plan or
 //    Backlog on its own, which is exactly what Later's plain quadrant rule picks up.
-// Returns a promise, like addToNow.
+// Either way a genuine do_date write: the rollover count resets. Returns a promise.
 function deprioritize(task) {
   const today = todayISODate();
   if (task.status !== "active" || !isNowMember(task, assessTask(task, settings, today), today)) return Promise.resolve();
@@ -847,6 +1069,7 @@ function deprioritize(task) {
       if (!date) return; // cancelled: it stays
       task.deadline = date;
       task.do_date = date;
+      task.do_date_rollover_count = 0;
       task.last_touched_at = new Date().toISOString();
       persist();
       render();
@@ -854,6 +1077,7 @@ function deprioritize(task) {
   }
 
   task.do_date = task.deadline || null;
+  task.do_date_rollover_count = 0;
   task.last_touched_at = new Date().toISOString();
   persist();
   render();
@@ -861,48 +1085,66 @@ function deprioritize(task) {
   return Promise.resolve();
 }
 
-// The lighter divider-drag action (Do date sort, Now): clears "today" status only. No prompt,
-// no touch — the live quadrant decides whether the task stays in Now (still urgent underneath)
-// or leaves (today was its only reason).
-function clearDoToday(task) {
-  if (task.do_date !== todayISODate()) return;
-  task.do_date = task.deadline || null;
+function setQuickWin(task, value) {
+  if (!!task.is_quick_win === !!value) return;
+  task.is_quick_win = !!value;
   persist();
   render();
 }
 
 function toggleQuickWin(task) {
-  task.is_quick_win = !task.is_quick_win;
-  persist();
-  render();
+  setQuickWin(task, !task.is_quick_win);
 }
 
-// Inline do_date edit (expanded cards). A genuine edit, so it touches last_touched_at. Setting
-// a date on a deadline-less task runs the same deadline prompt as adding to Now would.
-function inlineSetDoDate(task, value) {
+// An explicit do_date write — the inline field, a bucket drop, Later's with-date drop. A
+// genuine edit: touches last_touched_at and resets the rollover count. Setting a date on a
+// deadline-less task runs the same deadline prompt as adding to Now would. Guard rail: a
+// do_date after the task's deadline (planning to do it once it's already due) asks first.
+// Resolves true when the write happened.
+function setDoDateExplicit(task, value) {
   const next = value || null;
-  if (next === (task.do_date || null)) return;
+  if (next === (task.do_date || null)) return Promise.resolve(false);
+  if (next && task.deadline && next > task.deadline) {
+    const ok = confirm("That's after this task's deadline (" + task.deadline + ") — planning to do it once it's already due. Set it anyway?");
+    if (!ok) { render(); return Promise.resolve(false); } // re-render puts the old value back
+  }
   const finish = () => {
     task.do_date = next;
+    task.do_date_rollover_count = 0;
     task.last_touched_at = new Date().toISOString();
     persist();
     render();
   };
   if (next && !task.deadline) {
-    promptForDeadline(task, NOW_DEADLINE_PROMPT).then(date => {
-      if (!date) { render(); return; } // cancelled: re-render puts the old value back
+    return promptForDeadline(task, NOW_DEADLINE_PROMPT).then(date => {
+      if (!date) { render(); return false; } // cancelled: re-render puts the old value back
       task.deadline = date;
       finish();
+      return true;
     });
-    return;
   }
   finish();
+  return Promise.resolve(true);
 }
 
-// Inline deadline edit (expanded cards). Same rules as the task form: a newly set deadline
-// defaults do_date (if empty), and the deadline requirement blocks leaving a High/Critical
-// task dateless in Plan. Editing the deadline here before dragging out sidesteps the
-// reschedule prompt entirely — the deadline's already been dealt with.
+// Inline do_date edit (Later's expanded cards, the Overview's expanded list).
+function inlineSetDoDate(task, value) {
+  return setDoDateExplicit(task, value);
+}
+
+// Later's "No do date" drop: unplan it. A genuine edit.
+function clearDoDate(task) {
+  if (!task.do_date) return;
+  task.do_date = null;
+  task.do_date_rollover_count = 0;
+  task.last_touched_at = new Date().toISOString();
+  persist();
+  render();
+}
+
+// Inline deadline edit (the Overview's expanded list, Now's Urgency bucket drops). Same rules
+// as the task form: a newly set deadline defaults do_date (if empty), and the deadline
+// requirement blocks leaving a High/Critical task dateless in Plan.
 function inlineSetDeadline(task, value) {
   const next = value || null;
   if (next === (task.deadline || null)) return;
@@ -920,8 +1162,9 @@ function inlineSetDeadline(task, value) {
   render();
 }
 
-// Inline importance edit (the Overview's expanded priority list). Same deadline requirement
-// as the form: raising a dateless task to High/Critical while it would sit in Plan is blocked.
+// Inline importance edit (the Overview's expanded priority list, Importance bucket drops).
+// Same deadline requirement as the form: raising a dateless task to High/Critical while it
+// would sit in Plan is blocked — a drop is a shortcut for the edit, never a way around it.
 function inlineSetImportance(task, value) {
   if (!IMPORTANCE_SCORES[value] || value === task.importance) return;
   const now = new Date().toISOString();
@@ -937,33 +1180,37 @@ function inlineSetImportance(task, value) {
   render();
 }
 
-// Now's "+ Add task": the task form, prefilled as a quick win planned for today with the
-// Now-window default deadline already in place (editable before saving).
-function addTaskToNowDirectly() {
-  if (folders.length === 0) {
-    alert("Add a folder first.");
-    return;
-  }
+// The folder a new task defaults to: the first folder in the active category filter.
+function defaultFolderPrefill() {
+  if (folders.length === 0) return null;
   const candidates = activeCategoryFilter !== "all" ? folders.filter(f => f.category_id === activeCategoryFilter) : folders;
-  openTaskModal({
-    folder_id: (candidates[0] || folders[0]).id,
-    do_date: todayISODate(),
-    is_quick_win: true,
-    deadline: defaultNowDeadline(),
-  });
+  return { folder_id: (candidates[0] || folders[0]).id };
 }
 
-// Later's "+ Add task": the plain shared form, no special prefill — unlike Now there's no
+// Now's global "+": the task form planned for today, with a deadline the day after tomorrow —
+// some real leeway rather than "due today" by default. Both stay freely editable.
+function addTaskToNowDirectly() {
+  const base = defaultFolderPrefill();
+  if (!base) { alert("Add a folder first."); return; }
+  const today = todayISODate();
+  openTaskModal(Object.assign(base, { do_date: today, deadline: addDaysISODate(today, 2) }));
+}
+
+// Later's global "+": the plain shared form, no special prefill — unlike Now there's no
 // single default (Plan vs. Backlog falls out of importance/urgency after the fact, not a
 // choice made upfront). The existing deadline requirement (High/Critical can't sit in Plan
 // without one) already applies on save, nothing extra needed here.
 function addTaskToLaterDirectly() {
-  if (folders.length === 0) {
-    alert("Add a folder first.");
-    return;
-  }
-  const candidates = activeCategoryFilter !== "all" ? folders.filter(f => f.category_id === activeCategoryFilter) : folders;
-  openTaskModal({ folder_id: (candidates[0] || folders[0]).id });
+  const base = defaultFolderPrefill();
+  if (!base) { alert("Add a folder first."); return; }
+  openTaskModal(base);
+}
+
+// A bucket's own "+": the shared form pre-filled to belong in that bucket.
+function addTaskFromBucket(prefill) {
+  const base = defaultFolderPrefill();
+  if (!base) { alert("Add a folder first."); return; }
+  openTaskModal(Object.assign(base, prefill));
 }
 
 // ---------- Deadline prompt ----------
@@ -973,8 +1220,8 @@ function addTaskToLaterDirectly() {
 
 const NOW_DEADLINE_PROMPT = Object.freeze({
   heading: "Set a deadline",
-  text: "Anything in Now needs a real deadline, so it can't roll forward forever unnoticed. Set one for",
-  confirmLabel: "Add to Now",
+  text: "Anything planned for a day needs a real deadline, so it can't roll forward forever unnoticed. Set one for",
+  confirmLabel: "Set date",
 });
 
 const nowDeadlineModal = document.getElementById("now-deadline-modal");
@@ -1018,8 +1265,8 @@ nowDeadlineModal.addEventListener("click", e => {
 // HTML5 DnD. Sources: active rows in the main list ("list"), Now cards ("now"), Later cards
 // ("later"). Drop zones: the Now window (adds, from anywhere but Now itself); the main list,
 // the Later window and focus mode's backdrop (deprioritize, only for a drag that started in
-// Now — so dragging a list row and dropping it back on the list is a no-op); and, in Do date
-// sort, the today / other zones inside Now (the divider drag, source "now" only).
+// Now — so dragging a list row and dropping it back on the list is a no-op); and, in the
+// bucketed sorts, each bucket inside a window (wireBucketDrop). Habit rows are never sources.
 
 const DRAG_MIME = "text/task-id";
 let dragState = null; // { taskId, source } while a drag is in progress
@@ -1044,8 +1291,9 @@ function makeTaskDraggable(el, task, source) {
 }
 
 // `accepts(source, event)` decides whether this zone lights up for the current drag. An
-// accepted dragover/drop stops propagating, so a zone nested inside another (the divider
-// zones inside the Now window, the focus panel inside its backdrop) is the only one that acts.
+// accepted dragover/drop stops propagating, so a zone nested inside another (the buckets
+// inside a window, the focus panel inside its backdrop) is the only one that acts.
+// `onDrop(task, source)` gets the drag's source window too.
 function wireDropZone(el, accepts, onDrop) {
   el.addEventListener("dragover", e => {
     if (!dragState || !accepts(dragState.source, e)) return;
@@ -1064,9 +1312,10 @@ function wireDropZone(el, accepts, onDrop) {
     el.classList.remove("drop-target");
     let id = "";
     try { id = e.dataTransfer.getData(DRAG_MIME); } catch (err) { id = ""; }
+    const source = dragState.source;
     const task = tasks.find(t => t.id === (id || dragState.taskId));
     dragState = null;
-    if (task) onDrop(task);
+    if (task) onDrop(task, source);
   });
 }
 
@@ -1077,5 +1326,5 @@ wireDropZone(document.getElementById("folder-list"), source => source === "now",
 wireDropZone(focusOverlay, (source, e) => source === "now" && !focusPanel.contains(e.target), task => deprioritize(task));
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { WINDOW_SORT_KEYS, WINDOW_GROUP_MODES, compareDoDates, sortWindowEntries, splitByDoDate, groupEntriesByFolder, topLevelEntries };
+  module.exports = { WINDOW_SORT_KEYS, WINDOW_GROUP_MODES, compareDoDates, sortWindowEntries, bucketWindowEntries, bucketsTakeHabits, groupEntriesByFolder, topLevelEntries };
 }

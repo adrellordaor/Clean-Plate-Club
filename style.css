@@ -85,6 +85,7 @@
      "washed card" levels shared by all of them. */
   --weekly-h: 256;
   --daily-h: 199;
+  --monthly-h: 330;
   --recurring-body-s: 40%; --recurring-body-l: 97%;  /* whole-card wash, incl. nested sections */
   --recurring-tint-s: 55%;  --recurring-tint-l: 93%;  /* header strip: a bit richer than the card */
   --recurring-acc-s: 62%;   --recurring-acc-l: 40%;   /* border / title / fraction */
@@ -577,6 +578,25 @@ body {
   color: hsl(var(--daily-h) var(--recurring-acc-s) var(--recurring-acc-l));
 }
 
+/* Monthly: the third box, same treatment with its own hue (--monthly-h). */
+#recurring-monthly {
+  border-top-color: hsl(var(--monthly-h) var(--recurring-acc-s) var(--recurring-acc-l));
+  background: hsl(var(--monthly-h) var(--recurring-body-s) var(--recurring-body-l));
+}
+
+#recurring-monthly .recurring-box-header {
+  background: hsl(var(--monthly-h) var(--recurring-tint-s) var(--recurring-tint-l));
+}
+
+#recurring-monthly .recurring-folder-section {
+  background: hsl(var(--monthly-h) var(--recurring-body-s) var(--recurring-body-l));
+}
+
+#recurring-monthly .recurring-box-title,
+#recurring-monthly .recurring-box-fraction {
+  color: hsl(var(--monthly-h) var(--recurring-acc-s) var(--recurring-acc-l));
+}
+
 .recurring-box-body {
   padding: 0.6rem 0.75rem 0.75rem;
   display: flex;
@@ -1065,8 +1085,11 @@ body {
   outline-offset: 1px;
 }
 
-/* Do-date layout: thin rule + tiny label between date groups. */
-.window-date-divider {
+/* Bucket divider: thin rule + tiny label on the left, the bucket's own "+" on the right. */
+.window-bucket-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   font-size: 0.66rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -1077,15 +1100,29 @@ body {
   margin-top: 0.35rem;
 }
 
-.window-date-divider-first {
+.window-bucket-header-first {
   border-top: none;
   padding-top: 0;
   margin-top: 0;
 }
 
-/* Today / other zones in Now: each a drop target for the divider drag, kept droppable even
+.window-bucket-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.window-bucket-add {
+  padding: 0.05rem;
+  opacity: 0.55;
+}
+
+.window-bucket-add:hover {
+  opacity: 1;
+}
+
+/* Buckets: each a drop target that makes a dropped card belong there, kept droppable even
    when empty. */
-.window-date-zone {
+.window-bucket {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
@@ -1228,7 +1265,7 @@ body {
   opacity: 1;
 }
 
-/* Quick-win chip: a toggle between "quick win" (filled) and "tackle" (outlined). */
+/* Sizing chip: a toggle between "Bite-size" (filled) and "Main Course" (outlined). */
 .window-chip {
   font: inherit;
   font-size: 0.66rem;
@@ -1260,20 +1297,14 @@ body {
   font-weight: 500;
 }
 
+/* Bite-size cards never show the meta line, expanded or not — small by definition. */
 .window-card-quick .window-card-meta {
   display: none;
 }
 
-/* Expanded quick wins still get the inline fields and meta line — the slimmer padding is the
-   only thing kept from the compact variant. */
-.window-card-quick.window-card-expanded .window-card-meta {
-  display: block;
-}
-
 /* No meta line to protect, so the body doesn't need the full 140px reserved for normal
-   cards — that reservation was forcing the (wider) "QUICK WIN" chip to wrap onto its own
-   line before the (narrower) "TACKLE" chip did, making quick wins the taller card at narrow
-   widths, backwards from the compact design intent. */
+   cards — that reservation was forcing the (wider) sizing chip to wrap onto its own line,
+   making bite-size cards the taller card at narrow widths, backwards from the intent. */
 .window-card-quick .window-card-body {
   flex-basis: 60px;
 }
@@ -1429,6 +1460,7 @@ body {
 
 .habit-daily { --habit-h: var(--daily-h); }
 .habit-weekly { --habit-h: var(--weekly-h); }
+.habit-monthly { --habit-h: var(--monthly-h); }
 
 .window-habit input[type="checkbox"] {
   cursor: pointer;
@@ -1710,26 +1742,6 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-}
-
-/* "Same as do date": only shown (via the native `hidden` attribute) while the form has a
-   do_date set — see updateDeadlineSyncVisibility in app.js. */
-.task-deadline-sync-row {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-.task-deadline-sync-row[hidden] {
-  display: none;
-}
-
-.task-deadline-sync-row input {
-  width: auto;
-  cursor: pointer;
 }
 
 .checkbox-label {
@@ -3016,4 +3028,234 @@ body {
   .calendar-cell-num {
     font-size: 0.7rem;
   }
+}
+
+/* ---- Windows: shared grouping strip, global "+" icons ---- */
+/* The one flat / by-folder switch for both windows, right-aligned above them. */
+.windows-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.5rem;
+}
+
+/* The plain global "+" at the right end of each window's controls row (where the per-window
+   grouping switch used to sit). */
+.window-add-icon {
+  margin-left: auto;
+  padding: 0.15rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+}
+
+/* ---- Cards: bite icon, countdown, rollover / missed badges, completion grace period ---- */
+.window-card-bite {
+  display: inline-flex;
+  align-items: center;
+  color: var(--row-accent, var(--text-muted));
+  flex-shrink: 0;
+}
+
+.window-card-bite svg {
+  display: block;
+}
+
+/* "Due in N": shown while a deadline approaches; at 0 the Due Today / Overdue tag replaces it. */
+.tag-countdown {
+  background: var(--bg);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+}
+
+/* "Rolled 3x": plain, no tiers. */
+.badge-rolled {
+  background: var(--bg);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* "Missed yesterday / last week / last month": the habit nudge. */
+.badge-missed {
+  background: var(--tag-due-today-bg);
+  color: var(--tag-due-today-text);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Checked, waiting out the grace period before it moves to Completed Today. */
+.window-card.done-pending .window-card-title,
+.window-subtask.done-pending .window-subtask-title {
+  text-decoration: line-through;
+  color: var(--done);
+}
+
+.window-card.done-pending {
+  opacity: 0.7;
+}
+
+/* ---- Completed Today folder (Now only) ---- */
+.window-completed {
+  margin-top: 0.6rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.4rem;
+}
+
+.window-completed-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.2rem 0.1rem;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  text-align: left;
+}
+
+.window-completed-header .folder-caret {
+  transform: rotate(-90deg);
+}
+
+.window-completed.open .window-completed-header .folder-caret {
+  transform: none;
+}
+
+.window-completed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-top: 0.3rem;
+}
+
+.window-completed-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.window-completed-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.82rem;
+  text-decoration: line-through;
+  color: var(--done);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- Task form: week-strip do_date picker and the sizing toggle ---- */
+.form-row-picker {
+  align-items: flex-start;
+}
+
+.week-picker-field {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.size-toggle-field {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.week-picker-title {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-bottom: 0.35rem;
+}
+
+.week-picker {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.3rem;
+}
+
+.week-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.05rem;
+  padding: 0.3rem 0.1rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.week-day:hover {
+  border-color: var(--accent);
+}
+
+.week-day-today {
+  border-style: dashed;
+}
+
+.week-day.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.week-day-letter {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.week-day-num {
+  font-size: 0.68rem;
+  opacity: 0.8;
+}
+
+.week-picker-extra {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.35rem;
+}
+
+.week-picker-extra input[type="date"] {
+  width: auto;
+  margin: 0;
+}
+
+.week-picker-more,
+.week-picker-clear {
+  font-size: 0.8rem;
+}
+
+/* Sizing toggle: its text is its state ("Bite-size" filled, "Main Course" outlined). */
+.size-toggle {
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.size-toggle[aria-pressed="true"] {
+  background: var(--accent);
+  color: #fff;
 }

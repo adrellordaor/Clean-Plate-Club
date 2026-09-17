@@ -95,6 +95,7 @@
          drag a Later card into Now to plan it for today, drag a Now card onto Later to
          deprioritize it (a close deadline forces a reschedule prompt; otherwise do_date resets
          and the task settles into Plan/Backlog on its own). -->
+    <div id="windows-toolbar" class="windows-toolbar" aria-label="Window grouping"></div>
     <div id="windows-row" class="windows-row">
       <section id="now-window" class="window-panel window-now" aria-label="Now"></section>
       <section id="later-window" class="window-panel window-later" aria-label="Later"></section>
@@ -106,6 +107,7 @@
         <div id="folder-list" class="folder-list"></div>
       </div>
       <aside class="recurring-column">
+        <div id="recurring-monthly" class="recurring-box"></div>
         <div id="recurring-weekly" class="recurring-box"></div>
         <div id="recurring-daily" class="recurring-box"></div>
       </aside>
@@ -139,15 +141,9 @@
       </label>
 
       <div class="form-row">
-        <div class="form-field-stack">
-          <label>Deadline
-            <input type="date" id="task-deadline">
-          </label>
-          <label class="task-deadline-sync-row" id="task-deadline-sync-row" hidden>
-            <input type="checkbox" id="task-deadline-sync">
-            Same as do date
-          </label>
-        </div>
+        <label>Deadline
+          <input type="date" id="task-deadline">
+        </label>
 
         <label>Importance
           <select id="task-importance">
@@ -159,15 +155,24 @@
         </label>
       </div>
 
-      <div class="form-row">
-        <label>Planned for (do date)
-          <input type="date" id="task-do-date">
-        </label>
+      <!-- Week-strip do_date picker: seven boxes (today first), one tap picks a day. The native
+           date input underneath is the source of truth and doubles as the calendar expansion
+           for anything further out. See renderWeekPicker in app.js. -->
+      <div class="form-row form-row-picker">
+        <div class="week-picker-field">
+          <span class="week-picker-title">Planned for (do date)</span>
+          <div id="task-week-picker" class="week-picker" role="group" aria-label="Pick a day this week"></div>
+          <div class="week-picker-extra">
+            <input type="date" id="task-do-date" aria-label="Do date" hidden>
+            <button type="button" id="task-do-date-more" class="link-btn week-picker-more">More dates…</button>
+            <button type="button" id="task-do-date-clear" class="link-btn week-picker-clear" hidden>Clear</button>
+          </div>
+        </div>
 
-        <label class="checkbox-label">
-          <input type="checkbox" id="task-quick-win">
-          Quick win
-        </label>
+        <div class="size-toggle-field">
+          <span class="week-picker-title">Size</span>
+          <button type="button" id="task-quick-win" class="size-toggle" aria-pressed="true">Bite-size</button>
+        </div>
       </div>
       <p class="settings-hint">A planned date puts the task in the Now window that day (it rolls forward until done); anything already in Do or Clear shows there regardless. High/Critical tasks need a deadline.</p>
 
@@ -284,6 +289,7 @@
           <select id="recurring-cadence">
             <option value="daily">Daily</option>
             <option value="weekly">Weekly</option>
+            <option value="monthly">Monthly</option>
           </select>
         </label>
 
@@ -297,6 +303,14 @@
             <option value="5">Friday</option>
             <option value="6">Saturday</option>
             <option value="0">Sunday</option>
+          </select>
+        </label>
+
+        <!-- Day options 1–31 are filled in by app.js; a day past a short month's end clamps
+             to that month's last day. -->
+        <label id="recurring-dom-label" hidden>Monthly on day
+          <select id="recurring-dom">
+            <option value="">— no set day (last day of month) —</option>
           </select>
         </label>
       </div>
@@ -423,8 +437,11 @@
           <label>Weekly habits in Now: days before week end
             <input type="number" id="setting-weekly-recurring-now" min="0" max="6" step="1" required>
           </label>
+          <label>Monthly habits in Now: days before month end
+            <input type="number" id="setting-monthly-recurring-now" min="0" max="30" step="1" required>
+          </label>
         </div>
-        <p class="settings-hint">Windows is the everyday Now/Later layout; Full is the complete folder-organized page with category tabs and the habit boxes. Daily habits always appear in Now; a weekly habit appears on its own weekday and once the (Monday-start) week is this many days from ending — 3 means from Thursday on. Habits never join the scoring.</p>
+        <p class="settings-hint">Windows is the everyday Now/Later layout; Full is the complete folder-organized page with category tabs and the habit boxes. Daily habits always appear in Now; a weekly habit appears on its own weekday and once the (Monday-start) week is this many days from ending — 3 means from Thursday on; a monthly habit likewise on its day-of-month or this many days before the month ends. Weekly and monthly habits not due soon sit in Later instead. Habits never join the scoring.</p>
       </fieldset>
 
       <fieldset class="settings-group">
@@ -440,7 +457,7 @@
             <input type="number" id="setting-daily-capacity" min="0.5" step="0.5" required>
           </label>
         </div>
-        <p class="settings-hint">Pace is the existing red/green/blue/gray coloring. Capacity instead shades each day by effort ÷ this many points: a regular task is worth 1 point as a quick win or 2 as a "need to tackle," a recurring habit completion/occurrence is a flat 1. Past days count what actually got done (completed_at); future days count what's scheduled (do_date). A distinct marker appears once a day crosses 100%.</p>
+        <p class="settings-hint">Pace is the existing red/green/blue/gray coloring. Capacity instead shades each day by effort ÷ this many points: a regular task is worth 1 point as Bite-size or 2 as a Main Course, a recurring habit completion/occurrence is a flat 1. Past days count what actually got done (completed_at); future days count what's scheduled (do_date). A distinct marker appears once a day crosses 100%.</p>
       </fieldset>
 
       <p id="settings-error" class="settings-error" aria-live="polite"></p>

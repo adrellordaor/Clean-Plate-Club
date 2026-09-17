@@ -35,6 +35,9 @@ const ICONS = {
   minimize: `<svg ${SVG_ATTRS}><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`,
   focus: `<svg ${SVG_ATTRS}><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/></svg>`,
   close: `<svg ${SVG_ATTRS}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`,
+  plus: `<svg ${SVG_ATTRS}><path d="M12 5v14"/><path d="M5 12h14"/></svg>`,
+  // Bite-size marker: a small apple with a bite out of it, drawn at 12px on cards.
+  bite: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6c-1.5-1.5-4.5-1.5-6 1-2 3-1 8 1.5 11 1.2 1.5 3 1.5 4.5.5 1.5 1 3.3 1 4.5-.5a10 10 0 0 0 2.2-4.5c-2.5-.2-4.2-2.3-3.7-4.8-1-.3-2-1.5-3-2.7Z"/><path d="M12 6c0-2 1-3 3-3.5"/></svg>`,
 };
 
 let categories = []; // Category: top-level grouping, drives the tabs.
@@ -86,6 +89,7 @@ function loadState(data) {
   if (version < 6) migrateTasksToV6(tasks, todayISODate());
   if (version < 7) quadrantHistory = resetToV7(tasks);
   tasks.forEach(normalizeTaskFields);
+  recurringTasks.forEach(normalizeRecurringFields);
 }
 
 // One-time v7 reset, gated on the file's version. The pre-v7 Now window auto-populated
@@ -131,7 +135,16 @@ function migrateTasksToV6(taskList, today) {
 function normalizeTaskFields(task) {
   if (task.do_date === undefined) task.do_date = null;
   if (typeof task.is_quick_win !== "boolean") task.is_quick_win = false;
+  if (!Number.isInteger(task.do_date_rollover_count) || task.do_date_rollover_count < 0) task.do_date_rollover_count = 0;
   if ("manual_urgent_flag" in task) delete task.manual_urgent_flag;
+}
+
+// Same for RecurringTasks: the monthly / missed-flag fields on a habit written before they
+// existed. created_at stays null for those (read as "existed before tracking started").
+function normalizeRecurringFields(rt) {
+  if (rt.day_of_month === undefined) rt.day_of_month = null;
+  if (typeof rt.missed_last_period !== "boolean") rt.missed_last_period = false;
+  if (rt.created_at === undefined) rt.created_at = null;
 }
 
 function serializeState() {
@@ -200,14 +213,29 @@ function runDailyMaintenance() {
     changed = true;
     const next = addDaysISODate(day, 1);
     tasks.forEach(task => {
-      if (task.status === "active" && task.do_date === day && !plannedTaskDone(task, day)) task.do_date = next;
+      if (task.status === "active" && task.do_date === day && !plannedTaskDone(task, day)) {
+        task.do_date = next;
+        task.do_date_rollover_count = (task.do_date_rollover_count || 0) + 1; // passive: never a touch
+      }
     });
   }
 
-  // 2. Roll over whatever is still in the past.
+  // 2. Roll over whatever is still in the past. Each silent roll bumps do_date_rollover_count
+  //    (the only thing that distinguishes "added today" from "dodged for a week"); it resets
+  //    on any genuine do_date write. Like the roll itself, never a touch.
   tasks.forEach(task => {
     if (task.status === "active" && task.do_date && task.do_date < today) {
       task.do_date = today;
+      task.do_date_rollover_count = (task.do_date_rollover_count || 0) + 1;
+      changed = true;
+    }
+  });
+
+  // 3. Habit reset boundary: refresh missed_last_period from the previous period's log.
+  recurringTasks.forEach(rt => {
+    const missed = computeMissedLastPeriod(rt, today, completionLog);
+    if (rt.missed_last_period !== missed) {
+      rt.missed_last_period = missed;
       changed = true;
     }
   });
@@ -255,8 +283,9 @@ function makeTask(overrides) {
     last_touched_at: now,
     deadline: null,       // the real consequence date; drives urgency, never changes on its own
     do_date: null,        // "YYYY-MM-DD" the user intends to tackle it (or the deadline default); rolls forward daily
+    do_date_rollover_count: 0, // consecutive silent rollovers; reset by any genuine do_date write
     importance: "Low",
-    is_quick_win: false,  // display/organization tag only ("knock it out" vs "need to tackle"); no scoring effect
+    is_quick_win: true,   // "Bite-size" (true) vs "Main Course" sizing: display/organization only, no scoring effect
     status: "active",
     completed_at: null,
   }, overrides);
@@ -267,10 +296,13 @@ function makeRecurringTask(overrides) {
     id: makeId(),
     folder_id: null,
     title: "",
-    cadence: "daily", // "daily" | "weekly"
+    cadence: "daily", // "daily" | "weekly" | "monthly"
     weekday: null, // 0 (Sun) - 6 (Sat), weekly only; optional, null reads as Sunday (recurringWeekday)
     // and doubles as the habit's "do date" for Now inclusion (isRecurringNowMember)
+    day_of_month: null, // 1-31, monthly only; optional, null reads as the month's last day (recurringDayOfMonth)
     last_completed_date: null, // "YYYY-MM-DD"; checking off sets this to today
+    missed_last_period: false, // previous day/week/month went by uncompleted (runDailyMaintenance); cleared on completion
+    created_at: new Date().toISOString(), // so a brand-new habit isn't flagged for a period it didn't exist in
   }, overrides);
 }
 
@@ -297,18 +329,23 @@ function isRecurringDoneNow(rt) {
   if (!rt.last_completed_date) return false;
   const today = todayISODate();
   if (rt.cadence === "daily") return rt.last_completed_date === today;
-  return rt.last_completed_date >= startOfWeekISODate(today) && rt.last_completed_date <= today;
+  const period = periodRangeFor(rt.cadence, today); // Mon–Sun week, or the calendar month
+  return rt.last_completed_date >= period.start && rt.last_completed_date <= today;
 }
 
+// Completing clears the missed flag on the spot ("back on track"); undoing recomputes it
+// from the log, so a mis-click doesn't lose the nudge.
 function toggleRecurringTask(rt) {
+  const today = todayISODate();
   if (isRecurringDoneNow(rt)) {
     const loggedDate = rt.last_completed_date;
     completionLog = completionLog.filter(l => !(l.recurring_task_id === rt.id && l.completed_date === loggedDate));
     rt.last_completed_date = null;
+    rt.missed_last_period = computeMissedLastPeriod(rt, today, completionLog);
   } else {
-    const today = todayISODate();
     rt.last_completed_date = today;
     completionLog.push({ id: makeId(), recurring_task_id: rt.id, completed_date: today });
+    rt.missed_last_period = false;
   }
   persist();
   render();
@@ -715,6 +752,7 @@ function renderTaskRow(task) {
   titleLine.appendChild(title);
 
   appendTagBadge(titleLine, task, today);
+  appendRolloverBadge(titleLine, task);
   if (task.importance === "Critical") {
     titleLine.appendChild(makeBadge("Critical", "badge-critical"));
   } else if (task.importance === "High") {
@@ -820,6 +858,20 @@ function appendTagBadge(el, task, today) {
   return tag;
 }
 
+// "Rolled 3x": the plain rollover-count tag, shown from the first silent rollover on. No
+// tiers, no color — just the number, wherever a task appears.
+function appendRolloverBadge(el, task) {
+  const n = task.do_date_rollover_count || 0;
+  if (n >= 1 && task.status === "active") el.appendChild(makeBadge("Rolled " + n + "x", "badge-rolled"));
+}
+
+// "Missed yesterday / last week / last month": the habit's missed_last_period nudge.
+const MISSED_LABELS = Object.freeze({ daily: "Missed yesterday", weekly: "Missed last week", monthly: "Missed last month" });
+
+function appendMissedBadge(el, rt) {
+  if (rt.missed_last_period && MISSED_LABELS[rt.cadence]) el.appendChild(makeBadge(MISSED_LABELS[rt.cadence], "badge-missed"));
+}
+
 // One line under the title showing just the quadrant label; the numbers behind it
 // (priority, urgency + reason, deadline) live in the tooltip.
 function renderUrgencyMeta(task, assessment) {
@@ -866,12 +918,20 @@ function renderSubtaskProgress(subtasks) {
 // ---------- Recurring sidebar (Weekly/Daily boxes) ----------
 // Fully separate from the folder/matrix system: no importance, urgency, or heat-map
 // coloring applies here, just a folder-grouped checklist with a completion fraction. The
-// Now window shows a schedule-filtered view of these same rows (renderNowHabits in
+// Now/Later windows show a schedule-split view of these same rows (renderWindowHabits in
 // windows.js); these boxes always show everything.
 
 function renderRecurringSidebar() {
+  renderRecurringBox("monthly", "recurring-monthly", "Monthly");
   renderRecurringBox("weekly", "recurring-weekly", "Weekly");
   renderRecurringBox("daily", "recurring-daily", "Daily");
+}
+
+// "Mon" for a weekly habit, "Day 15" / "Month end" for a monthly one, nothing for daily.
+function recurringScheduleLabel(rt) {
+  if (rt.cadence === "weekly") return WEEKDAY_LABELS[recurringWeekday(rt)];
+  if (rt.cadence === "monthly") return rt.day_of_month == null ? "Month end" : "Day " + rt.day_of_month;
+  return "";
 }
 
 function renderRecurringBox(cadence, containerId, label) {
@@ -1004,9 +1064,9 @@ function renderRecurringRow(rt) {
   title.textContent = rt.title;
   titleLine.appendChild(title);
 
-  if (rt.cadence === "weekly") {
-    titleLine.appendChild(makeBadge(WEEKDAY_LABELS[recurringWeekday(rt)], "badge-recurring"));
-  }
+  const schedule = recurringScheduleLabel(rt);
+  if (schedule) titleLine.appendChild(makeBadge(schedule, "badge-recurring"));
+  appendMissedBadge(titleLine, rt);
 
   main.appendChild(titleLine);
   row.appendChild(main);
@@ -1105,9 +1165,10 @@ function openTaskModal(prefillOrTask) {
   document.getElementById("task-deadline").value = prefillOrTask.deadline || "";
   document.getElementById("task-do-date").value = prefillOrTask.do_date || "";
   document.getElementById("task-importance").value = prefillOrTask.importance || "Low";
-  document.getElementById("task-quick-win").checked = !!prefillOrTask.is_quick_win;
-  document.getElementById("task-deadline-sync").checked = false;
-  updateDeadlineSyncVisibility();
+  // Bite-size is the universal default for a new task; an edit shows the task's own value.
+  setSizeToggle(prefillOrTask.is_quick_win === undefined ? true : !!prefillOrTask.is_quick_win);
+  weekPickerExpanded = false;
+  renderWeekPicker();
   taskError.textContent = "";
 
   taskFolderSelect.value = prefillOrTask.folder_id || folders[0]?.id || "";
@@ -1160,19 +1221,80 @@ taskFolderSelect.addEventListener("change", () => {
   populateParentSelect(taskFolderSelect.value, currentId, null);
 });
 
-// Deadline sync ("Same as do date"): only meaningful once the form has a do_date to copy
-// from, so it stays hidden otherwise — this is what naturally excludes Later's plain intake,
-// which never prefills do_date, no separate form needed there.
-function updateDeadlineSyncVisibility() {
-  const hasDoDate = !!document.getElementById("task-do-date").value;
-  document.getElementById("task-deadline-sync-row").hidden = !hasDoDate;
-  if (!hasDoDate) document.getElementById("task-deadline-sync").checked = false;
+// ---- Sizing toggle (Bite-size / Main Course) ----
+// A toggle whose text IS its state, not a checkbox with a static label. aria-pressed holds
+// the value the submit handler reads.
+const sizeToggleBtn = document.getElementById("task-quick-win");
+
+function setSizeToggle(biteSize) {
+  sizeToggleBtn.setAttribute("aria-pressed", biteSize ? "true" : "false");
+  sizeToggleBtn.textContent = biteSize ? "Bite-size" : "Main Course";
+  sizeToggleBtn.title = biteSize
+    ? "Bite-size: a quick one, renders as a slimmer card. Click for Main Course."
+    : "Main Course: something to sit down and tackle. Click for Bite-size.";
 }
 
-document.getElementById("task-do-date").addEventListener("input", updateDeadlineSyncVisibility);
+function readSizeToggle() {
+  return sizeToggleBtn.getAttribute("aria-pressed") === "true";
+}
 
-document.getElementById("task-deadline-sync").addEventListener("change", e => {
-  if (e.target.checked) document.getElementById("task-deadline").value = document.getElementById("task-do-date").value;
+sizeToggleBtn.addEventListener("click", () => setSizeToggle(!readSizeToggle()));
+
+// ---- Week-strip do_date picker ----
+// Seven boxes, today first, one tap picks a day; the native date input underneath stays the
+// source of truth (submit and prefill code read it unchanged) and doubles as the "further
+// out" calendar expansion, shown on demand or whenever the value falls outside the strip.
+const taskDoDateInput = document.getElementById("task-do-date");
+const weekPickerStrip = document.getElementById("task-week-picker");
+const weekPickerMoreBtn = document.getElementById("task-do-date-more");
+const weekPickerClearBtn = document.getElementById("task-do-date-clear");
+let weekPickerExpanded = false;
+
+function renderWeekPicker() {
+  const today = todayISODate();
+  const value = taskDoDateInput.value || "";
+  const strip = [];
+  for (let i = 0; i < 7; i++) strip.push(addDaysISODate(today, i));
+
+  weekPickerStrip.innerHTML = "";
+  strip.forEach((dateStr, i) => {
+    const day = parseLocalDate(dateStr);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "week-day" + (dateStr === value ? " active" : "") + (i === 0 ? " week-day-today" : "");
+    btn.setAttribute("aria-pressed", dateStr === value ? "true" : "false");
+    btn.title = i === 0 ? "Today" : i === 1 ? "Tomorrow" : day.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "short" });
+    const letter = document.createElement("span");
+    letter.className = "week-day-letter";
+    letter.textContent = WEEKDAY_LABELS[day.getDay()][0];
+    btn.appendChild(letter);
+    const num = document.createElement("span");
+    num.className = "week-day-num";
+    num.textContent = String(day.getDate());
+    btn.appendChild(num);
+    btn.addEventListener("click", () => {
+      taskDoDateInput.value = dateStr;
+      renderWeekPicker();
+    });
+    weekPickerStrip.appendChild(btn);
+  });
+
+  // The calendar expansion shows when asked for, or when the value is beyond the strip.
+  const outsideStrip = !!value && !strip.includes(value);
+  taskDoDateInput.hidden = !(weekPickerExpanded || outsideStrip);
+  weekPickerMoreBtn.hidden = !taskDoDateInput.hidden;
+  weekPickerClearBtn.hidden = !value;
+}
+
+taskDoDateInput.addEventListener("input", renderWeekPicker);
+weekPickerMoreBtn.addEventListener("click", () => {
+  weekPickerExpanded = true;
+  renderWeekPicker();
+  taskDoDateInput.focus();
+});
+weekPickerClearBtn.addEventListener("click", () => {
+  taskDoDateInput.value = "";
+  renderWeekPicker();
 });
 
 taskForm.addEventListener("submit", e => {
@@ -1186,7 +1308,7 @@ taskForm.addEventListener("submit", e => {
     deadline: document.getElementById("task-deadline").value || null,
     do_date: document.getElementById("task-do-date").value || null,
     importance: document.getElementById("task-importance").value,
-    is_quick_win: document.getElementById("task-quick-win").checked,
+    is_quick_win: readSizeToggle(),
   };
 
   if (!data.title) return;
@@ -1219,6 +1341,8 @@ taskForm.addEventListener("submit", e => {
   }
 
   if (existing) {
+    // A direct do_date edit is a genuine write: the silent-rollover count starts over.
+    if ((existing.do_date || null) !== (data.do_date || null)) data.do_date_rollover_count = 0;
     Object.assign(existing, data);
     existing.last_touched_at = now;
   } else {
@@ -1305,12 +1429,24 @@ const recurringFolderSelect = document.getElementById("recurring-folder");
 const recurringCadenceSelect = document.getElementById("recurring-cadence");
 const recurringWeekdaySelect = document.getElementById("recurring-weekday");
 const recurringWeekdayLabel = document.getElementById("recurring-weekday-label");
+const recurringDomSelect = document.getElementById("recurring-dom");
+const recurringDomLabel = document.getElementById("recurring-dom-label");
 
-function updateRecurringWeekdayVisibility() {
+// Weekly shows the weekday picker, monthly the day-of-month picker, daily neither.
+function updateRecurringCadenceFields() {
   recurringWeekdayLabel.hidden = recurringCadenceSelect.value !== "weekly";
+  recurringDomLabel.hidden = recurringCadenceSelect.value !== "monthly";
 }
 
-recurringCadenceSelect.addEventListener("change", updateRecurringWeekdayVisibility);
+recurringCadenceSelect.addEventListener("change", updateRecurringCadenceFields);
+
+// Day-of-month options: "last day" (empty) then 1..31, built once.
+for (let day = 1; day <= 31; day++) {
+  const opt = document.createElement("option");
+  opt.value = String(day);
+  opt.textContent = String(day);
+  recurringDomSelect.appendChild(opt);
+}
 
 function openRecurringModal(prefillOrRt) {
   if (folders.length === 0) {
@@ -1326,9 +1462,11 @@ function openRecurringModal(prefillOrRt) {
   document.getElementById("recurring-id").value = isEdit ? prefillOrRt.id : "";
   document.getElementById("recurring-title").value = isEdit ? prefillOrRt.title : "";
   recurringCadenceSelect.value = isEdit ? prefillOrRt.cadence : (prefillOrRt.cadence || "daily");
-  // Weekday is optional: no forced choice on a new habit, it reads as Sunday until one is set.
+  // Weekday / day-of-month are optional: no forced choice on a new habit, they read as Sunday
+  // / the month's last day until one is set.
   recurringWeekdaySelect.value = isEdit && prefillOrRt.weekday != null ? String(prefillOrRt.weekday) : "";
-  updateRecurringWeekdayVisibility();
+  recurringDomSelect.value = isEdit && prefillOrRt.day_of_month != null ? String(prefillOrRt.day_of_month) : "";
+  updateRecurringCadenceFields();
 
   recurringModal.classList.remove("hidden");
   document.getElementById("recurring-title").focus();
@@ -1348,6 +1486,9 @@ recurringForm.addEventListener("submit", e => {
     cadence: recurringCadenceSelect.value,
     weekday: recurringCadenceSelect.value === "weekly" && recurringWeekdaySelect.value !== ""
       ? Number(recurringWeekdaySelect.value)
+      : null,
+    day_of_month: recurringCadenceSelect.value === "monthly" && recurringDomSelect.value !== ""
+      ? Number(recurringDomSelect.value)
       : null,
   };
 
@@ -1429,6 +1570,7 @@ const SETTINGS_FIELDS = {
   staleness_reminder_high_days: "setting-staleness-reminder-high",
   do_today_urgency_floor: "setting-do-today-floor",
   weekly_recurring_now_days: "setting-weekly-recurring-now",
+  monthly_recurring_now_days: "setting-monthly-recurring-now",
   list_display_mode: "setting-list-mode",
   calendar_display_mode: "setting-calendar-mode",
   daily_capacity_points: "setting-daily-capacity",

@@ -25,6 +25,7 @@ const DEFAULT_SETTINGS = Object.freeze({
   do_today_urgency_floor: 65,           // Now window: a task with do_date == today scores at least this
   // (just above quadrant_split_score, so "planned for today" genuinely lands it in Do/Clear)
   weekly_recurring_now_days: 3,         // Now window: a weekly habit shows once the week's end is this close
+  monthly_recurring_now_days: 5,        // Now window: a monthly habit shows once the month's end is this close
   list_display_mode: "windows",         // "windows" (Now/Later) | "full" (the folder-organized page)
   daily_capacity_points: 6,             // Calendar Capacity view: effort points a day can absorb before "overload"
   calendar_display_mode: "pace",        // "pace" (existing coloring) | "capacity" (effort vs. daily_capacity_points)
@@ -62,7 +63,7 @@ function normalizeSettings(raw) {
       out[key] = Math.min(1, value);
     } else if (SCORE_SETTINGS.has(key)) {
       out[key] = Math.min(100, value);
-    } else if (key === "overview_top_n" || key === "weekly_recurring_now_days") {
+    } else if (key === "overview_top_n" || key === "weekly_recurring_now_days" || key === "monthly_recurring_now_days") {
       out[key] = Math.round(value);
     } else {
       out[key] = value;
@@ -293,14 +294,70 @@ function daysUntilWeekEnd(dateStr) {
   return 6 - ((parseLocalDate(dateStr).getDay() + 6) % 7);
 }
 
+// Number of days in the month `dateStr` falls in.
+function daysInMonthOf(dateStr) {
+  const d = parseLocalDate(dateStr);
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+}
+
+// The day a monthly habit is scheduled on within `dateStr`'s month. Optional at creation;
+// the last day of the month when left empty (the monthly analog of Sunday), and a chosen day
+// past a shorter month's end clamps to that month's actual last day (31 -> 30 in April).
+function recurringDayOfMonth(rt, dateStr) {
+  const last = daysInMonthOf(dateStr);
+  const chosen = rt.day_of_month == null ? last : Number(rt.day_of_month);
+  return Math.max(1, Math.min(last, chosen));
+}
+
+// Whole days from `dateStr` to the last day of its month: 0 on the last day.
+function daysUntilMonthEnd(dateStr) {
+  return daysInMonthOf(dateStr) - parseLocalDate(dateStr).getDate();
+}
+
+// The next date (>= today, "YYYY-MM-DD") a habit is scheduled on: today for daily, the next
+// matching weekday for weekly, this month's (clamped) day or next month's for monthly.
+function nextRecurringOccurrence(rt, today) {
+  if (rt.cadence === "weekly") {
+    const d = parseLocalDate(today);
+    const delta = (recurringWeekday(rt) - d.getDay() + 7) % 7;
+    d.setDate(d.getDate() + delta);
+    return localDateString(d);
+  }
+  if (rt.cadence === "monthly") {
+    const d = parseLocalDate(today);
+    let candidate = new Date(d.getFullYear(), d.getMonth(), recurringDayOfMonth(rt, today));
+    if (candidate < d) {
+      const nextMonth = localDateString(new Date(d.getFullYear(), d.getMonth() + 1, 1));
+      candidate = new Date(d.getFullYear(), d.getMonth() + 1, recurringDayOfMonth(rt, nextMonth));
+    }
+    return localDateString(candidate);
+  }
+  return today;
+}
+
 // Daily habits always show; weekly ones when today is their weekday OR the week ends within
-// weekly_recurring_now_days (default 3: Thursday onwards), whichever is true.
+// weekly_recurring_now_days (default 3: Thursday onwards), whichever is true. Monthly works
+// identically with its day-of-month and monthly_recurring_now_days.
 function isRecurringNowMember(rt, settings, today) {
   if (rt.cadence === "daily") return true;
-  if (rt.cadence !== "weekly") return false;
-  if (parseLocalDate(today).getDay() === recurringWeekday(rt)) return true;
-  const window = Number(settings.weekly_recurring_now_days);
-  return Number.isFinite(window) && daysUntilWeekEnd(today) <= window;
+  if (rt.cadence === "weekly") {
+    if (parseLocalDate(today).getDay() === recurringWeekday(rt)) return true;
+    const window = Number(settings.weekly_recurring_now_days);
+    return Number.isFinite(window) && daysUntilWeekEnd(today) <= window;
+  }
+  if (rt.cadence === "monthly") {
+    if (parseLocalDate(today).getDate() === recurringDayOfMonth(rt, today)) return true;
+    const window = Number(settings.monthly_recurring_now_days);
+    return Number.isFinite(window) && daysUntilMonthEnd(today) <= window;
+  }
+  return false;
+}
+
+// Later window: the exact complement for weekly/monthly habits, so every habit is in exactly
+// one window. Daily habits are always in Now, never here.
+function isRecurringLaterMember(rt, settings, today) {
+  if (rt.cadence !== "weekly" && rt.cadence !== "monthly") return false;
+  return !isRecurringNowMember(rt, settings, today);
 }
 
 // ---------- Priority score ----------
@@ -367,6 +424,7 @@ if (typeof module !== "undefined" && module.exports) {
     importanceScore, splitScore, importanceBucket, urgencyBucket, quadrantFor,
     priorityScore, priorityRangeFor, priorityIntensity, assessTask,
     ESCALATING_TAGS, escalatingTag, isDeadlineDriven, isNowMember, isLaterMember,
-    recurringWeekday, daysUntilWeekEnd, isRecurringNowMember,
+    recurringWeekday, daysUntilWeekEnd, daysInMonthOf, recurringDayOfMonth, daysUntilMonthEnd,
+    nextRecurringOccurrence, isRecurringNowMember, isRecurringLaterMember,
   };
 }

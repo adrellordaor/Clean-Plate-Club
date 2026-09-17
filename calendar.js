@@ -112,23 +112,58 @@ function plannedRecordFor(dateStr, data, today) {
 }
 
 // RecurringTasks scheduled on a day: daily ones every day; weekly ones on their weekday
-// (Sunday — the end of the Monday-start week — when no weekday was picked).
+// (Sunday — the end of the Monday-start week — when no weekday was picked); monthly ones on
+// their day-of-month (the month's last day when none was picked, clamped in short months).
 function recurringScheduledOn(rt, dateStr) {
   if (rt.cadence === "daily") return true;
-  if (rt.cadence !== "weekly") return false;
-  return parseLocalDate(dateStr).getDay() === recurringWeekday(rt); // Sunday when no weekday was picked
+  if (rt.cadence === "weekly") return parseLocalDate(dateStr).getDay() === recurringWeekday(rt);
+  if (rt.cadence === "monthly") return parseLocalDate(dateStr).getDate() === recurringDayOfMonth(rt, dateStr);
+  return false;
+}
+
+// The period a habit resets on, as an inclusive { start, end } date range containing
+// `dateStr`: the day itself (daily), its Mon–Sun week (weekly), its calendar month (monthly).
+function periodRangeFor(cadence, dateStr) {
+  if (cadence === "weekly") {
+    const start = startOfWeekISODate(dateStr);
+    return { start, end: addDaysISODate(start, 6) };
+  }
+  if (cadence === "monthly") {
+    const d = parseLocalDate(dateStr);
+    return {
+      start: localDateString(new Date(d.getFullYear(), d.getMonth(), 1)),
+      end: localDateString(new Date(d.getFullYear(), d.getMonth() + 1, 0)),
+    };
+  }
+  return { start: dateStr, end: dateStr };
+}
+
+// The period immediately before the one containing `dateStr`.
+function previousPeriodRangeFor(cadence, dateStr) {
+  const current = periodRangeFor(cadence, dateStr);
+  return periodRangeFor(cadence, addDaysISODate(current.start, -1));
+}
+
+function recurringDoneInRange(rt, range, completionLog) {
+  return completionLog.some(l => l.recurring_task_id === rt.id && l.completed_date >= range.start && l.completed_date <= range.end);
 }
 
 // A daily habit is done for a day if it was logged that day. A weekly habit is done for its
 // scheduled day if any CompletionLog row for it falls in that same Mon–Sun week — the same
-// "done this week" reading isRecurringDoneNow uses in the Checklist.
+// "done this week" reading isRecurringDoneNow uses in the Checklist. Monthly: that month.
 function recurringDoneFor(rt, dateStr, completionLog) {
-  if (rt.cadence === "daily") {
-    return completionLog.some(l => l.recurring_task_id === rt.id && l.completed_date === dateStr);
-  }
-  const weekStart = startOfWeekISODate(dateStr);
-  const weekEnd = addDaysISODate(weekStart, 6);
-  return completionLog.some(l => l.recurring_task_id === rt.id && l.completed_date >= weekStart && l.completed_date <= weekEnd);
+  return recurringDoneInRange(rt, periodRangeFor(rt.cadence, dateStr), completionLog);
+}
+
+// missed_last_period: the previous period (yesterday / last week / last month) went by with
+// no completion, and the habit already existed by the end of it. Refreshed at every reset
+// boundary by runDailyMaintenance, cleared the moment the current period is completed.
+// A habit with no created_at (written before the field existed) counts as having existed.
+function computeMissedLastPeriod(rt, today, completionLog) {
+  const previous = previousPeriodRangeFor(rt.cadence, today);
+  if (rt.created_at && toLocalDateString(rt.created_at) > previous.end) return false;
+  if (recurringDoneInRange(rt, previous, completionLog)) return false;
+  return !recurringDoneInRange(rt, periodRangeFor(rt.cadence, today), completionLog);
 }
 
 // Pace bucket for one day, in strict priority order (spec, Calendar view):
@@ -159,12 +194,12 @@ function computeDayStats(dateStr, data, settings, today) {
     const upcomingDeadlines = data.tasks
       .filter(t => t.status === "active" && t.deadline === dateStr)
       .map(task => ({ task, top: topIds.has(task.id) }));
-    // Weekly RecurringTasks get a future marker on their scheduled weekday too ("Tuesday is
-    // laundry day" is genuinely informative). Daily ones deliberately don't: a marker on
-    // every single day is constant noise, not information, and they're already surfaced
-    // twice elsewhere (the habit boxes and Now).
+    // Weekly and monthly RecurringTasks get a future marker on their scheduled day too
+    // ("Tuesday is laundry day" is genuinely informative). Daily ones deliberately don't: a
+    // marker on every single day is constant noise, not information, and they're already
+    // surfaced twice elsewhere (the habit boxes and Now).
     const upcomingWeeklyRecurring = data.recurringTasks
-      .filter(rt => rt.cadence === "weekly" && recurringScheduledOn(rt, dateStr))
+      .filter(rt => rt.cadence !== "daily" && recurringScheduledOn(rt, dateStr))
       .map(task => ({ task, top: false }));
     return {
       date: dateStr, upcoming: true, bucket: CALENDAR_DAY_BUCKETS.upcoming,
@@ -206,7 +241,7 @@ function computeDayStats(dateStr, data, settings, today) {
 // ---------- Capacity view ----------
 // A day's effort, independent of Pace's red/green/blue/gray judgment — purely "how much
 // volume", so it can render as a continuous gradient rather than a discrete bucket.
-// Quick win = 1 point, "need to tackle" = 2, same weight the List view's sizing already
+// Bite-size = 1 point, Main Course = 2, same weight the List view's sizing already
 // uses. A RecurringTask completion/occurrence is a flat 1, regardless of cadence — they
 // don't carry is_quick_win (they live outside the matrix entirely), so there's no finer
 // signal to weight by.
@@ -412,13 +447,13 @@ function renderCalendarLegend() {
     "Big win: a High/Critical-importance task got completed that day"));
 
   const markerChip = makeCalendarLegendChip("", "calendar-day-upcoming",
-    "Upcoming deadline · accented = top priority (top " + topN + " or score ≥ " + threshold + ") · square = weekly habit's scheduled day");
+    "Upcoming deadline · accented = top priority (top " + topN + " or score ≥ " + threshold + ") · square = weekly/monthly habit's scheduled day");
   markerChip.appendChild(makeCalendarMarker(false, null));
   markerChip.appendChild(document.createTextNode(" due "));
   markerChip.appendChild(makeCalendarMarker(true, null));
   markerChip.appendChild(document.createTextNode(" top "));
   markerChip.appendChild(makeCalendarMarker(false, null, true));
-  markerChip.appendChild(document.createTextNode(" weekly"));
+  markerChip.appendChild(document.createTextNode(" habit"));
   legend.appendChild(markerChip);
 
   const note = document.createElement("span");
@@ -442,7 +477,7 @@ function makeCalendarLegendChip(text, extraClass, hint) {
 function makeCalendarMarker(top, task, recurring) {
   const m = document.createElement("span");
   m.className = "calendar-cell-marker" + (top ? " calendar-cell-marker-top" : "") + (recurring ? " calendar-cell-marker-recurring" : "");
-  if (task) m.title = task.title + (top ? " (top priority)" : recurring ? " (weekly)" : "");
+  if (task) m.title = task.title + (top ? " (top priority)" : recurring ? " (" + task.cadence + ")" : "");
   return m;
 }
 
@@ -611,7 +646,7 @@ function calendarCellTitle(stats) {
       : pluralCount(n, "deadline") + (top > 0 ? " (" + top + " top priority)" : "")
         + ": " + stats.upcomingDeadlines.map(d => d.task.title).join(", "));
     if (stats.upcomingWeeklyRecurring.length > 0) {
-      parts.push("Weekly: " + stats.upcomingWeeklyRecurring.map(d => d.task.title).join(", "));
+      parts.push("Habits: " + stats.upcomingWeeklyRecurring.map(d => d.task.title).join(", "));
     }
     return parts.join(" · ");
   }
@@ -792,6 +827,7 @@ if (typeof module !== "undefined" && module.exports) {
     CALENDAR_DAY_BUCKETS, addDaysISODate, weekDates, daysInMonthArray,
     completedDateOf, taskExistedOn, isOverdueOn, isPlannedOn, plannedTaskDone,
     buildPlannedRecord, plannedRecordFor, recurringScheduledOn, recurringDoneFor,
+    periodRangeFor, previousPeriodRangeFor, recurringDoneInRange, computeMissedLastPeriod,
     computeDayStats, completionsOnDay, computeWeekSummary,
     quickWinWeight, computeDayCapacity,
   };
