@@ -97,8 +97,8 @@
          and the task settles into Plan/Backlog on its own). -->
     <div id="windows-toolbar" class="windows-toolbar" aria-label="Window grouping"></div>
     <div id="windows-row" class="windows-row">
-      <section id="now-window" class="window-panel window-now" aria-label="Now"></section>
-      <section id="later-window" class="window-panel window-later" aria-label="Later"></section>
+      <section id="now-window" class="window-panel window-now" aria-label="Daily Plate"></section>
+      <section id="later-window" class="window-panel window-later" aria-label="Fridge"></section>
     </div>
 
     <!-- "full": the folder list and the Recurring habit boxes, exactly as originally built. -->
@@ -156,16 +156,15 @@
       </div>
 
       <!-- Week-strip do_date picker: seven boxes (today first), one tap picks a day. The native
-           date input underneath is the source of truth and doubles as the calendar expansion
-           for anything further out. See renderWeekPicker in app.js. -->
+           date input underneath is the source of truth and stays visible alongside the strip
+           at all times, for anything further out. See renderWeekPicker in app.js. -->
       <div class="form-row form-row-picker">
         <div class="week-picker-field">
           <span class="week-picker-title">Planned for (do date)</span>
           <div id="task-week-picker" class="week-picker" role="group" aria-label="Pick a day this week"></div>
           <div class="week-picker-extra">
-            <input type="date" id="task-do-date" aria-label="Do date" hidden>
-            <button type="button" id="task-do-date-more" class="link-btn week-picker-more">More dates…</button>
-            <button type="button" id="task-do-date-clear" class="link-btn week-picker-clear" hidden>Clear</button>
+            <input type="date" id="task-do-date" aria-label="Do date">
+            <button type="button" id="task-do-date-clear" class="btn-icon week-picker-clear" hidden aria-label="Clear date" title="Clear date"></button>
           </div>
         </div>
 
@@ -174,7 +173,7 @@
           <button type="button" id="task-quick-win" class="size-toggle" aria-pressed="true">Bite-size</button>
         </div>
       </div>
-      <p class="settings-hint">A planned date puts the task in the Now window that day (it rolls forward until done); anything already in Do or Clear shows there regardless. High/Critical tasks need a deadline.</p>
+      <p class="settings-hint">A planned date puts the task in the Daily Plate window that day (it rolls forward until done); anything already in Do or Clear shows there regardless. High/Critical tasks need a deadline.</p>
 
       <p id="task-error" class="settings-error" aria-live="polite"></p>
 
@@ -192,14 +191,14 @@
 <div id="now-deadline-modal" class="modal hidden">
   <div class="modal-content">
     <h2 id="now-deadline-heading">Set a deadline</h2>
-    <p class="gate-text"><span id="now-deadline-text">Anything in Now needs a real deadline, so it can't roll forward forever unnoticed. Set one for</span> <strong id="now-deadline-task"></strong>:</p>
+    <p class="gate-text"><span id="now-deadline-text">Anything in Daily Plate needs a real deadline, so it can't roll forward forever unnoticed. Set one for</span> <strong id="now-deadline-task"></strong>:</p>
     <form id="now-deadline-form">
       <label>Deadline
         <input type="date" id="now-deadline-input" required>
       </label>
       <div class="modal-actions">
         <button type="button" id="now-deadline-cancel-btn" class="btn btn-secondary">Cancel</button>
-        <button type="submit" id="now-deadline-confirm" class="btn btn-primary">Add to Now</button>
+        <button type="submit" id="now-deadline-confirm" class="btn btn-primary">Add to Daily Plate</button>
       </div>
     </form>
   </div>
@@ -416,13 +415,13 @@
       </fieldset>
 
       <fieldset class="settings-group">
-        <legend>Now window</legend>
+        <legend>Daily Plate window</legend>
         <div class="form-row">
           <label>Planned-for-today urgency floor (0–100)
             <input type="number" id="setting-do-today-floor" min="0" max="100" step="0.5" required>
           </label>
         </div>
-        <p class="settings-hint">A task planned for today scores at least this much urgency. Keep it above the quadrant split so being in Now genuinely moves a task into Do (important) or Clear (less important), instead of just looking more urgent while it stays in Plan or Backlog. Never lowers a score that a real deadline or staleness already put higher.</p>
+        <p class="settings-hint">A task planned for today scores at least this much urgency. Keep it above the quadrant split so being in Daily Plate genuinely moves a task into Do (important) or Clear (less important), instead of just looking more urgent while it stays in Plan or Backlog. Never lowers a score that a real deadline or staleness already put higher.</p>
       </fieldset>
 
       <fieldset class="settings-group">
@@ -430,18 +429,18 @@
         <div class="form-row">
           <label>Display mode
             <select id="setting-list-mode">
-              <option value="windows">Now / Later windows</option>
+              <option value="windows">Daily Plate / Fridge windows</option>
               <option value="full">Full folder list</option>
             </select>
           </label>
-          <label>Weekly habits in Now: days before week end
+          <label>Weekly habits in Daily Plate: days before week end
             <input type="number" id="setting-weekly-recurring-now" min="0" max="6" step="1" required>
           </label>
-          <label>Monthly habits in Now: days before month end
+          <label>Monthly habits in Daily Plate: days before month end
             <input type="number" id="setting-monthly-recurring-now" min="0" max="30" step="1" required>
           </label>
         </div>
-        <p class="settings-hint">Windows is the everyday Now/Later layout; Full is the complete folder-organized page with category tabs and the habit boxes. Daily habits always appear in Now; a weekly habit appears on its own weekday and once the (Monday-start) week is this many days from ending — 3 means from Thursday on; a monthly habit likewise on its day-of-month or this many days before the month ends. Weekly and monthly habits not due soon sit in Later instead. Habits never join the scoring.</p>
+        <p class="settings-hint">Windows is the everyday Daily Plate/Fridge layout; Full is the complete folder-organized page with category tabs and the habit boxes. Daily habits always appear in Daily Plate; a weekly habit appears on its own weekday and once the (Monday-start) week is this many days from ending — 3 means from Thursday on; a monthly habit likewise on its day-of-month or this many days before the month ends. Weekly and monthly habits not due soon sit in Fridge instead. Habits never join the scoring.</p>
       </fieldset>
 
       <fieldset class="settings-group">
@@ -457,7 +456,7 @@
             <input type="number" id="setting-daily-capacity" min="0.5" step="0.5" required>
           </label>
         </div>
-        <p class="settings-hint">Pace is the existing red/green/blue/gray coloring. Capacity instead shades each day by effort ÷ this many points: a regular task is worth 1 point as Bite-size or 2 as a Main Course, a recurring habit completion/occurrence is a flat 1. Past days count what actually got done (completed_at); future days count what's scheduled (do_date). A distinct marker appears once a day crosses 100%.</p>
+        <p class="settings-hint">Pace is the existing red/green/blue/gray coloring. Capacity instead shades each day by effort ÷ this many points: a regular task is worth 1 point as Bite-size or 2 otherwise, a recurring habit completion/occurrence is a flat 1. Past days count what actually got done (completed_at); future days count what's scheduled (do_date). A distinct marker appears once a day crosses 100%.</p>
       </fieldset>
 
       <p id="settings-error" class="settings-error" aria-live="polite"></p>

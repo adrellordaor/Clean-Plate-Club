@@ -31,13 +31,15 @@ const ICONS = {
   moon: `<svg ${SVG_ATTRS}><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>`,
   gear: `<svg ${SVG_ATTRS}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
   bump: `<svg ${SVG_ATTRS}><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>`,
-  maximize: `<svg ${SVG_ATTRS}><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`,
-  minimize: `<svg ${SVG_ATTRS}><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`,
   focus: `<svg ${SVG_ATTRS}><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/></svg>`,
   close: `<svg ${SVG_ATTRS}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`,
   plus: `<svg ${SVG_ATTRS}><path d="M12 5v14"/><path d="M5 12h14"/></svg>`,
   // Bite-size marker: a small apple with a bite out of it, drawn at 12px on cards.
   bite: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6c-1.5-1.5-4.5-1.5-6 1-2 3-1 8 1.5 11 1.2 1.5 3 1.5 4.5.5 1.5 1 3.3 1 4.5-.5a10 10 0 0 0 2.2-4.5c-2.5-.2-4.2-2.3-3.7-4.8-1-.3-2-1.5-3-2.7Z"/><path d="M12 6c0-2 1-3 3-3.5"/></svg>`,
+  // Daily Plate: a plate seen from above (rim + well) — doubles as that window's expand control.
+  plate: `<svg ${SVG_ATTRS}><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>`,
+  // Fridge: a minimalist door with a freezer divide and handle — Fridge window's expand control.
+  fridge: `<svg ${SVG_ATTRS}><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="5" y1="8.5" x2="19" y2="8.5"/><line x1="8" y1="4.5" x2="8" y2="6.5"/><line x1="8" y1="11" x2="8" y2="14"/></svg>`,
 };
 
 let categories = []; // Category: top-level grouping, drives the tabs.
@@ -1167,7 +1169,6 @@ function openTaskModal(prefillOrTask) {
   document.getElementById("task-importance").value = prefillOrTask.importance || "Low";
   // Bite-size is the universal default for a new task; an edit shows the task's own value.
   setSizeToggle(prefillOrTask.is_quick_win === undefined ? true : !!prefillOrTask.is_quick_win);
-  weekPickerExpanded = false;
   renderWeekPicker();
   taskError.textContent = "";
 
@@ -1221,17 +1222,17 @@ taskFolderSelect.addEventListener("change", () => {
   populateParentSelect(taskFolderSelect.value, currentId, null);
 });
 
-// ---- Sizing toggle (Bite-size / Main Course) ----
-// A toggle whose text IS its state, not a checkbox with a static label. aria-pressed holds
-// the value the submit handler reads.
+// ---- Sizing toggle (Bite-size on/off) ----
+// The label always reads "Bite-size" — on/off shows through the button's own filled vs.
+// outline styling ([aria-pressed] in CSS), not through swapping its text. The off state has
+// no name of its own; it's just the unmarked default.
 const sizeToggleBtn = document.getElementById("task-quick-win");
 
 function setSizeToggle(biteSize) {
   sizeToggleBtn.setAttribute("aria-pressed", biteSize ? "true" : "false");
-  sizeToggleBtn.textContent = biteSize ? "Bite-size" : "Main Course";
   sizeToggleBtn.title = biteSize
-    ? "Bite-size: a quick one, renders as a slimmer card. Click for Main Course."
-    : "Main Course: something to sit down and tackle. Click for Bite-size.";
+    ? "Bite-size: a quick one, renders as a slimmer card. Click to turn off."
+    : "Click to mark as Bite-size.";
 }
 
 function readSizeToggle() {
@@ -1242,13 +1243,12 @@ sizeToggleBtn.addEventListener("click", () => setSizeToggle(!readSizeToggle()));
 
 // ---- Week-strip do_date picker ----
 // Seven boxes, today first, one tap picks a day; the native date input underneath stays the
-// source of truth (submit and prefill code read it unchanged) and doubles as the "further
-// out" calendar expansion, shown on demand or whenever the value falls outside the strip.
+// source of truth (submit and prefill code read it unchanged) and sits visible alongside the
+// strip at all times, for anything further out than a week.
 const taskDoDateInput = document.getElementById("task-do-date");
 const weekPickerStrip = document.getElementById("task-week-picker");
-const weekPickerMoreBtn = document.getElementById("task-do-date-more");
 const weekPickerClearBtn = document.getElementById("task-do-date-clear");
-let weekPickerExpanded = false;
+weekPickerClearBtn.innerHTML = ICONS.close;
 
 function renderWeekPicker() {
   const today = todayISODate();
@@ -1279,19 +1279,10 @@ function renderWeekPicker() {
     weekPickerStrip.appendChild(btn);
   });
 
-  // The calendar expansion shows when asked for, or when the value is beyond the strip.
-  const outsideStrip = !!value && !strip.includes(value);
-  taskDoDateInput.hidden = !(weekPickerExpanded || outsideStrip);
-  weekPickerMoreBtn.hidden = !taskDoDateInput.hidden;
   weekPickerClearBtn.hidden = !value;
 }
 
 taskDoDateInput.addEventListener("input", renderWeekPicker);
-weekPickerMoreBtn.addEventListener("click", () => {
-  weekPickerExpanded = true;
-  renderWeekPicker();
-  taskDoDateInput.focus();
-});
 weekPickerClearBtn.addEventListener("click", () => {
   taskDoDateInput.value = "";
   renderWeekPicker();

@@ -181,7 +181,7 @@ function bucketWindowEntries(entries, sortKey, winKey, today, habits) {
     return [
       make("bite", "Bite-size", "Quick ones (habits count as bite-size here)",
         e => !!e.task.is_quick_win, task => setQuickWin(task, true), { is_quick_win: true }, () => true),
-      make("main", "Main Course", "Things to sit down and tackle",
+      make("main", "Everything else", "Not marked Bite-size",
         e => !e.task.is_quick_win, task => setQuickWin(task, false), { is_quick_win: false }, null),
     ];
   }
@@ -237,7 +237,7 @@ function bucketWindowEntries(entries, sortKey, winKey, today, habits) {
 
 const WINDOWS = {
   now: {
-    key: "now", elementId: "now-window", title: "Now", hint: "do today · Do · Clear",
+    key: "now", elementId: "now-window", title: "Daily Plate", hint: "do today · Do · Clear",
     member: (entry, today) => isNowMember(entry.task, entry.assessment, today),
     habitMember: (rt, today) => isRecurringNowMember(rt, settings, today),
     habitHint: "daily · weekly · monthly due soon",
@@ -245,7 +245,7 @@ const WINDOWS = {
     add: () => addTaskToNowDirectly(),
   },
   later: {
-    key: "later", elementId: "later-window", title: "Later", hint: "Plan + Backlog",
+    key: "later", elementId: "later-window", title: "Fridge", hint: "Plan + Backlog",
     member: entry => isLaterMember(entry.assessment),
     habitMember: (rt, today) => isRecurringLaterMember(rt, settings, today),
     habitHint: "weekly · monthly, not due soon",
@@ -280,6 +280,46 @@ function renderNowLaterWindows() {
   renderFocusOverlay(ranked, today);
 }
 
+// ---------- Pile-size indicator (fire / ice particles) ----------
+// Replaces the plain count badge with the same number wrapped in a small particle effect —
+// flame for Daily Plate, ice for Fridge — whose density/speed scale with how full the window
+// is relative to a per-window cap (just a feel threshold, not a real limit on either window).
+const PILE_FULLNESS_CAP = { now: 6, later: 14 };
+
+function renderPileIndicator(win, count) {
+  const cap = PILE_FULLNESS_CAP[win.key] || 10;
+  const fullness = Math.max(0, Math.min(1, count / cap));
+
+  const wrap = document.createElement("span");
+  wrap.className = "pile-indicator " + (win.key === "now" ? "pile-fire" : "pile-ice");
+  wrap.style.setProperty("--fullness", fullness.toFixed(3));
+
+  const particles = document.createElement("span");
+  particles.className = "pile-particles";
+  particles.setAttribute("aria-hidden", "true");
+  const particleCount = count > 0 ? Math.round(2 + fullness * 5) : 0; // 2..7, none when empty
+  for (let i = 0; i < particleCount; i++) {
+    const p = document.createElement("span");
+    p.className = "pile-particle";
+    const size = 3 + Math.random() * 3 * (0.6 + fullness);
+    p.style.width = size + "px";
+    p.style.height = size + "px";
+    p.style.left = (8 + Math.random() * 84) + "%";
+    p.style.animationDuration = ((1 + Math.random() * 0.9) / (0.4 + fullness)).toFixed(2) + "s";
+    p.style.animationDelay = (Math.random() * 1.4).toFixed(2) + "s";
+    if (win.key === "later") p.style.setProperty("--dx", (Math.random() * 14 - 7).toFixed(1) + "px");
+    particles.appendChild(p);
+  }
+  wrap.appendChild(particles);
+
+  const countEl = document.createElement("span");
+  countEl.className = "window-count";
+  countEl.textContent = count; // every active member, nested ones included; never habits or done tasks
+  wrap.appendChild(countEl);
+
+  return wrap;
+}
+
 function renderWindow(win, ranked, today, nowIsEmpty) {
   const el = document.getElementById(win.elementId);
   el.innerHTML = "";
@@ -290,19 +330,32 @@ function renderWindow(win, ranked, today, nowIsEmpty) {
   // Members nested under a member parent render inside that parent's card, not as their own.
   const entries = topLevelEntries(sortWindowEntries(unsorted, windowPrefs.sort));
 
-  // Header: title, count, hint, focus mode (Now only), expand/shrink.
+  // Header: expand/focus icon (plate/fridge), title, pile-size indicator, hint, focus mode
+  // (Now only), expand/shrink.
   const header = document.createElement("div");
   header.className = "window-header";
+
+  // The plate/fridge icon doubles as the expand/shrink control — same action as before
+  // (window-focus-btn), just skinned per window instead of a generic maximize/minimize glyph.
+  // State (expanded or not) shows through the icon's own fill, same pattern as the Bite-size
+  // toggle: no icon-swap, no text change, just filled vs. outline.
+  const focusBtn = document.createElement("button");
+  focusBtn.type = "button";
+  focusBtn.className = "btn-icon window-focus-btn window-focus-icon-" + win.key + (expanded ? " active" : "");
+  focusBtn.innerHTML = win.key === "now" ? ICONS.plate : ICONS.fridge;
+  focusBtn.title = expanded ? "Shrink: back to equal widths" : "Expand: give this window more room and show details";
+  focusBtn.setAttribute("aria-label", expanded ? "Shrink " + win.title : "Expand " + win.title);
+  focusBtn.addEventListener("click", () => setWindowPref("focus", expanded ? "none" : win.key));
+  header.appendChild(focusBtn);
 
   const title = document.createElement("h2");
   title.className = "window-title";
   title.textContent = win.title;
   header.appendChild(title);
 
-  const count = document.createElement("span");
-  count.className = "window-count";
-  count.textContent = unsorted.length; // every active member, nested ones included; never habits or done tasks
-  header.appendChild(count);
+  // Pile-size indicator: the count badge wrapped in a fire (Daily Plate) or ice (Fridge)
+  // particle effect that scales with how full the window is, instead of a static number.
+  header.appendChild(renderPileIndicator(win, unsorted.length));
 
   const hint = document.createElement("span");
   hint.className = "window-hint";
@@ -320,15 +373,6 @@ function renderWindow(win, ranked, today, nowIsEmpty) {
     header.appendChild(focusModeBtn);
   }
 
-  const focusBtn = document.createElement("button");
-  focusBtn.type = "button";
-  focusBtn.className = "btn-icon window-focus-btn";
-  focusBtn.innerHTML = expanded ? ICONS.minimize : ICONS.maximize;
-  focusBtn.title = expanded ? "Shrink: back to equal widths" : "Expand: give this window more room and show details";
-  focusBtn.setAttribute("aria-label", expanded ? "Shrink" : "Expand");
-  focusBtn.addEventListener("click", () => setWindowPref("focus", expanded ? "none" : win.key));
-  header.appendChild(focusBtn);
-
   el.appendChild(header);
 
   // Controls: the (shared) sort dropdown, and the plain global "+" on the right — no bucket
@@ -340,7 +384,7 @@ function renderWindow(win, ranked, today, nowIsEmpty) {
   addIcon.type = "button";
   addIcon.className = "btn-icon window-add-icon";
   addIcon.innerHTML = ICONS.plus;
-  addIcon.title = win.key === "now" ? "Add a task to Now (planned for today)" : "Add a task";
+  addIcon.title = win.key === "now" ? "Add a task to Daily Plate (planned for today)" : "Add a task";
   addIcon.setAttribute("aria-label", "Add task to " + win.title);
   addIcon.addEventListener("click", win.add);
   controls.appendChild(addIcon);
@@ -659,7 +703,7 @@ function renderWindowCard(entry, win, expanded) {
     "importance " + task.importance,
     task.deadline ? "due " + task.deadline : "no deadline",
     task.do_date ? "planned " + task.do_date : null,
-    task.is_quick_win ? "bite-size" : "main course",
+    task.is_quick_win ? "bite-size" : null,
   ].filter(Boolean).join(" · ");
   makeTaskDraggable(card, task, win.key);
 
@@ -721,13 +765,16 @@ function renderWindowCard(entry, win, expanded) {
   actions.className = "window-card-actions";
 
   if (expanded) {
-    // Sizing chip: toggles the display tag. Not a "touch" — it changes nothing about the
-    // task's scheduling, so it must not reset the staleness clock.
+    // Sizing chip: toggles is_quick_win. Its text never changes — "Bite-size" always — the
+    // on/off state shows through .active (filled vs. outline), same as the task form's toggle.
+    // Not a "touch" — it changes nothing about the task's scheduling, so it must not reset the
+    // staleness clock.
     const chip = document.createElement("button");
     chip.type = "button";
     chip.className = "window-chip" + (task.is_quick_win ? " active" : "");
-    chip.textContent = task.is_quick_win ? "Bite-size" : "Main Course";
-    chip.title = task.is_quick_win ? "Bite-size — click to mark as a Main Course" : "Main Course — click to mark as Bite-size";
+    chip.textContent = "Bite-size";
+    chip.title = task.is_quick_win ? "Bite-size — click to turn off" : "Click to mark as Bite-size";
+    chip.setAttribute("aria-pressed", task.is_quick_win ? "true" : "false");
     chip.addEventListener("click", () => toggleQuickWin(task));
     actions.appendChild(chip);
   }
@@ -740,6 +787,18 @@ function renderWindowCard(entry, win, expanded) {
   editBtn.title = "Edit";
   editBtn.addEventListener("click", () => openTaskModal(task));
   actions.appendChild(editBtn);
+
+  if (expanded) {
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.className = "btn-icon";
+    delBtn.style.color = "var(--danger)";
+    delBtn.innerHTML = ICONS.trash;
+    delBtn.setAttribute("aria-label", "Delete task");
+    delBtn.title = "Delete";
+    delBtn.addEventListener("click", () => deleteTask(task.id));
+    actions.appendChild(delBtn);
+  }
 
   card.appendChild(actions);
   return card;
@@ -934,7 +993,7 @@ function renderSuggestionBox(suggested, expanded) {
 
   const label = document.createElement("span");
   label.className = "window-suggestion-label";
-  label.textContent = "Now is empty — top " + suggested.length + " from Later";
+  label.textContent = "Daily Plate is empty — top " + suggested.length + " from Fridge";
   header.appendChild(label);
 
   const addAllBtn = document.createElement("button");
@@ -1062,7 +1121,7 @@ function deprioritize(task) {
   if (isDeadlineDriven(task, settings, today)) {
     return promptForDeadline(task, {
       heading: "Pick a new deadline",
-      text: "This is in Now because its deadline is close. Commit to a new date before it leaves:",
+      text: "This is in Daily Plate because its deadline is close. Commit to a new date before it leaves:",
       confirmLabel: "Reschedule",
       defaultDate: addDaysISODate(today, Math.max(0, Math.round(settings.deadline_medium_days))),
     }).then(date => {
