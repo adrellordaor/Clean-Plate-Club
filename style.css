@@ -1145,6 +1145,14 @@ body {
   padding-right: 2px;
 }
 
+/* Buckets, cards and folder headers are flex items of the scrolling column above; without
+   this they shrink below their content height once it exceeds max-height, and the squeezed
+   boxes let later items overlap the still full-size content above them instead of the column
+   just scrolling. */
+.window-body > * {
+  flex-shrink: 0;
+}
+
 .window-empty {
   padding: 0.6rem 0.25rem;
 }
