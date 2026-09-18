@@ -1006,7 +1006,15 @@ productivity view")
 - Required deadline on High/Critical importance tasks landing in Plan,
   closing the "important but dateless forever" loophole; do_date defaults
   to the deadline so it surfaces at latest by then
-- Quick-capture box (frictionless add, sort later)
+- **Quick-capture**: hidden behind a small icon in the header, not an
+  always-visible field, this isn't used often enough to justify
+  permanent header space. Clicking the icon, or pressing the `N`
+  shortcut, expands it into a focused text input in place. While
+  expanded, Enter submits and parses tags exactly as already built
+  (`#folder`, `@date`, `!`, bare title → Inbox), then re-focuses the
+  field for rapid successive captures, same behavior as before. It
+  collapses back to just the icon on `Esc` or on losing focus (clicking
+  elsewhere), so it never lingers open once you're done with it.
 - Daily digest (snapshot + quadrant changes)
 - Weekly digest (trend view)
 - Simple daily log: completed / rolled over / dropped

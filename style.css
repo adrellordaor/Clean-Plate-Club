@@ -241,6 +241,126 @@ body {
   border-color: var(--text-muted);
 }
 
+/* Quick capture: sits inline in the header's top row (between the view switch and the header
+   icon buttons), collapsed to a small icon by default so it never claims a standing row of its
+   own; the icon or the "N" shortcut expands it into the field in the same spot. */
+.quick-capture {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.quick-capture-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  border-radius: 999px;
+  width: 2.1rem;
+  height: 2.1rem;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.quick-capture-icon:hover {
+  border-color: var(--text-muted);
+  color: var(--text);
+}
+
+.quick-capture-bar {
+  display: flex;
+  gap: 0.4rem;
+  width: min(280px, 55vw);
+}
+
+.quick-capture-bar[hidden] {
+  display: none;
+}
+
+.quick-capture-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.88rem;
+}
+
+.quick-capture-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+/* Brief confirmation flash on a successful add — the only feedback this modeless flow gets,
+   since there's no modal to close as an implicit "saved" cue. */
+@keyframes quick-capture-flash {
+  from { border-color: var(--accent); background: var(--row-hover); }
+  to { border-color: var(--border); background: var(--bg); }
+}
+
+.quick-capture-input.quick-capture-flash {
+  animation: quick-capture-flash 0.6s ease-out;
+}
+
+.quick-capture-submit {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  width: 2.1rem;
+  height: 2.1rem;
+  flex-shrink: 0;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.quick-capture-submit:hover {
+  border-color: var(--text-muted);
+}
+
+/* Keyboard shortcuts cheat-sheet */
+.shortcuts-list {
+  margin: 0 0 0.9rem;
+}
+
+.shortcuts-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.7rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.shortcuts-row:last-child {
+  border-bottom: none;
+}
+
+.shortcuts-row dt {
+  flex-shrink: 0;
+  min-width: 4.5rem;
+  display: flex;
+  gap: 0.25rem;
+}
+
+.shortcuts-row dd {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+kbd {
+  display: inline-block;
+  font-family: inherit;
+  font-size: 0.78rem;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  padding: 0.05rem 0.4rem;
+  background: var(--bg);
+  color: var(--text);
+}
+
 .storage-bar {
   display: flex;
   align-items: center;

@@ -22,7 +22,23 @@
       <button type="button" class="view-switch-btn" data-view="list" role="tab">Checklist</button>
       <button type="button" class="view-switch-btn" data-view="calendar" role="tab">Calendar</button>
     </div>
+    <!-- Quick capture: frictionless add, sort later. No folder to pick, no modal — a bare title
+         lands in an auto-created Inbox folder for sorting afterward. Optional mechanical tags
+         (same vocabulary as the Bulk Import spec) route or date it on the way in: #folder,
+         @today / @tomorrow / @friday / @2026-10-01, and a standalone ! for "due today." Collapsed
+         to a small icon by default; the icon or the "N" shortcut expands it in place, and it
+         collapses back on Esc or on losing focus. See the Quick capture section in app.js. -->
+    <div id="quick-capture" class="quick-capture">
+      <button type="button" id="quick-capture-icon-btn" class="btn-icon quick-capture-icon"
+              aria-label="Quick add a task" title="Quick add a task (N)">+</button>
+      <form id="quick-capture-form" class="quick-capture-bar" autocomplete="off" hidden>
+        <input type="text" id="quick-capture-input" class="quick-capture-input"
+               placeholder="Quick add… #folder  @date  !" aria-label="Quick add a task">
+        <button type="submit" class="btn-icon quick-capture-submit" aria-label="Add task" title="Add task">+</button>
+      </form>
+    </div>
     <div class="header-actions">
+      <button id="shortcuts-btn" class="theme-toggle" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">?</button>
       <button id="settings-btn" class="theme-toggle" type="button" aria-label="Settings" title="Settings"></button>
       <button id="theme-toggle-btn" class="theme-toggle" type="button" aria-label="Toggle dark mode"></button>
     </div>
@@ -467,6 +483,25 @@
         <button type="submit" class="btn btn-primary">Save</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- Keyboard shortcuts cheat-sheet: a plain reference, opened by "?" or its header button, closed
+     by Esc, its own Cancel/Close, or an overlay click. See wireKeyboardShortcuts in app.js. -->
+<div id="shortcuts-modal" class="modal hidden">
+  <div class="modal-content">
+    <h2>Keyboard shortcuts</h2>
+    <dl class="shortcuts-list">
+      <div class="shortcuts-row"><dt><kbd>N</kbd></dt><dd>Open Quick add</dd></div>
+      <div class="shortcuts-row"><dt><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd></dt><dd>Switch view — Overview / Checklist / Calendar</dd></div>
+      <div class="shortcuts-row"><dt><kbd>F</kbd></dt><dd>Toggle Focus mode (Checklist, Plate layout)</dd></div>
+      <div class="shortcuts-row"><dt><kbd>Esc</kbd></dt><dd>Close a modal or Focus mode, or collapse Quick add</dd></div>
+      <div class="shortcuts-row"><dt><kbd>?</kbd></dt><dd>Show this list</dd></div>
+    </dl>
+    <p class="settings-hint">Shortcuts are ignored while typing in a field, except Esc.</p>
+    <div class="modal-actions">
+      <button type="button" id="shortcuts-close-btn" class="btn btn-primary">Close</button>
+    </div>
   </div>
 </div>
 
