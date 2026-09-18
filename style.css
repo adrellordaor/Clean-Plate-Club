@@ -65,6 +65,11 @@
   --staleness-high-text: #0e5c50;
 
   --overlay: rgba(20, 20, 18, 0.35);
+  /* Focus mode dims harder than a plain modal backdrop — it's meant to shut everything else
+     out, not just dim it — and its panel carries a soft red glow (--focus-glow, same hue as
+     --danger) as an "eyes on this" cue. */
+  --focus-overlay: rgba(15, 15, 13, 0.6);
+  --focus-glow: rgba(181, 81, 74, 0.4);
 
   /* Heat-map ramp: each quadrant has a fixed hue (see .quadrant-* below); a row's --p
      (0 = pale, 1 = vivid, from priority_score) slides saturation and lightness between
@@ -152,6 +157,8 @@
   --staleness-high-text: #3ee2c4;
 
   --overlay: rgba(0, 0, 0, 0.55);
+  --focus-overlay: rgba(0, 0, 0, 0.78);
+  --focus-glow: rgba(226, 148, 141, 0.45);
 
   --tint-s0: 12%;  --tint-s1: 60%;
   --tint-l0: 17%;  --tint-l1: 30%;
@@ -460,10 +467,11 @@ body {
   font-style: italic;
 }
 
-/* List display-mode toggle (windows / full), in the toolbar next to the legend. */
+/* List display-mode toggle (windows / full): pushed to the far right of the toolbar, same
+   top-right corner the mode toggle sits in on every other view (Overview, Calendar). */
 .list-mode {
-  margin-left: 0;
-  margin-right: 0.25rem;
+  margin-left: auto;
+  margin-right: 0;
 }
 
 .list-mode .view-switch-btn {
@@ -964,9 +972,19 @@ body {
   opacity: 1;
 }
 
+/* Bare "+" add-subtask, same affordance the Daily Plate/Fridge cards use (.window-card-add-subtask):
+   hidden until the row is hovered, so a compact task doesn't carry a text link by default. */
 .add-subtask-row {
   margin-left: 1.6rem;
   padding-left: 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+.task-row:hover .add-subtask-row {
+  opacity: 1;
 }
 
 .link-btn {
@@ -1708,11 +1726,11 @@ body {
   position: fixed;
   inset: 0;
   z-index: 40;
-  background: var(--overlay);
+  background: var(--focus-overlay);
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  padding: 6vh 1rem 2rem;
+  padding: 2vh 1rem;
   overflow-y: auto;
 }
 
@@ -1735,7 +1753,7 @@ body {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 0.8rem 0.9rem 0.9rem;
-  box-shadow: 0 12px 40px -12px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 12px 40px -12px rgba(0, 0, 0, 0.45), 0 0 32px 6px var(--focus-glow);
 }
 
 .focus-header {
@@ -2748,10 +2766,10 @@ body {
   margin-bottom: 1rem;
 }
 
-/* Pace/Capacity toggle: sits with the nav controls, not pushed to the far right where the
-   legend's own auto margin lives (same override .list-mode uses for the same reason). */
+/* Pace/Capacity toggle: pushed to the far right of the toolbar, same top-right corner the
+   mode toggle sits in on every other view (Overview, List). */
 .calendar-mode {
-  margin-left: 0;
+  margin-left: auto;
   margin-right: 0;
 }
 
@@ -2773,7 +2791,6 @@ body {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.35rem;
-  margin-left: auto;
   font-size: 0.72rem;
   color: var(--text-muted);
 }

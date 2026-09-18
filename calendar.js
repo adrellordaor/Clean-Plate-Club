@@ -342,7 +342,10 @@ function computeWeekSummary(weekStartDate, data, settings, today) {
 // state initialization inside functions, not at module scope).
 let calendarMonth = null; // { year, month(0-11) }
 let calendarSelectedWeekStart = null; // "YYYY-MM-DD", always a Monday
-let calendarOpenDay = null; // "YYYY-MM-DD" whose repository panel is expanded, or null
+// "YYYY-MM-DD" whose repository panel is expanded, null when explicitly closed, or undefined
+// before the first render — the sentinel that lets renderCalendar open today's by default on
+// load without fighting a later, deliberate close (see renderCalendar below).
+let calendarOpenDay;
 
 const CALENDAR_WEEKDAY_HEADS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -362,6 +365,9 @@ function renderCalendar() {
     calendarMonth = { year: d.getFullYear(), month: d.getMonth() };
   }
   if (!calendarSelectedWeekStart) calendarSelectedWeekStart = startOfWeekISODate(today);
+  // Today's completions open by default on first render; a later toggle (including closing
+  // it) is a deliberate choice from here on, so only the undefined sentinel triggers this.
+  if (calendarOpenDay === undefined) calendarOpenDay = today;
 
   // topPriorityIds: the exact set the Overview's priority summary panel lists (rank within
   // overview_top_n OR score ≥ overview_flag_threshold), so the accented future-deadline

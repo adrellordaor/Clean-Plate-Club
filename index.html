@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Task Tracker</title>
+<title>Clean Plate Club</title>
 <script>
   (function () {
     var saved = localStorage.getItem("theme");
@@ -16,7 +16,7 @@
 <body>
 <header class="app-header">
   <div class="header-top">
-    <h1>Task Tracker</h1>
+    <h1>Clean Plate Club</h1>
     <div id="view-switch" class="view-switch" role="tablist" aria-label="View">
       <button type="button" class="view-switch-btn" data-view="overview" role="tab">Overview</button>
       <button type="button" class="view-switch-btn" data-view="list" role="tab">Checklist</button>
@@ -66,8 +66,8 @@
         <button type="button" id="calendar-next-btn" class="btn-icon" aria-label="Next month">&rsaquo;</button>
       </div>
       <button type="button" id="calendar-today-btn" class="link-btn">Today</button>
-      <div id="calendar-mode" class="view-switch calendar-mode" role="tablist" aria-label="Calendar display mode"></div>
       <div id="calendar-legend" class="calendar-legend"></div>
+      <div id="calendar-mode" class="view-switch calendar-mode" role="tablist" aria-label="Calendar display mode"></div>
     </div>
     <div class="calendar-layout">
       <div class="calendar-main">
@@ -84,10 +84,10 @@
   <div id="list-view">
     <div class="toolbar">
       <div id="heatmap-legend" class="heatmap-legend"></div>
-      <div id="list-mode" class="view-switch list-mode" role="tablist" aria-label="List display mode"></div>
       <button id="add-category-btn" class="btn btn-secondary">+ Category</button>
       <button id="add-folder-btn" class="btn btn-secondary">+ Folder</button>
       <button id="add-task-btn" class="btn btn-primary">+ Task</button>
+      <div id="list-mode" class="view-switch list-mode" role="tablist" aria-label="List display mode"></div>
     </div>
 
     <!-- "windows": Now (live union: do_date == today OR quadrant Do/Clear, plus today's habits)
@@ -430,7 +430,7 @@
           <label>Display mode
             <select id="setting-list-mode">
               <option value="windows">Plate</option>
-              <option value="full">Full folder list</option>
+              <option value="full">List</option>
             </select>
           </label>
           <label>Weekly habits in Daily Plate: days before week end

@@ -1,6 +1,8 @@
 # Daily Task Tracker — Product Spec (v1)
 
-**App title: "Let him cook"** (fits the Daily Plate / Fridge / Fire-Ice theme).
+**App title: "Clean Plate Club"** (fits the Daily Plate / Fridge / Fire-Ice
+theme, and matches the "finish what's on your plate" goal the app is
+actually built around).
 Shown wherever the app displays its name (browser tab title, header, etc.).
 
 ## Overview
@@ -389,22 +391,26 @@ The app has three views:
     `priority_score`, scrollable, with basic inline editing. This is a
     third access point, distinct from both List modes below, "just show
     me the raw ranking, regardless of window or folder."
-- **Display mode toggle** (`overview_display_mode`, default `scatter`):
-  switches between the scatter view above and the quadrant-list style
+- **Display mode toggle** (`overview_display_mode`, default `scatter`),
+  positioned **top-right of the page**: switches between the scatter view above and the quadrant-list style
   already built (four boxes, tasks listed inside each, same tag shown per
   task here as well), same Do/Plan/Clear/Backlog corner layout either
   way. Both modes are worth keeping, the list is better for scanning
-  within one quadrant.
+  within one quadrant. This top-right position is the shared convention
+  all three display-mode toggles use (List and Calendar match it too),
+  one consistent location across every page rather than each view
+  placing its toggle wherever felt convenient.
 - "What changed since yesterday" line(s), unchanged from before
 - Read-only glance, no checking things off here
 
 **2. List view** (primary, where work actually happens)
-- **Display mode toggle** (`list_display_mode`, default `windows`): the
+- **Display mode toggle** (`list_display_mode`, default `windows`),
+  positioned **top-right**, matching Overview's convention: the
   third of three views with this same two-mode pattern
   (`overview_display_mode`, `calendar_display_mode`). **"windows"**
   (labeled just **"Plate"** in the UI, shorter than spelling out both
   window names) is the Daily Plate/Fridge layout described below.
-  **"full"** is the original
+  **"full"** (labeled just **"List"** in the UI) is the original
   folder/category-based list (category tabs, heat-map rows, Recurring
   habit boxes, everything else in this section as originally specified),
   kept fully intact as a secondary page, not removed, since Now/Later
@@ -412,7 +418,12 @@ The app has three views:
   everyday use, just still available whenever you want the complete
   folder-organized picture. The Overdue callout stays visible regardless
   of mode, it's a safety signal, not something that should disappear
-  while browsing "full."
+  while browsing List mode. **List mode uses the same icon-only add
+  philosophy established for Plate**: no "+ Add task" text links
+  anywhere, plain "+" icons throughout (adding a task, adding a folder,
+  adding within a category), one consistent minimalist visual language
+  across the whole app rather than two different conventions in two
+  different views.
 - Tabs are Categories ("All" plus one per category); within a category tab,
   tasks are grouped into collapsible Folder sections (e.g. "Finances" and
   "Chores" as two sections inside the Errands tab)
@@ -517,11 +528,12 @@ The app has three views:
     **dropdown**, not the `.view-switch` style used elsewhere. **Both
     this and the flat/by-folder grouping toggle are global**, one shared
     choice across both Daily Plate and Fridge rather than set separately
-    per window, changing either in one place updates both. **When
-    grouped by folder**, each folder gets the same per-bucket "+ Add
-    task" link described below, pre-filling that folder, same mechanic
-    as the date/importance/size buckets, a folder group is functionally
-    just another bucket here.
+    per window, changing either in one place updates both. **Positioned
+    together**, the sort dropdown sits directly next to the grouping
+    toggle in the same shared control strip, rather than living in a
+    separate location. The grouping toggle's second option is labeled
+    just **"Folder"** (not "by folder"), matching the terse naming
+    convention the other options already use.
     - **Which sort keys produce buckets, and why**: Priority stays a
       flat/unbucketed list, it's a continuous score with no non-arbitrary
       split. Importance buckets into all **four** levels (Low/Medium/
@@ -559,20 +571,22 @@ The app has three views:
       dropping into Tomorrow sets `do_date` to tomorrow; dropping into
       Later Dates sets it to the day after tomorrow, as that bucket's
       representative earliest value.
-    - **Per-bucket "+ Add task" link**: in any bucketed sort mode, each
+    - **Per-bucket "+" icon**: in any bucketed sort mode, each
       bucket gets its own add-task affordance that pre-fills whatever
       field values are needed to genuinely belong there (e.g., adding
       from the Tomorrow bucket pre-fills `do_date` to tomorrow; adding
       from the High-importance bucket pre-fills `importance` to High).
       This applies in both Daily Plate and Fridge, for whichever
-      bucketing scheme is active in each. **Styled as a clear text link**
-      ("+ Add task"), not a small icon-only button, this replaces the
-      single generic "+ Add task" link that used to sit at the bottom of
-      the whole window before bucketing existed, that one is retired
-      now, its job is fulfilled by one per bucket instead of one for the
-      entire window. This is deliberately distinct in style and job from
-      the global icon below, so the two are never confused for each
-      other.
+      bucketing scheme is active in each, and to folder groups too when
+      grouped by folder (a folder group is functionally just another
+      bucket). **A plain "+" icon**, not a text link, positioned bottom-
+      left below the last task in that bucket, the same spot the old
+      single "+ Add task" link used to occupy before bucketing existed,
+      that one is retired now, its job is fulfilled by one per bucket
+      instead of one for the entire window. This establishes the
+      app-wide convention: additions are icon-only everywhere, including
+      "full"/List mode (see below), one consistent minimalist visual
+      language rather than mixing icons and text links.
     - **Drag into any bucket also updates the task's attributes to
       genuinely match it, not just visually relocate it**, provided doing
       so doesn't bypass an existing hard rule, e.g. dragging a task into
@@ -580,11 +594,12 @@ The app has three views:
       Deadline requirement rather than silently violating it. A drag is a
       shortcut for making the underlying change, never a way around a
       rule that would otherwise block it.
-    - **Global "+ Add" icon**: a small icon (not a text link) in the
+    - **Global "+ Add" icon**: a small icon in the
       top-right corner of each window, where the by-folder grouping
       toggle used to sit before it became global, a plain add-task icon
       with no bucket-specific defaults, for when you don't want any of
-      the per-bucket pre-fills.
+      the per-bucket pre-fills. Same icon style as the per-bucket ones,
+      distinguished by position and job, not by looking different.
     - **Drag across the divider** (Do Date sort mode only): a lighter
       action than deprioritizing below, no reschedule prompt, it just
       toggles whether `do_date == today` and lets the live quadrant
@@ -697,9 +712,14 @@ The app has three views:
       Seeing or changing the actual `deadline` still happens through the
       full edit form.
   - **Focus mode**: an on-demand overlay, not a persistent third window,
-    triggered and dismissed by a single button. Centered on screen with a
-    more heavily dulled background than a typical dim overlay, this is
-    meant to feel like a real isolation, not a light tint. Filters to
+    triggered and dismissed by a single button. **Always vertically
+    centered**, regardless of how much content is showing, not just
+    centered on open and then free to drift. Background dulled further
+    still than the already-heavy dim from the last pass, this should feel
+    like real isolation, darker than a typical dim overlay by a wide
+    margin. **A soft red glow around the window itself**, a subtle
+    accent that reinforces the "this is the urgent stuff" framing without
+    being harsh. Filters to
     strictly the Do Today-tagged subset of Now (not all of Now, not
     Later), everything else dimmed/hidden behind it. Reuses the exact
     same drag mechanics as the normal view unchanged, dragging a task out
@@ -754,6 +774,14 @@ The app has three views:
     was never a need to reschedule it. Now vs. Later: act on these now, versus don't lose track of
   these. Renders side by side with Daily Plate, both narrower by default;
   either can be focused/expanded to take more width than the other.
+  **Expand/collapse behavior**: clicking anywhere non-interactive within
+  either window (not a task, button, or dropdown, just empty space
+  anywhere in the window, not only the header/sort area) expands that
+  window, same action as clicking its plate/fridge icon. Clicking
+  anywhere outside both windows collapses them back to the default
+  side-by-side state. **Daily Plate is expanded by default** the moment
+  you enter this view (windows mode), not a neutral/collapsed starting
+  state, it's the one you actually work from.
   - **Inline date editing, expanded only**: when Fridge is the expanded/
     focused panel (not the default narrower width), each card reveals a
     small inline **`do_date` field only**, not `deadline` alongside it,
@@ -812,7 +840,14 @@ to that prioritization flow.
 **3. Calendar view** (retrospective, replaces the earlier vague "basic
 productivity view")
 - Monthly grid, one cell per day
-- **Display mode toggle** (`calendar_display_mode`, default `pace`):
+- **Today's day-repository is open by default on load**, not something
+  requiring a click. Previously, opening the Calendar (including after a
+  refresh) showed nothing expanded until today's date was clicked
+  manually, worth fixing since today's own completions are exactly what
+  you'd want to see immediately on arriving here, not after an extra
+  click.
+- **Display mode toggle** (`calendar_display_mode`, default `pace`),
+  positioned **top-right**, matching Overview and List's convention:
   switches between the Pace view below (unchanged, still its own thing)
   and a **Capacity view**, which itself splits by whether a day is in the
   past or future, since only one kind of data actually exists for each:

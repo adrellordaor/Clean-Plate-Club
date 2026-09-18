@@ -454,6 +454,7 @@ function renderViewSwitch() {
   // safety signal and stays up in either List mode.
   document.getElementById("folder-tabs").hidden = !(isList && listMode === "full");
   document.getElementById("overdue-callout").hidden = !isList;
+  document.getElementById("windows-toolbar").hidden = !(isList && listMode === "windows");
   document.getElementById("windows-row").hidden = !(isList && listMode === "windows");
   document.getElementById("list-full").hidden = !(isList && listMode === "full");
   document.getElementById("overview-view").hidden = activeView !== "overview";
@@ -467,7 +468,7 @@ function renderViewSwitch() {
 
 const LIST_MODES = [
   { key: "windows", label: "Plate" },
-  { key: "full", label: "Full list" },
+  { key: "full", label: "List" },
 ];
 
 function renderListModeToggle() {
@@ -730,12 +731,7 @@ function renderFolderSection(folder) {
     body.appendChild(renderTaskList(topLevelTasks));
   }
 
-  const addLink = document.createElement("button");
-  addLink.type = "button";
-  addLink.className = "link-btn";
-  addLink.textContent = "+ Add task";
-  addLink.addEventListener("click", () => openTaskModal({ folder_id: folder.id }));
-  body.appendChild(addLink);
+  body.appendChild(makeBucketAddIcon(folder.name, () => openTaskModal({ folder_id: folder.id })));
 
   section.appendChild(body);
   return section;
@@ -853,7 +849,9 @@ function renderTaskRow(task) {
   const addSub = document.createElement("button");
   addSub.type = "button";
   addSub.className = "link-btn add-subtask-row";
-  addSub.textContent = "+ Add subtask";
+  addSub.textContent = "+";
+  addSub.title = "Add subtask";
+  addSub.setAttribute("aria-label", "Add subtask to " + task.title);
   addSub.addEventListener("click", () => openTaskModal({ folder_id: task.folder_id, parent_task_id: task.id }));
   main.appendChild(addSub);
 
@@ -1034,14 +1032,22 @@ function renderRecurringBox(cadence, containerId, label) {
     });
   }
 
-  const addLink = document.createElement("button");
-  addLink.type = "button";
-  addLink.className = "link-btn";
-  addLink.textContent = "+ Add";
-  addLink.addEventListener("click", () => openRecurringModal({ cadence }));
-  body.appendChild(addLink);
+  body.appendChild(makeHabitAddIcon(label, () => openRecurringModal({ cadence })));
 
   container.appendChild(body);
+}
+
+// Same bottom-left "+" pill as the folder list's per-folder add (makeBucketAddIcon, windows.js),
+// worded for a habit rather than a task.
+function makeHabitAddIcon(label, onAdd) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "btn-icon window-bucket-add";
+  btn.innerHTML = ICONS.plus;
+  btn.title = "Add a habit here (" + label + ")";
+  btn.setAttribute("aria-label", "Add habit to " + label);
+  btn.addEventListener("click", onAdd);
+  return btn;
 }
 
 function renderRecurringFolderSection(folder, cadence, folderItems) {
@@ -1087,12 +1093,7 @@ function renderRecurringFolderSection(folder, cadence, folderItems) {
   folderItems.forEach(rt => ul.appendChild(renderRecurringRow(rt)));
   body.appendChild(ul);
 
-  const addLink = document.createElement("button");
-  addLink.type = "button";
-  addLink.className = "link-btn";
-  addLink.textContent = "+ Add";
-  addLink.addEventListener("click", () => openRecurringModal({ cadence, folder_id: folder.id }));
-  body.appendChild(addLink);
+  body.appendChild(makeHabitAddIcon(folder.name, () => openRecurringModal({ cadence, folder_id: folder.id })));
 
   section.appendChild(body);
   return section;
