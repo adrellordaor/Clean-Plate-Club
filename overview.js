@@ -17,9 +17,14 @@ const OVERVIEW_CORNERS = [QUADRANTS.q1, QUADRANTS.q2, QUADRANTS.q3, QUADRANTS.q4
 
 const OVERVIEW_MODES = [
   { key: "scatter", label: "Scatter" },
-  { key: "list", label: "List" }, // the quadrant-boxes display mode; not to be confused with the
-  // header's "Checklist" toggle, which is the separate primary List view where work happens
+  { key: "list", label: "Quadrants" }, // the four-box quadrant-list display mode — named
+  // "Quadrants" (not "List") so it doesn't collide with the header's "Checklist" toggle or
+  // List mode's own "Plate"/"List" pair, three separate things that used to share one word.
 ];
+
+// overview_display_mode: a per-device display preference (localStorage), same category as
+// sort/grouping/theme/folder-count-style — the on-page toggle is its only UI.
+let overviewDisplayMode = localStorage.getItem("overviewDisplayMode") === "list" ? "list" : "scatter";
 
 function renderOverview() {
   if (activeView !== "overview") return; // nothing visible to draw; skip the work
@@ -30,7 +35,7 @@ function renderOverview() {
 
   renderOverviewModeToggle();
 
-  const mode = settings.overview_display_mode;
+  const mode = overviewDisplayMode;
   document.getElementById("overview-scatter").hidden = mode !== "scatter";
   document.getElementById("matrix-grid").hidden = mode !== "list";
   if (mode === "scatter") renderScatter(ranked, summaryIds);
@@ -60,8 +65,6 @@ function selectPrioritySummary(ranked, settings) {
 }
 
 // ---------- Display mode toggle ----------
-// overview_display_mode is a real setting (synced in the data file), so the toggle here
-// and the select in the Settings modal are two handles on the same value.
 
 function renderOverviewModeToggle() {
   const toggle = document.getElementById("overview-mode");
@@ -69,9 +72,9 @@ function renderOverviewModeToggle() {
   OVERVIEW_MODES.forEach(mode => {
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "view-switch-btn" + (settings.overview_display_mode === mode.key ? " active" : "");
+    btn.className = "view-switch-btn" + (overviewDisplayMode === mode.key ? " active" : "");
     btn.setAttribute("role", "tab");
-    btn.setAttribute("aria-selected", settings.overview_display_mode === mode.key ? "true" : "false");
+    btn.setAttribute("aria-selected", overviewDisplayMode === mode.key ? "true" : "false");
     btn.textContent = mode.label;
     btn.addEventListener("click", () => setOverviewDisplayMode(mode.key));
     toggle.appendChild(btn);
@@ -79,9 +82,9 @@ function renderOverviewModeToggle() {
 }
 
 function setOverviewDisplayMode(mode) {
-  if (settings.overview_display_mode === mode) return;
-  settings = normalizeSettings(Object.assign({}, settings, { overview_display_mode: mode }));
-  persist();
+  if (overviewDisplayMode === mode) return;
+  overviewDisplayMode = mode;
+  localStorage.setItem("overviewDisplayMode", mode);
   render();
 }
 
@@ -230,11 +233,11 @@ function renderScatter(ranked, summaryIds) {
     container.appendChild(empty);
   }
 
-  const legend = document.createElement("p");
-  legend.className = "scatter-legend";
-  legend.textContent = "One dot per task at its exact urgency × importance. Hue = quadrant, intensity = priority. Numbered dots are in the priority panel. Hover a dot for the full details."
-    + (hiddenLabels > 0 ? " " + hiddenLabels + " title" + (hiddenLabels === 1 ? "" : "s") + " hidden where there was no room — hover those dots." : "");
-  container.appendChild(legend);
+  if (hiddenLabels > 0) {
+    const title = svgEl("title", {});
+    title.textContent = pluralCount(hiddenLabels, "title") + " hidden where there was no room — hover those dots.";
+    svg.appendChild(title);
+  }
 }
 
 // The escalating tag rides on the dot as a distinct stroke (class tag-<key>, see CSS) plus a
@@ -409,12 +412,7 @@ function renderMatrixItem(entry, inSummary) {
   const li = document.createElement("li");
   li.className = "matrix-item quadrant-" + assessment.quadrant.key + (inSummary ? " matrix-item-priority" : "");
   li.style.setProperty("--p", assessment.intensity.toFixed(3));
-  li.title = [
-    "priority " + assessment.priorityScore,
-    "urgency " + assessment.urgency.score + " (" + assessment.urgency.reason + ")",
-    "importance " + task.importance,
-    task.deadline ? "due " + task.deadline : null,
-  ].filter(Boolean).join(" · ");
+  li.title = buildTaskTooltip(task, assessment, { priority: true, urgency: true, importance: true, deadline: true });
 
   if (inSummary) {
     const rankBadge = document.createElement("span");
@@ -545,7 +543,10 @@ function renderPriorityCard(entry, inSummary, editable) {
   const li = document.createElement("li");
   li.className = "priority-card quadrant-" + assessment.quadrant.key + (inSummary ? "" : " priority-card-plain");
   li.style.setProperty("--p", assessment.intensity.toFixed(3));
-  li.title = "urgency " + assessment.urgency.score + " (" + assessment.urgency.reason + ") · importance " + task.importance + (task.deadline ? " · due " + task.deadline : "");
+  // Deliberate behavior change (not a pure refactor): the matrix item's tooltip above already
+  // includes priorityScore; this one omitted it, a real inconsistency between two tooltips on
+  // the same kind of row. Adding it here so both carry the same information.
+  li.title = buildTaskTooltip(task, assessment, { priority: true, urgency: true, importance: true, deadline: true });
 
   const rank = document.createElement("span");
   rank.className = "priority-card-rank";
@@ -627,7 +628,7 @@ function renderPriorityEditRow(task) {
     label.appendChild(input);
     return label;
   };
-  row.appendChild(makeDate("Do", task.do_date, value => inlineSetDoDate(task, value)));
+  row.appendChild(makeDate("Do date", task.do_date, value => inlineSetDoDate(task, value)));
   row.appendChild(makeDate("Due", task.deadline, value => inlineSetDeadline(task, value)));
   return row;
 }

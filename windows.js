@@ -149,6 +149,17 @@ function bucketsTakeHabits(sortKey) {
   return sortKey === "dodate" || sortKey === "size";
 }
 
+// Do Date sort's "Today" bucket for Now, and Focus mode's visible set: the same "do_date is
+// today (or already passed)" definition, extracted once so both draw from one underlying
+// function rather than two independently-written filters (the visible task set is meant to be
+// identical, only the presentation differs).
+function isDoDateTodayEntry(entry, today) {
+  return !!entry.task.do_date && entry.task.do_date <= today;
+}
+function isDoDateTodayHabit(rt, today) {
+  return nextRecurringOccurrence(rt, today) <= today;
+}
+
 // The bucket layout for a sort key, or null for a flat list. `entries` must already be in
 // sort order (bucket contents keep it). Each bucket:
 //   { key, label, hint, entries, habits, drop(task) | null, addPrefill | null }
@@ -200,9 +211,9 @@ function bucketWindowEntries(entries, sortKey, winKey, today, habits) {
     const next = rt => nextRecurringOccurrence(rt, today);
     return [
       make("today", "Today", "do_date is today",
-        e => !!e.task.do_date && e.task.do_date <= today,
+        e => isDoDateTodayEntry(e, today),
         task => addToNow(task, { manual: true }),
-        { do_date: today, deadline: today }, rt => next(rt) <= today),
+        { do_date: today, deadline: today }, rt => isDoDateTodayHabit(rt, today)),
       make("tomorrow", "Tomorrow", "do_date is tomorrow",
         e => e.task.do_date === tomorrow,
         task => setDoDateExplicit(task, tomorrow),
@@ -214,24 +225,9 @@ function bucketWindowEntries(entries, sortKey, winKey, today, habits) {
     ];
   }
 
-  if (sortKey === "urgency" && isNow) {
-    const deadline = e => e.task.deadline || null;
-    return [
-      make("today", "Today", "Deadline today (or already passed)",
-        e => !!deadline(e) && deadline(e) <= today,
-        task => inlineSetDeadline(task, today),
-        { do_date: today, deadline: today }, null),
-      make("tomorrow", "Tomorrow", "Deadline tomorrow",
-        e => deadline(e) === tomorrow,
-        task => inlineSetDeadline(task, tomorrow),
-        { do_date: tomorrow, deadline: tomorrow }, null),
-      make("later", "Later dates", "Deadline further out, or none (urgent through staleness)",
-        e => !deadline(e) || deadline(e) >= later,
-        task => inlineSetDeadline(task, later),
-        { do_date: later, deadline: later }, null),
-    ];
-  }
-
+  // Urgency stays flat in both windows: once the deadline requirement tightened, do_date
+  // reliably mirrors deadline, so a Today/Tomorrow/Later split here would nearly duplicate
+  // Do Date's own bucketing rather than showing anything genuinely different.
   return null;
 }
 
@@ -257,7 +253,7 @@ const WINDOWS = {
 // ---------- Rendering ----------
 
 function renderNowLaterWindows() {
-  if (activeView !== "list" || settings.list_display_mode !== "windows") {
+  if (activeView !== "list" || listDisplayMode !== "windows") {
     renderFocusOverlay(null, null); // hides the overlay if a view/mode switch happened under it
     return;
   }
@@ -288,6 +284,11 @@ function renderNowLaterWindows() {
 // is relative to a per-window cap (just a feel threshold, not a real limit on either window).
 const PILE_FULLNESS_CAP = { now: 6, later: 14 };
 
+// Particle params persist across renders, keyed by window and regenerated only when `count`
+// itself changes (a task genuinely added/removed) — render() fires on nearly every interaction,
+// and without this cache the particles would reshuffle on any click, not just a real change.
+const pileParticleCache = {};
+
 function renderPileIndicator(win, count) {
   const cap = PILE_FULLNESS_CAP[win.key] || 10;
   const fullness = Math.max(0, Math.min(1, count / cap));
@@ -300,21 +301,40 @@ function renderPileIndicator(win, count) {
   particles.className = "pile-particles";
   particles.setAttribute("aria-hidden", "true");
   const particleCount = count > 0 ? Math.round(2 + fullness * 5) : 0; // 2..7, none when empty
-  for (let i = 0; i < particleCount; i++) {
+
+  const cached = pileParticleCache[win.key];
+  let params;
+  if (cached && cached.count === count) {
+    params = cached.params;
+  } else {
+    params = [];
+    for (let i = 0; i < particleCount; i++) {
+      params.push({
+        size: 3 + Math.random() * 3 * (0.6 + fullness),
+        left: 8 + Math.random() * 84,
+        duration: (1 + Math.random() * 0.9) / (0.4 + fullness),
+        delay: Math.random() * 1.4,
+        dx: Math.random() * 14 - 7,
+        spin: 140 + Math.random() * 160,
+      });
+    }
+    pileParticleCache[win.key] = { count, params };
+  }
+
+  params.forEach(param => {
     const p = document.createElement("span");
     p.className = "pile-particle";
-    const size = 3 + Math.random() * 3 * (0.6 + fullness);
-    p.style.width = size + "px";
-    p.style.height = size + "px";
-    p.style.left = (8 + Math.random() * 84) + "%";
-    p.style.animationDuration = ((1 + Math.random() * 0.9) / (0.4 + fullness)).toFixed(2) + "s";
-    p.style.animationDelay = (Math.random() * 1.4).toFixed(2) + "s";
+    p.style.width = param.size + "px";
+    p.style.height = param.size + "px";
+    p.style.left = param.left + "%";
+    p.style.animationDuration = param.duration.toFixed(2) + "s";
+    p.style.animationDelay = param.delay.toFixed(2) + "s";
     if (win.key === "later") {
-      p.style.setProperty("--dx", (Math.random() * 14 - 7).toFixed(1) + "px");
-      p.style.setProperty("--spin", (140 + Math.random() * 160).toFixed(0) + "deg"); // tumble, not a fixed spin
+      p.style.setProperty("--dx", param.dx.toFixed(1) + "px");
+      p.style.setProperty("--spin", param.spin.toFixed(0) + "deg"); // tumble, not a fixed spin
     }
     particles.appendChild(p);
-  }
+  });
   wrap.appendChild(particles);
 
   const countEl = document.createElement("span");
@@ -333,7 +353,7 @@ function renderWindow(win, ranked, today, nowIsEmpty) {
 
   const unsorted = ranked.filter(entry => win.member(entry, today));
   // Members nested under a member parent render inside that parent's card, not as their own.
-  const entries = topLevelEntries(sortWindowEntries(unsorted, windowPrefs.sort));
+  let entries = topLevelEntries(sortWindowEntries(unsorted, windowPrefs.sort));
   // Every habit currently due in this window, regardless of whether the active sort mode
   // buckets them in or keeps them in the standalone Habits block below — the header count
   // reflects the true size of what's showing, RecurringTasks included.
@@ -397,16 +417,22 @@ function renderWindow(win, ranked, today, nowIsEmpty) {
   addIcon.type = "button";
   addIcon.className = "btn-icon window-add-icon";
   addIcon.innerHTML = ICONS.plus;
-  addIcon.title = win.key === "now" ? "Add a task to Daily Plate (planned for today)" : "Add a task";
+  addIcon.title = win.key === "now" ? "Add a task to Daily Plate (do date today)" : "Add a task";
   addIcon.setAttribute("aria-label", "Add task to " + win.title);
   addIcon.addEventListener("click", win.add);
   controls.appendChild(addIcon);
   el.appendChild(controls);
 
-  // Empty-Now suggestion (Later only, live-checked every render — see file header).
+  // Empty-Now suggestion (Later only, live-checked every render — see file header). The
+  // suggested 3 are highlighted in place, not duplicated: pull them out of the entries the
+  // body renders below so each one shows exactly once.
   if (win.key === "later" && nowIsEmpty) {
     const suggested = sortWindowEntries(unsorted, "priority").slice(0, 3);
-    if (suggested.length) el.appendChild(renderSuggestionBox(suggested, expanded));
+    if (suggested.length) {
+      el.appendChild(renderSuggestionBox(suggested, expanded));
+      const suggestedIds = new Set(suggested.map(entry => entry.task.id));
+      entries = entries.filter(entry => !suggestedIds.has(entry.task.id));
+    }
   }
 
   el.appendChild(renderWindowBody(win, entries, today, expanded));
@@ -538,10 +564,12 @@ function renderWindowBody(win, entries, today, expanded) {
     zone.className = "window-bucket";
     zone.dataset.bucket = bucket.key;
     zone.appendChild(makeBucketHeader(bucket.label, bucket.entries.length + bucket.habits.length, i === 0, bucket.hint));
-    if (bucket.entries.length) appendCards(zone, bucket.entries, win, expanded);
+    if (bucket.entries.length) appendCards(zone, bucket.entries, win, expanded, bucket.addPrefill);
     bucket.habits.forEach(rt => zone.appendChild(renderWindowHabitRow(rt, today)));
     if (!bucket.entries.length && !bucket.habits.length) {
-      zone.appendChild(makeEmptyHint(bucket.drop ? "Drop a card here." : "Nothing here.", "window-zone-empty"));
+      // One consistent empty-bucket message everywhere (whether or not the bucket takes a
+      // drop) — four buckets all saying "Drop a card here." at once was just repetitive noise.
+      zone.appendChild(makeEmptyHint("Nothing here.", "window-zone-empty"));
     }
     if (bucket.addPrefill) zone.appendChild(makeBucketAddIcon(bucket.label, () => addTaskFromBucket(bucket.addPrefill)));
     wireBucketDrop(zone, win, bucket);
@@ -568,14 +596,17 @@ function wireBucketDrop(zone, win, bucket) {
 }
 
 // Cards, nested inside folder groups when that toggle is on. A folder group is a bucket like
-// any other here: same header component, same bottom "+" add icon, pre-filling that folder.
-function appendCards(container, entries, win, expanded) {
+// any other here: same header component, same bottom "+" add icon, pre-filling that folder —
+// plus whatever the enclosing bucket itself prefills (importance level, do_date/deadline,
+// is_quick_win), so a folder group nested inside e.g. the Critical bucket still genuinely
+// belongs there when added from its own "+", not just visually placed there.
+function appendCards(container, entries, win, expanded, addPrefill) {
   if (windowPrefs.group === "folder") {
     groupEntriesByFolder(entries).forEach((group, i) => {
       container.appendChild(makeBucketHeader(group.name, group.entries.length, i === 0));
       group.entries.forEach(entry => container.appendChild(renderWindowCard(entry, win, expanded)));
       if (group.folderId) {
-        container.appendChild(makeBucketAddIcon(group.name, () => addTaskFromBucket({ folder_id: group.folderId })));
+        container.appendChild(makeBucketAddIcon(group.name, () => addTaskFromBucket(Object.assign({}, addPrefill, { folder_id: group.folderId }))));
       }
     });
   } else {
@@ -701,7 +732,7 @@ function scheduleCardDone(task, el, checked) {
 // One task card. Same heat-map as everywhere else: hue from the live quadrant, --p from
 // priority intensity. Compact = checkbox, title, tags (and the hover pencil). Expanded adds
 // the meta line (not on Bite-size cards), the sizing chip, Now's countdown, Later's inline
-// do_date input. Bite-size cards render slimmer with a small bite icon.
+// do_date input. Bite-size cards render slimmer, size alone, no icon or label either state.
 function renderWindowCard(entry, win, expanded) {
   const { task, assessment } = entry;
   const today = todayISODate();
@@ -713,14 +744,10 @@ function renderWindowCard(entry, win, expanded) {
     + (pending ? " done-pending" : "");
   card.dataset.taskId = task.id;
   card.style.setProperty("--p", assessment.intensity.toFixed(3));
-  card.title = [
-    assessment.quadrant.label + " · priority " + assessment.priorityScore,
-    "urgency " + assessment.urgency.score + " (" + assessment.urgency.reason + ")",
-    "importance " + task.importance,
-    task.deadline ? "due " + task.deadline : "no deadline",
-    task.do_date ? "planned " + task.do_date : null,
-    task.is_quick_win ? "bite-size" : null,
-  ].filter(Boolean).join(" · ");
+  card.title = buildTaskTooltip(task, assessment, {
+    quadrant: true, urgency: true, importance: true, deadline: true, deadlineFallback: "no deadline",
+    doDate: true, biteSize: true,
+  });
   makeTaskDraggable(card, task, win.key);
 
   const children = tasks.filter(t => t.parent_task_id === task.id);
@@ -739,13 +766,6 @@ function renderWindowCard(entry, win, expanded) {
 
   const titleLine = document.createElement("span");
   titleLine.className = "window-card-title-line";
-  if (task.is_quick_win) {
-    const icon = document.createElement("span");
-    icon.className = "window-card-bite";
-    icon.innerHTML = ICONS.bite;
-    icon.title = "Bite-size";
-    titleLine.appendChild(icon);
-  }
   const title = document.createElement("span");
   title.className = "window-card-title";
   title.textContent = task.title;
@@ -875,7 +895,7 @@ function renderCardSubtaskRow(task, win, today) {
     const assessment = assessTask(task, settings, today);
     row.classList.add("quadrant-" + assessment.quadrant.key);
     row.style.setProperty("--p", assessment.intensity.toFixed(3));
-    row.title = assessment.quadrant.label + " · priority " + assessment.priorityScore + " · urgency " + assessment.urgency.score + " (" + assessment.urgency.reason + ")";
+    row.title = buildTaskTooltip(task, assessment, { quadrant: true, urgency: true });
     makeTaskDraggable(row, task, win.key);
   }
 
@@ -1085,7 +1105,7 @@ function renderFocusOverlay(ranked, today) {
   focusOverlay.classList.toggle("hidden", !open);
   if (!open) return;
 
-  const members = ranked.filter(entry => WINDOWS.now.member(entry, today) && entry.task.do_date === today);
+  const members = ranked.filter(entry => WINDOWS.now.member(entry, today) && isDoDateTodayEntry(entry, today));
   const entries = topLevelEntries(sortWindowEntries(members, windowPrefs.sort));
   document.getElementById("focus-count").textContent = members.length;
   document.getElementById("focus-close-btn").innerHTML = ICONS.close; // ICONS is app.js's, loaded after this file
@@ -1245,8 +1265,16 @@ function inlineSetDeadline(task, value) {
   const now = new Date().toISOString();
   const candidate = Object.assign({}, task, { deadline: next, last_touched_at: now });
   if (isDeadlineViolator(candidate, todayISODate())) {
-    alert("High/Critical tasks need a deadline — without one this would sit in Plan with no target. Set a date (a generous one is fine) or lower the importance.");
-    render();
+    // Same deadline-requirement UI everywhere it applies: the shared modal, not a blocking
+    // alert(). A resolved date becomes the new deadline; cancelling re-renders the old value back.
+    promptForDeadline(task, DEADLINE_REQUIRED_PROMPT).then(date => {
+      if (!date) { render(); return; }
+      task.deadline = date;
+      applyDeadlineDefault(task);
+      task.last_touched_at = now;
+      persist();
+      render();
+    });
     return;
   }
   task.deadline = next;
@@ -1264,8 +1292,15 @@ function inlineSetImportance(task, value) {
   const now = new Date().toISOString();
   const candidate = Object.assign({}, task, { importance: value, last_touched_at: now });
   if (isDeadlineViolator(candidate, todayISODate())) {
-    alert("High/Critical tasks need a deadline — without one this would sit in Plan with no target. Set a deadline first (a generous one is fine).");
-    render();
+    promptForDeadline(task, DEADLINE_REQUIRED_PROMPT).then(date => {
+      if (!date) { render(); return; }
+      task.importance = value;
+      task.deadline = date;
+      applyDeadlineDefault(task);
+      task.last_touched_at = now;
+      persist();
+      render();
+    });
     return;
   }
   task.importance = value;
@@ -1316,6 +1351,14 @@ const NOW_DEADLINE_PROMPT = Object.freeze({
   heading: "Set a deadline",
   text: "Anything planned for a day needs a real deadline, so it can't roll forward forever unnoticed. Set one for",
   confirmLabel: "Set date",
+});
+
+// Same prompt, worded for the other trigger: a High/Critical importance edit that would leave
+// a task dateless in Plan (the task form's own submit-time check uses this too, see app.js).
+const DEADLINE_REQUIRED_PROMPT = Object.freeze({
+  heading: "Set a deadline",
+  text: "High/Critical tasks need a deadline — without one this would sit in Plan with no target. Set one for",
+  confirmLabel: "Save",
 });
 
 const nowDeadlineModal = document.getElementById("now-deadline-modal");
@@ -1451,12 +1494,14 @@ wireWindowExpandClick(document.getElementById("later-window"), WINDOWS.later);
 // "outside" and undid the very expand that just happened. composedPath() is a snapshot of the
 // event's real path taken at dispatch time, before any handler had a chance to mutate the DOM.
 const windowsRowEl = document.getElementById("windows-row");
+const windowsToolbarEl = document.getElementById("windows-toolbar");
 document.addEventListener("click", e => {
   if (windowPrefs.focus === "none") return;
-  if (activeView !== "list" || settings.list_display_mode !== "windows") return;
+  if (activeView !== "list" || listDisplayMode !== "windows") return;
   const path = e.composedPath();
   const isExempt = path.some(node =>
     node === windowsRowEl ||
+    node === windowsToolbarEl ||
     (node.classList && node.classList.contains("modal")) ||
     node.id === "focus-overlay" ||
     node.id === "view-switch"

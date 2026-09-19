@@ -354,16 +354,13 @@ function makeRecurringTask(overrides) {
 // than stored — so nothing needs an explicit daily "reset" scan or migration.
 
 function todayISODate() {
-  const d = new Date();
-  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  return localDateString(new Date());
 }
 
 function startOfWeekISODate(dateStr) {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const date = new Date(y, m - 1, d);
-  const daysSinceMonday = (date.getDay() + 6) % 7; // getDay(): 0=Sun..6=Sat, so Mon=0 days back
-  date.setDate(date.getDate() - daysSinceMonday); // back up to Monday
-  return date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0");
+  const date = parseLocalDate(dateStr);
+  date.setDate(date.getDate() - mondayOffset(date)); // back up to Monday
+  return localDateString(date);
 }
 
 function isRecurringDoneNow(rt) {
@@ -416,6 +413,11 @@ function toggleFolderCountDisplay() {
   render();
 }
 
+// list_display_mode: "windows" (Plate/Fridge) or "full" (the folder-organized page). A
+// per-device display preference, same category as sort/grouping/theme/folder-count-style —
+// the on-page toggle is its only UI, stored in localStorage, never synced through the data file.
+let listDisplayMode = localStorage.getItem("listDisplayMode") === "full" ? "full" : "windows";
+
 // ---------- Views ----------
 // "list" is where work happens; "overview" is the read-only orientation glance. Navigating
 // between them within a session is just in-memory state — a fresh page load always starts
@@ -448,11 +450,12 @@ function renderViewSwitch() {
     btn.setAttribute("aria-selected", isActive ? "true" : "false");
   });
   const isList = activeView === "list";
-  const listMode = settings.list_display_mode;
+  const listMode = listDisplayMode;
   document.getElementById("list-view").hidden = !isList;
-  // The category tabs belong to the folder-organized "full" page; the Overdue callout is a
-  // safety signal and stays up in either List mode.
+  // The category tabs and heat-map legend belong to the folder-organized "full" page; the
+  // Overdue callout is a safety signal and stays up in either List mode.
   document.getElementById("folder-tabs").hidden = !(isList && listMode === "full");
+  document.getElementById("heatmap-legend").hidden = !(isList && listMode === "full");
   document.getElementById("overdue-callout").hidden = !isList;
   document.getElementById("windows-toolbar").hidden = !(isList && listMode === "windows");
   document.getElementById("windows-row").hidden = !(isList && listMode === "windows");
@@ -462,9 +465,9 @@ function renderViewSwitch() {
 }
 
 // ---------- List display mode ----------
-// list_display_mode is a real setting (synced in the data file), same two-mode pattern as
-// overview_display_mode and calendar_display_mode: the toggle in the toolbar and the select
-// in the Settings modal are two handles on the same value.
+// list_display_mode is a per-device display preference (localStorage, see listDisplayMode
+// above), same two-mode pattern as overview_display_mode and calendar_display_mode: the
+// on-page toggle is its only UI.
 
 const LIST_MODES = [
   { key: "windows", label: "Plate" },
@@ -477,7 +480,7 @@ function renderListModeToggle() {
   LIST_MODES.forEach(mode => {
     const btn = document.createElement("button");
     btn.type = "button";
-    const active = settings.list_display_mode === mode.key;
+    const active = listDisplayMode === mode.key;
     btn.className = "view-switch-btn" + (active ? " active" : "");
     btn.setAttribute("role", "tab");
     btn.setAttribute("aria-selected", active ? "true" : "false");
@@ -488,9 +491,9 @@ function renderListModeToggle() {
 }
 
 function setListDisplayMode(mode) {
-  if (settings.list_display_mode === mode) return;
-  settings = normalizeSettings(Object.assign({}, settings, { list_display_mode: mode }));
-  persist();
+  if (listDisplayMode === mode) return;
+  listDisplayMode = mode;
+  localStorage.setItem("listDisplayMode", mode);
   render();
 }
 
@@ -530,6 +533,10 @@ function renderOverdueCallout() {
 
   el.classList.toggle("has-items", overdue.length > 0);
 
+  // Hidden entirely when nothing's overdue, same as every other empty state in the app — no
+  // "nothing past its deadline" self-narration, it just doesn't render.
+  if (overdue.length === 0) return;
+
   const header = document.createElement("div");
   header.className = "overdue-callout-header";
 
@@ -545,13 +552,10 @@ function renderOverdueCallout() {
 
   const hint = document.createElement("span");
   hint.className = "overdue-callout-hint";
-  hint.textContent = overdue.length === 0
-    ? "nothing past its deadline"
-    : "past deadline · act on these first";
+  hint.textContent = "past deadline · act on these first";
   header.appendChild(hint);
 
   el.appendChild(header);
-  if (overdue.length === 0) return;
 
   const strip = document.createElement("div");
   strip.className = "overdue-strip";
@@ -566,11 +570,7 @@ function renderOverdueCard(entry, today) {
   const card = document.createElement("div");
   card.className = "overdue-card quadrant-" + assessment.quadrant.key;
   card.style.setProperty("--p", assessment.intensity.toFixed(3));
-  card.title = [
-    assessment.quadrant.label + " · priority " + assessment.priorityScore,
-    "importance " + task.importance,
-    "due " + task.deadline,
-  ].join(" · ");
+  card.title = buildTaskTooltip(task, assessment, { quadrant: true, importance: true, deadline: true });
 
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
@@ -618,6 +618,19 @@ function renderHeatMapLegend() {
   legend.appendChild(note);
 }
 
+// One add-affordance policy app-wide: a plain "+" icon, not a text link, positioned at the end
+// of whatever it's adding to. Shares styling with windows.js's makeBucketAddIcon.
+function makeAddIcon(title, ariaLabel, onAdd) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "btn-icon window-bucket-add";
+  btn.innerHTML = ICONS.plus;
+  btn.title = title;
+  btn.setAttribute("aria-label", ariaLabel);
+  btn.addEventListener("click", onAdd);
+  return btn;
+}
+
 function renderCategoryTabs() {
   const nav = document.getElementById("folder-tabs");
   nav.innerHTML = "";
@@ -641,6 +654,8 @@ function renderCategoryTabs() {
     });
     nav.appendChild(btn);
   });
+
+  nav.appendChild(makeAddIcon("Add a category", "Add category", openCategoryModal));
 }
 
 // A completed task keeps showing (struck through) in its folder for the rest of the day it
@@ -670,6 +685,8 @@ function renderFolderList() {
     hint.textContent = "No folders yet. Add one to get started.";
     container.appendChild(hint);
   }
+
+  container.appendChild(makeAddIcon("Add a folder", "Add folder", openFolderModal));
 }
 
 function renderFolderSection(folder) {
@@ -749,8 +766,9 @@ function renderTaskList(taskGroup) {
 function renderTaskRow(task) {
   const li = document.createElement("li");
 
+  const pending = pendingDone.has(task.id);
   const row = document.createElement("div");
-  row.className = "task-row" + (task.status === "done" ? " done" : "");
+  row.className = "task-row" + (task.status === "done" ? " done" : "") + (pending ? " done-pending" : "");
 
   // Heat-map tint only applies to live tasks; done/dropped rows stay neutral. The quadrant
   // class picks the hue, --p (0-1 intensity from priority_score) drives saturation/lightness
@@ -794,8 +812,14 @@ function renderTaskRow(task) {
 
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
-  checkbox.checked = task.status === "done";
-  checkbox.addEventListener("change", () => toggleTaskDone(task));
+  checkbox.checked = task.status === "done" || pending;
+  // Same completion pattern as Plate/Fridge cards and subtasks: strike through at once, commit
+  // after a short grace period (scheduleCardDone, windows.js); un-completing an already-done
+  // task is instant, there's nothing left to strike through.
+  checkbox.addEventListener("change", () => {
+    if (task.status === "done") toggleTaskDone(task);
+    else scheduleCardDone(task, row, checkbox.checked);
+  });
   row.appendChild(checkbox);
 
   const main = document.createElement("div");
@@ -869,7 +893,7 @@ function renderTaskRow(task) {
   editBtn.addEventListener("click", () => openTaskModal(task));
   actions.appendChild(editBtn);
 
-  if (task.status === "active") {
+  if (task.status === "active" && !task.deadline) {
     const bumpBtn = document.createElement("button");
     bumpBtn.type = "button";
     bumpBtn.className = "btn-icon";
@@ -941,13 +965,7 @@ function renderUrgencyMeta(task, assessment) {
   const quadrant = document.createElement("span");
   quadrant.className = "quadrant-label";
   quadrant.textContent = assessment.quadrant.label;
-  const parts = [
-    "priority " + assessment.priorityScore,
-    "urgency " + assessment.urgency.score + " (" + assessment.urgency.reason + ")",
-  ];
-  if (task.deadline) parts.push("due " + task.deadline);
-  if (task.do_date) parts.push("planned " + task.do_date);
-  quadrant.title = parts.join(" · ");
+  quadrant.title = buildTaskTooltip(task, assessment, { priority: true, urgency: true, deadline: true, doDate: true });
   meta.appendChild(quadrant);
   return meta;
 }
@@ -966,11 +984,6 @@ function renderSubtaskProgress(subtasks) {
   fill.style.width = percent + "%";
   bar.appendChild(fill);
   wrap.appendChild(bar);
-
-  const label = document.createElement("span");
-  label.className = "subtask-progress-text";
-  label.textContent = percent + "%";
-  wrap.appendChild(label);
 
   return wrap;
 }
@@ -1368,56 +1381,49 @@ taskForm.addEventListener("submit", e => {
   const existing = id ? tasks.find(t => t.id === id) : null;
   const now = new Date().toISOString();
 
-  // Now-window deadline prompt, inline: a task given a do_date without a deadline would
-  // roll forward silently forever with nothing else eventually forcing it to surface. Fill
-  // in the default (today + deadline_high_days) and ask for a second look rather than save.
-  if (data.do_date && !data.deadline) {
-    const suggested = defaultNowDeadline();
-    document.getElementById("task-deadline").value = suggested;
-    taskError.textContent = "A planned task needs a deadline too. Defaulted to " + suggested + " — adjust if needed and save again.";
-    document.getElementById("task-deadline").focus();
-    return;
-  }
+  const finishSave = () => {
+    // Deadline-default: a newly set or changed deadline becomes the do_date unless one is set.
+    const deadlineChanged = !existing || (existing.deadline || null) !== data.deadline;
+    if (deadlineChanged) applyDeadlineDefault(data);
 
-  // Deadline-default: a newly set or changed deadline becomes the do_date unless one is set.
-  const deadlineChanged = !existing || (existing.deadline || null) !== data.deadline;
-  if (deadlineChanged) applyDeadlineDefault(data);
+    if (existing) {
+      // A direct do_date edit is a genuine write: the silent-rollover count starts over.
+      if ((existing.do_date || null) !== (data.do_date || null)) data.do_date_rollover_count = 0;
+      Object.assign(existing, data);
+      existing.last_touched_at = now;
+    } else {
+      tasks.push(makeTask(data));
+    }
 
-  // Deadline requirement: High/Critical importance can't sit dateless in Plan. Assess the
-  // task as it would be saved (last_touched_at reset, so staleness restarts at zero).
+    closeTaskModal();
+    persist();
+    render();
+  };
+
+  // Deadline requirement, one pattern everywhere it applies (see windows.js's promptForDeadline):
+  // a do_date without a deadline would roll forward silently forever with nothing else eventually
+  // forcing it to surface; a High/Critical task would otherwise sit dateless in Plan. Assess the
+  // second case as the task would actually be saved (last_touched_at reset, staleness at zero).
   const candidate = Object.assign({}, existing || makeTask({}), data, { last_touched_at: now, status: "active" });
-  if (isDeadlineViolator(candidate, todayISODate())) {
-    taskError.textContent = "High/Critical tasks need a deadline — without one this would sit in Plan with no target. Set a date (a generous one is fine) or lower the importance.";
-    document.getElementById("task-deadline").focus();
+  const opts = (data.do_date && !data.deadline) ? NOW_DEADLINE_PROMPT
+    : isDeadlineViolator(candidate, todayISODate()) ? DEADLINE_REQUIRED_PROMPT
+    : null;
+  if (opts) {
+    promptForDeadline({ title: data.title || "this task" }, opts).then(date => {
+      if (!date) return; // cancelled: leave the form open, nothing saved
+      data.deadline = date;
+      document.getElementById("task-deadline").value = date;
+      finishSave();
+    });
     return;
   }
 
-  if (existing) {
-    // A direct do_date edit is a genuine write: the silent-rollover count starts over.
-    if ((existing.do_date || null) !== (data.do_date || null)) data.do_date_rollover_count = 0;
-    Object.assign(existing, data);
-    existing.last_touched_at = now;
-  } else {
-    tasks.push(makeTask(data));
-  }
-
-  closeTaskModal();
-  persist();
-  render();
+  finishSave();
 });
 
 document.getElementById("task-cancel-btn").addEventListener("click", closeTaskModal);
-document.getElementById("add-task-btn").addEventListener("click", () => {
-  if (folders.length === 0) {
-    alert("Add a folder first.");
-    return;
-  }
-  const candidates = activeCategoryFilter !== "all"
-    ? folders.filter(f => f.category_id === activeCategoryFilter)
-    : folders;
-  const folderId = (candidates[0] || folders[0]).id;
-  openTaskModal({ folder_id: folderId });
-});
+// No standalone toolbar "+ Task" anymore — every folder section already has its own bottom "+"
+// (see renderFolderSection), one add-affordance policy app-wide: icon-only, in place.
 
 taskModal.addEventListener("click", e => {
   if (e.target === taskModal) closeTaskModal();
@@ -1467,7 +1473,6 @@ folderForm.addEventListener("submit", e => {
   render();
 });
 
-document.getElementById("add-folder-btn").addEventListener("click", openFolderModal);
 document.getElementById("folder-cancel-btn").addEventListener("click", closeFolderModal);
 folderModal.addEventListener("click", e => {
   if (e.target === folderModal) closeFolderModal();
@@ -1590,7 +1595,6 @@ categoryForm.addEventListener("submit", e => {
   render();
 });
 
-document.getElementById("add-category-btn").addEventListener("click", openCategoryModal);
 document.getElementById("category-cancel-btn").addEventListener("click", closeCategoryModal);
 categoryModal.addEventListener("click", e => {
   if (e.target === categoryModal) closeCategoryModal();
@@ -1615,7 +1619,6 @@ const SETTINGS_FIELDS = {
   quadrant_split_score: "setting-quadrant-split",
   overview_top_n: "setting-overview-top-n",
   overview_flag_threshold: "setting-overview-flag",
-  overview_display_mode: "setting-overview-mode",
   staleness_reminder_interval_days: "setting-staleness-reminder-interval",
   staleness_reminder_low_days: "setting-staleness-reminder-low",
   staleness_reminder_medium_days: "setting-staleness-reminder-medium",
@@ -1623,13 +1626,8 @@ const SETTINGS_FIELDS = {
   do_today_urgency_floor: "setting-do-today-floor",
   weekly_recurring_now_days: "setting-weekly-recurring-now",
   monthly_recurring_now_days: "setting-monthly-recurring-now",
-  list_display_mode: "setting-list-mode",
-  calendar_display_mode: "setting-calendar-mode",
   daily_capacity_points: "setting-daily-capacity",
 };
-
-// Settings read back as a string choice rather than a number.
-const STRING_SETTINGS = new Set(["overview_display_mode", "list_display_mode", "calendar_display_mode"]);
 
 function fillSettingsForm(values) {
   Object.entries(SETTINGS_FIELDS).forEach(([key, inputId]) => {
@@ -1641,15 +1639,13 @@ function fillSettingsForm(values) {
 function readSettingsForm() {
   const values = {};
   Object.entries(SETTINGS_FIELDS).forEach(([key, inputId]) => {
-    const raw = document.getElementById(inputId).value;
-    values[key] = STRING_SETTINGS.has(key) ? raw : Number(raw);
+    values[key] = Number(document.getElementById(inputId).value);
   });
   return values;
 }
 
 function validateSettings(v) {
-  const numbers = Object.entries(v).filter(([key]) => !STRING_SETTINGS.has(key)).map(([, n]) => n);
-  const allNumbers = numbers.every(n => Number.isFinite(n) && n >= 0);
+  const allNumbers = Object.values(v).every(n => Number.isFinite(n) && n >= 0);
   if (!allNumbers) return "All values must be numbers of 0 or more.";
   if (!(v.deadline_low_days >= v.deadline_medium_days && v.deadline_medium_days >= v.deadline_high_days)) {
     return "Deadline days must run low ≥ medium ≥ high (e.g. 14 / 7 / 3).";
@@ -2126,7 +2122,7 @@ document.addEventListener("keydown", e => {
     e.preventDefault();
     expandQuickCapture();
   } else if (e.key === "f" || e.key === "F") {
-    if (activeView === "list" && settings.list_display_mode === "windows") {
+    if (activeView === "list" && listDisplayMode === "windows") {
       e.preventDefault();
       if (focusModeOpen) closeFocusMode(); else openFocusMode();
     }

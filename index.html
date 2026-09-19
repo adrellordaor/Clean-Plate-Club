@@ -100,9 +100,6 @@
   <div id="list-view">
     <div class="toolbar">
       <div id="heatmap-legend" class="heatmap-legend"></div>
-      <button id="add-category-btn" class="btn btn-secondary">+ Category</button>
-      <button id="add-folder-btn" class="btn btn-secondary">+ Folder</button>
-      <button id="add-task-btn" class="btn btn-primary">+ Task</button>
       <div id="list-mode" class="view-switch list-mode" role="tablist" aria-label="List display mode"></div>
     </div>
 
@@ -176,7 +173,7 @@
            at all times, for anything further out. See renderWeekPicker in app.js. -->
       <div class="form-row form-row-picker">
         <div class="week-picker-field">
-          <span class="week-picker-title">Planned for (do date)</span>
+          <span class="week-picker-title">Do date</span>
           <div id="task-week-picker" class="week-picker" role="group" aria-label="Pick a day this week"></div>
           <div class="week-picker-extra">
             <input type="date" id="task-do-date" aria-label="Do date">
@@ -189,7 +186,7 @@
           <button type="button" id="task-quick-win" class="size-toggle" aria-pressed="true">Bite-size</button>
         </div>
       </div>
-      <p class="settings-hint">A planned date puts the task in the Daily Plate window that day (it rolls forward until done); anything already in Do or Clear shows there regardless. High/Critical tasks need a deadline.</p>
+      <p class="settings-hint">A do date puts the task in Daily Plate that day (it rolls forward until done); anything already in Do or Clear shows there regardless. High/Critical tasks need a deadline.</p>
 
       <p id="task-error" class="settings-error" aria-live="polite"></p>
 
@@ -206,15 +203,17 @@
      must pick a new one before it leaves. -->
 <div id="now-deadline-modal" class="modal hidden">
   <div class="modal-content">
-    <h2 id="now-deadline-heading">Set a deadline</h2>
-    <p class="gate-text"><span id="now-deadline-text">Anything in Daily Plate needs a real deadline, so it can't roll forward forever unnoticed. Set one for</span> <strong id="now-deadline-task"></strong>:</p>
+    <!-- Heading/text/task-name/confirm-label are always set by promptForDeadline() (windows.js)
+         before this modal is unhidden, so no default copy needs to live here. -->
+    <h2 id="now-deadline-heading"></h2>
+    <p class="gate-text"><span id="now-deadline-text"></span> <strong id="now-deadline-task"></strong>:</p>
     <form id="now-deadline-form">
       <label>Deadline
         <input type="date" id="now-deadline-input" required>
       </label>
       <div class="modal-actions">
         <button type="button" id="now-deadline-cancel-btn" class="btn btn-secondary">Cancel</button>
-        <button type="submit" id="now-deadline-confirm" class="btn btn-primary">Add to Daily Plate</button>
+        <button type="submit" id="now-deadline-confirm" class="btn btn-primary"></button>
       </div>
     </form>
   </div>
@@ -400,15 +399,7 @@
             <input type="number" id="setting-overview-flag" min="0" max="100" step="1" required>
           </label>
         </div>
-        <div class="form-row">
-          <label>Display mode
-            <select id="setting-overview-mode">
-              <option value="scatter">Scatter plot</option>
-              <option value="list">List</option>
-            </select>
-          </label>
-        </div>
-        <p class="settings-hint">The split is the boundary between low and high on both axes (62.5 sits between Medium 50 and High 75), so it decides which quadrant a task belongs to everywhere, including the Calendar's Red rule and gold glow. The panel lists the top N tasks plus anything at or above the flag score; the Calendar reuses that same rule for its accented upcoming-deadline marker.</p>
+        <p class="settings-hint">The split is the low/high boundary on both axes; the panel lists the top N tasks plus anything at or above the flag score.</p>
       </fieldset>
 
       <fieldset class="settings-group">
@@ -427,7 +418,7 @@
             <input type="number" id="setting-staleness-reminder-high" min="0" step="1" required>
           </label>
         </div>
-        <p class="settings-hint">Once an undated task's days-untouched count crosses a new multiple of the re-flag interval, it gets a low-key check-in ("Just so you know: untouched for 21 days") in its own card under the Priority Today panel, colored in shades of teal — the Plan quadrant's hue — by whichever of the three day thresholds it's currently past. Separate from the staleness thresholds above, which drive urgency scoring, not this reminder.</p>
+        <p class="settings-hint">Re-flags an undated task every N days untouched, colored by which threshold it's past.</p>
       </fieldset>
 
       <fieldset class="settings-group">
@@ -443,12 +434,6 @@
       <fieldset class="settings-group">
         <legend>List view</legend>
         <div class="form-row">
-          <label>Display mode
-            <select id="setting-list-mode">
-              <option value="windows">Plate</option>
-              <option value="full">List</option>
-            </select>
-          </label>
           <label>Weekly habits in Daily Plate: days before week end
             <input type="number" id="setting-weekly-recurring-now" min="0" max="6" step="1" required>
           </label>
@@ -456,23 +441,17 @@
             <input type="number" id="setting-monthly-recurring-now" min="0" max="30" step="1" required>
           </label>
         </div>
-        <p class="settings-hint">Windows is the everyday Daily Plate/Fridge layout; Full is the complete folder-organized page with category tabs and the habit boxes. Daily habits always appear in Daily Plate; a weekly habit appears on its own weekday and once the (Monday-start) week is this many days from ending — 3 means from Thursday on; a monthly habit likewise on its day-of-month or this many days before the month ends. Weekly and monthly habits not due soon sit in Fridge instead. Habits never join the scoring.</p>
+        <p class="settings-hint">A weekly habit also appears this many days before week's end (3 = from Thursday on); monthly works the same way. Not-due-soon habits sit in Fridge instead.</p>
       </fieldset>
 
       <fieldset class="settings-group">
         <legend>Calendar</legend>
         <div class="form-row">
-          <label>Display mode
-            <select id="setting-calendar-mode">
-              <option value="pace">Pace</option>
-              <option value="capacity">Capacity</option>
-            </select>
-          </label>
           <label>Daily capacity (points)
             <input type="number" id="setting-daily-capacity" min="0.5" step="0.5" required>
           </label>
         </div>
-        <p class="settings-hint">Pace is the existing red/green/blue/gray coloring. Capacity instead shades each day by effort ÷ this many points: a regular task is worth 1 point as Bite-size or 2 otherwise, a recurring habit completion/occurrence is a flat 1. Past days count what actually got done (completed_at); future days count what's scheduled (do_date). A distinct marker appears once a day crosses 100%.</p>
+        <p class="settings-hint">Capacity view shades each day by effort ÷ this many points (Bite-size = 1 point, otherwise 2, a habit completion = 1); a marker appears past 100%.</p>
       </fieldset>
 
       <p id="settings-error" class="settings-error" aria-live="polite"></p>

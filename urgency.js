@@ -17,7 +17,6 @@ const DEFAULT_SETTINGS = Object.freeze({
   quadrant_split_score: 62.5,     // 0-100 boundary between the low and high bucket on BOTH axes
   overview_top_n: 3,              // priority panel: always show at least this many
   overview_flag_threshold: 80,    // priority panel: and anything scoring at or above this
-  overview_display_mode: "scatter", // "scatter" | "list"
   staleness_reminder_interval_days: 7,  // digest: re-flag an undated task every N days untouched
   staleness_reminder_low_days: 7,       // check-in color tier: mild at/above this many days
   staleness_reminder_medium_days: 14,   // check-in color tier: medium at/above this many days
@@ -26,10 +25,13 @@ const DEFAULT_SETTINGS = Object.freeze({
   // (just above quadrant_split_score, so "planned for today" genuinely lands it in Do/Clear)
   weekly_recurring_now_days: 3,         // Now window: a weekly habit shows once the week's end is this close
   monthly_recurring_now_days: 5,        // Now window: a monthly habit shows once the month's end is this close
-  list_display_mode: "windows",         // "windows" (Now/Later) | "full" (the folder-organized page)
   daily_capacity_points: 6,             // Calendar Capacity view: effort points a day can absorb before "overload"
-  calendar_display_mode: "pace",        // "pace" (existing coloring) | "capacity" (effort vs. daily_capacity_points)
 });
+
+// Note: overview_display_mode, list_display_mode, calendar_display_mode are NOT settings —
+// they're per-device display preferences, same category as sort/grouping/expansion/theme/
+// folder_count_display, all stored in localStorage (see each view's own DISPLAY_MODE_KEY),
+// never synced through this object or the data file.
 
 const SETTINGS_KEYS = Object.keys(DEFAULT_SETTINGS);
 
@@ -40,11 +42,7 @@ const FRACTION_SETTINGS = new Set(["priority_importance_weight"]);
 const SCORE_SETTINGS = new Set(["quadrant_split_score", "overview_flag_threshold", "do_today_urgency_floor"]);
 
 // Settings that are a choice between fixed strings rather than a number.
-const CHOICE_SETTINGS = Object.freeze({
-  overview_display_mode: ["scatter", "list"],
-  list_display_mode: ["windows", "full"],
-  calendar_display_mode: ["pace", "capacity"],
-});
+const CHOICE_SETTINGS = Object.freeze({});
 
 // Fill gaps with defaults and coerce to sane numbers, so an older data file or a
 // hand-edited one can't break the engine.
@@ -103,6 +101,13 @@ function toLocalDateString(value) {
 function parseLocalDate(dateStr) {
   const [y, m, d] = dateStr.split("-").map(Number);
   return new Date(y, m - 1, d);
+}
+
+// Days back to Monday for a given Date (0 if it's already Monday). getDay(): 0=Sun..6=Sat, so
+// Monday needs 0 days back, Sunday needs 6. Shared by startOfWeekISODate (app.js) and the
+// calendar grid's month-start weekday offset (calendar.js).
+function mondayOffset(date) {
+  return (date.getDay() + 6) % 7;
 }
 
 // Whole calendar days from `from` to `to` (negative when `to` is earlier). Compares local
@@ -165,8 +170,8 @@ function urgencyLevel(score) {
   return "Low";
 }
 
-function pluralDays(n) {
-  return n + (n === 1 ? " day" : " days");
+function pluralCount(n, noun) {
+  return n + " " + noun + (n === 1 ? "" : "s");
 }
 
 // Returns { score (0-100 integer), level, basis, days, reason }.
@@ -196,16 +201,16 @@ function baseUrgency(task, settings, today) {
     const days = calendarDaysBetween(today, task.deadline);
     const raw = deadlineUrgencyScore(days, settings);
     let reason;
-    if (days < 0) reason = "overdue by " + pluralDays(-days);
+    if (days < 0) reason = "overdue by " + pluralCount(-days, "day");
     else if (days === 0) reason = "due today";
-    else reason = "due in " + pluralDays(days);
+    else reason = "due in " + pluralCount(days, "day");
     return { score: Math.round(raw), level: urgencyLevel(raw), basis: "deadline", days, reason };
   }
 
   const touched = task.last_touched_at || task.created_at || today;
   const days = Math.max(0, calendarDaysBetween(touched, today));
   const raw = stalenessUrgencyScore(days, settings);
-  const reason = days === 0 ? "touched today" : "untouched " + pluralDays(days);
+  const reason = days === 0 ? "touched today" : "untouched " + pluralCount(days, "day");
   return { score: Math.round(raw), level: urgencyLevel(raw), basis: "staleness", days, reason };
 }
 
@@ -416,13 +421,34 @@ function assessTask(task, settings, today) {
   };
 }
 
+// Shared hover-tooltip builder: every call site draws from the same task/assessment facts
+// (quadrant, priority, urgency + reason, importance, deadline, do_date, bite-size), just
+// wanting a different subset — `opts` picks which segments to include, always joined " · ",
+// with any that don't apply this task (no deadline, no do_date, not bite-size) simply omitted.
+function buildTaskTooltip(task, assessment, opts) {
+  opts = opts || {};
+  const parts = [];
+  if (opts.quadrant) parts.push(assessment.quadrant.label + " · priority " + assessment.priorityScore);
+  else if (opts.priority) parts.push("priority " + assessment.priorityScore);
+  if (opts.urgency) parts.push("urgency " + assessment.urgency.score + " (" + assessment.urgency.reason + ")");
+  if (opts.importance) parts.push("importance " + task.importance);
+  if (opts.deadline) {
+    if (task.deadline) parts.push("due " + task.deadline);
+    else if (opts.deadlineFallback) parts.push(opts.deadlineFallback);
+  }
+  if (opts.doDate && task.do_date) parts.push("do date " + task.do_date);
+  if (opts.biteSize && task.is_quick_win) parts.push("bite-size");
+  return parts.join(" · ");
+}
+
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     DEFAULT_SETTINGS, SETTINGS_KEYS, normalizeSettings, IMPORTANCE_SCORES, URGENCY_LEVEL_SCORES,
     QUADRANTS, localDateString, toLocalDateString, parseLocalDate, calendarDaysBetween, interpolate,
     deadlineUrgencyScore, stalenessUrgencyScore, urgencyLevel, computeUrgency, baseUrgency,
     importanceScore, splitScore, importanceBucket, urgencyBucket, quadrantFor,
-    priorityScore, priorityRangeFor, priorityIntensity, assessTask,
+    priorityScore, priorityRangeFor, priorityIntensity, assessTask, buildTaskTooltip, mondayOffset,
+    pluralCount,
     ESCALATING_TAGS, escalatingTag, isDeadlineDriven, isNowMember, isLaterMember,
     recurringWeekday, daysUntilWeekEnd, daysInMonthOf, recurringDayOfMonth, daysUntilMonthEnd,
     nextRecurringOccurrence, isRecurringNowMember, isRecurringLaterMember,

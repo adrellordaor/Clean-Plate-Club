@@ -1063,11 +1063,6 @@ kbd {
   border-radius: 2px;
 }
 
-.subtask-progress-text {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-}
-
 .task-meta {
   font-size: 0.78rem;
   color: var(--text-muted);
@@ -2450,12 +2445,6 @@ kbd {
   font-weight: 700;
 }
 
-.scatter-legend {
-  margin: 0.4rem 0 0.2rem;
-  font-size: 0.74rem;
-  color: var(--text-muted);
-}
-
 .scatter .empty-hint {
   text-align: center;
 }
@@ -3351,17 +3340,7 @@ kbd {
   background: var(--bg);
 }
 
-/* ---- Cards: bite icon, countdown, rollover / missed badges, completion grace period ---- */
-.window-card-bite {
-  display: inline-flex;
-  align-items: center;
-  color: var(--row-accent, var(--text-muted));
-  flex-shrink: 0;
-}
-
-.window-card-bite svg {
-  display: block;
-}
+/* ---- Cards: countdown, rollover / missed badges, completion grace period ---- */
 
 /* "Due in N": shown while a deadline approaches; at 0 the Due Today / Overdue tag replaces it. */
 .tag-countdown {
@@ -3387,14 +3366,18 @@ kbd {
   letter-spacing: 0;
 }
 
-/* Checked, waiting out the grace period before it moves to Completed Today. */
+/* Checked, waiting out the grace period before the toggle actually commits (Plate/Fridge cards
+   move to Completed Today once it does; the main list row and subtasks just complete in place).
+   Same pattern everywhere a completion checkbox appears. */
 .window-card.done-pending .window-card-title,
-.window-subtask.done-pending .window-subtask-title {
+.window-subtask.done-pending .window-subtask-title,
+.task-row.done-pending .task-title {
   text-decoration: line-through;
   color: var(--done);
 }
 
-.window-card.done-pending {
+.window-card.done-pending,
+.task-row.done-pending {
   opacity: 0.7;
 }
 

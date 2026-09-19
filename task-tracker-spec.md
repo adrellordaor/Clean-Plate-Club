@@ -93,17 +93,24 @@ file in an OneDrive-backed folder.
   circumstance, only an explicit user action changes it (the deprioritize
   prompt above is exactly such an action; Evening Review may also surface
   extending one as an option, but never does it silently).
-- is_quick_win: bool — **"Bite-size" is the only stated label**, the off
-  state doesn't need its own name, it's just the unmarked default. Purely
-  a display/organization tag, no effect on scoring. **Defaults to true
-  for every newly created task**, universally, not conditional on how or
-  where it's added. A weekly-recurring "sort field" also treats daily
+- is_quick_win: bool — **no stated label or marker on either state**, on
+  cards this is pure size differentiation, a smaller card and nothing
+  else, no chip, tag, or icon indicating the state either way. This was
+  originally a stated "Bite-size" marker, but since it defaults true for
+  every task, the mark carried no real information (nearly everything
+  had it), removed entirely rather than flipping which state gets
+  marked, size alone is obvious enough. Purely
+  a display/organization property, no effect on scoring. **Defaults to
+  true for every newly created task**, universally, not conditional on
+  how or where it's added. A weekly-recurring "sort field" also treats
+  daily
   RecurringTasks as equivalent to `true` for sort placement only (see
   Size sort under the Now/Fridge sections), without giving them the
-  field or the tag itself, they're a different entity entirely. In the
-  task form, this is a **toggle, not a checkbox**, always labeled "Bite-
-  size," its **visual state** (filled/highlighted when on, muted/outline
-  when off) shows the boolean, the text itself never changes. Bite-size
+  field or any marker, they're a different entity entirely. In the
+  task form, this is still a **toggle, not a checkbox**, labeled "Bite-
+  size" as the field's own name (a form label, not a card tag), its
+  **visual state** (filled/highlighted when on, muted/outline when off)
+  shows the boolean. Bite-size
   tasks render as a smaller card, with the further distinctions described
   in the Now window section.
 - do_date_rollover_count: int, default 0 — counts consecutive silent
@@ -249,7 +256,10 @@ stored).
 
 `last_touched_at` updates whenever the task is edited, commented on, or
 manually "bumped" — this is what lets an important, deadline-less task
-still climb the matrix if it's being ignored.
+still climb the matrix if it's being ignored. **Bump only shows on
+undated tasks**, hidden entirely on any task with a deadline, since
+staleness (what Bump resets) never factors into deadline-driven urgency
+at all, showing it everywhere made it a dead affordance on most rows.
 
 ## Priority Score & Eisenhower Quadrant Mapping
 
@@ -435,9 +445,10 @@ The app has three views:
   top-level tasks, framed as completed/total instead). Same underlying
   numbers either way, purely a display choice, switchable so you can see
   which motivates you more.
-- **Subtask completion percentage**: any task with subtasks shows a small
-  progress indicator (e.g. a thin bar or "67%"), computed as completed
-  subtasks ÷ total subtasks, rounded to the nearest whole number. Never
+- **Subtask completion indicator**: any task with subtasks shows a small
+  progress bar, computed as completed
+  subtasks ÷ total subtasks. **Bar only, no percentage number alongside
+  it**, showing both was redundant, one visual signal is enough. Never
   shown on tasks with zero subtasks. Purely visual, no setting, no
   threshold, nothing to configure.
 - **Heat-map coloring**: hue is set by quadrant (Do = red family, Plan =
@@ -534,24 +545,24 @@ The app has three views:
     separate location. The grouping toggle's second option is labeled
     just **"Folder"** (not "by folder"), matching the terse naming
     convention the other options already use.
-    - **Which sort keys produce buckets, and why**: Priority stays a
-      flat/unbucketed list, it's a continuous score with no non-arbitrary
-      split. Importance buckets into all **four** levels (Low/Medium/
+    - **Which sort keys produce buckets, and why**: Priority and Urgency
+      stay flat/unbucketed lists. Urgency's Today/Tomorrow/Later Dates
+      bucketing was retired: once the deadline requirement tightened
+      (do_date now reliably mirrors deadline in almost every case), it
+      ended up landing nearly every task in the same bucket Do Date's
+      sort already produces, a real duplication rather than a genuinely
+      different view, same reasoning Fridge already applied by keeping
+      Urgency flat there. Importance buckets into all **four** levels
+      (Low/Medium/
       High/Critical), not just the two used for quadrant placement, a
       finer breakdown than the quadrant split alone. Size buckets into
-      **Bite-size** and everything else, unlabeled/neutral rather than a
-      stated second name, matching the toggle itself, only the on-state
-      needs a name. Do Date and Urgency both bucket
-      using the same **Today / Tomorrow / Later Dates** scheme, but only
-      in Daily Plate, Fridge keeps Urgency flat too, same reasoning as
-      its own Do Date exception below, a day-by-day breakdown doesn't fit
+      **everything else**, no stated name or marker on either state, see
+      the Data Model's `is_quick_win` entry, differentiated by card size
+      alone. Do Date
+      buckets into the same **Today / Tomorrow / Later Dates** scheme,
+      but only in Daily Plate, Fridge keeps its own with-date/no-date
+      split instead, a day-by-day breakdown doesn't fit
       Fridge's planning-ahead purpose.
-    - **Urgency's bucketing specifically**: since urgency is ultimately
-      driven by `deadline` proximity wherever a deadline exists, Today/
-      Tomorrow/Later Dates bucket by the same underlying date, deadline
-      today, tomorrow, or further out. A task urgent purely from
-      staleness (no deadline at all) falls into Later Dates as the
-      catch-all, it has no specific day to place it in Today or Tomorrow.
     - **Do Date buckets, Daily Plate specifically**: **Today**,
       **Tomorrow**, **Later Dates** (everything from the day after
       tomorrow onward, collapsed into one bucket rather than one group
@@ -652,14 +663,15 @@ The app has three views:
     urgency engine already scores a 0-days-out deadline at critical (100),
     so this naturally bumps `priority_score` through the mechanism that
     already exists.
-  - **Quick-win distinction, renamed to "Bite-size"** (the off state has
-    no stated name, it's just the unmarked default): three compounded
-    signals rather than
-    relying on size alone, which wasn't reading as distinct enough in
-    practice: a small distinct icon, a smaller card, and Bite-size cards
+  - **Bite-size distinction, no tag or icon marker**: differentiated by
+    **size alone**, a smaller card, and Bite-size cards
     never show the expanded meta line even when the window itself is
     expanded, they're small by definition and don't need the extra
-    detail regular cards get. The escalating tag names (Do Today/Due
+    detail regular cards get. The earlier icon marker was dropped, since
+    the state defaults true for nearly every task, a marker on the
+    majority state carried no real information, and no replacement
+    marker was worth inventing, size is obvious enough on its own. The
+    escalating tag names (Do Today/Due
     Today/Overdue) stay plain English, deliberately not themed, adding an
     interpretation step there would work against the clarity those tags
     exist for.
@@ -729,7 +741,12 @@ The app has three views:
     divider needed here, since everything visible already carries the tag
     by definition. This is a rendering mode over existing data, not a new
     membership rule or a new thing to keep in sync, purely a distraction-
-    reduction view.
+    reduction view, the point is focus, not new information. **Should
+    reuse the same underlying data function as Do Date sort's Today
+    bucket**, not a separate filter implementation, the visible task set
+    is intentionally the same, only the presentation (isolation,
+    dimming, centering) is genuinely different, no reason to compute it
+    twice in two different ways.
 - **Fridge** (renamed from "Later", originally "Remember"): **membership is current
   live quadrant Plan or Backlog**, a plain quadrant rule, no special case
   needed, because deprioritizing (above) always forces a real underlying
@@ -741,10 +758,7 @@ The app has three views:
   section above for the full bucketing rules, per-bucket add buttons, and
   drag-to-reclassify behavior, all of which apply here too, e.g. the four
   Importance buckets work identically here, letting you see the biggest
-  Plan items separated from Backlog at a glance). Urgency stays flat here
-  rather than bucketing into Today/Tomorrow/Later Dates the way it does
-  in Daily Plate, same reasoning as Fridge's own Do Date exception below.
-  Do Date's divider splits **"With date"**
+  Plan items separated from Backlog at a glance). Do Date's divider splits **"With date"**
   vs. **"No date"** rather than the Today/Tomorrow/Later Dates
   split Daily Plate uses, not every Plan or Backlog task carries a
   `do_date` (only ones with a deadline get one by default), so a
@@ -828,11 +842,11 @@ The app has three views:
   ("Missed yesterday" / "Missed last week" / "Missed last month").
   Checking one off just sets `last_completed_date` and writes a
   CompletionLog row, nothing here touches importance, urgency, or the
-  quadrant system, recurring tasks never appear in the heat-map, the top
-  banner, or the Overview.
+  quadrant system, recurring tasks never appear in the heat-map or the
+  Overview.
 
 Typical flow: open app → glance at the Overview (10 seconds) → switch
-to List view → work through tasks with the top banner and heat-map colors
+to List view → work through tasks with Daily Plate/Fridge and heat-map colors
 carrying the same prioritization without needing to re-check the matrix.
 Recurring habits are ticked off separately, in their own boxes, unrelated
 to that prioritization flow.
@@ -990,8 +1004,9 @@ productivity view")
   Urgency/Importance/Size/Do Date, bucketed where a real non-arbitrary
   split exists (Importance, Size, Do Date), flat where it wouldn't
   (Priority, Urgency), with per-bucket add buttons and drag-to-
-  reclassify, a global flat/by-folder toggle, a checkbox to promote to a
-  real deadline, and Bite-size sizing (the off state is unlabeled)
+  reclassify, a global flat/by-folder toggle, editing `deadline` directly
+  to escalate a task (no separate checkbox), and size-only Bite-size
+  differentiation, no label or marker on either state
 - Later window: membership is simply current live quadrant Plan or
   Backlog, no special case needed, since deprioritizing always forces a
   real quadrant change rather than overriding one
@@ -1023,14 +1038,6 @@ productivity view")
   Capacity view toggle (effort vs. daily_capacity_points, using
   is_quick_win as the effort proxy), and a Weekly Accomplishments panel
   (highlights, never a score)
-- Evening review: no longer gates `do_date` rollover (that's now silent,
-  see Data Model), instead flags Now-window tasks that have rolled over
-  repeatedly, and can surface extending a deadline as an option, never
-  automatically, on tasks that are overdue but still relevant
-- Someday/Maybe list: undated, low-importance tasks that age via the same
-  staleness engine as any other undated task, using a separate
-  `someday_review_days` setting (default 14) so they resurface in the
-  weekly review rather than being forgotten
 - Heat-map row coloring in List view, tied to each task's live quadrant
 
 ## Backlog (v2+, not in scope now)

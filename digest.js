@@ -126,13 +126,6 @@ function findNearestSnapshotBefore(history, beforeDate) {
   return { date, snapshot: history[date], daysAgo: calendarDaysBetween(date, beforeDate) };
 }
 
-// Yesterday's snapshot, relative to today — the primary tier's baseline. Normally that's
-// literally yesterday; if the app sat closed for a few days it's the last day it was open,
-// and the view says so.
-function findDigestBaseline(history, today) {
-  return findNearestSnapshotBefore(history, today);
-}
-
 // One-line reason for a task's quadrant change, built from what moved: the importance
 // bucket (a manual edit) and/or the urgency bucket (the engine, or a deadline edit).
 // The urgency reason is the live one ("due in 2 days", "untouched 9 days", "planned for today"),
@@ -336,7 +329,7 @@ function buildStalenessCheckIns(history, tasks, settings, today) {
     const tier = stalenessReminderTier(daysToday, settings);
     if (!tier) return;
     const quadrant = assessTask(task, settings, today).quadrant;
-    checkIns.push({ task, days: daysToday, tier, quadrant, message: "Just so you know: untouched for " + pluralDays(daysToday) });
+    checkIns.push({ task, days: daysToday, tier, quadrant, message: "Just so you know: untouched for " + pluralCount(daysToday, "day") });
   });
 
   checkIns.sort((a, b) => b.days - a.days);
@@ -354,7 +347,7 @@ if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     HISTORY_KEEP_DAYS, QUADRANT_RANK, snapshotFieldsFor, fieldsDiffer, buildDailySnapshot,
     snapshotRecordsEqual, sameSnapshot, sanitizeQuadrantHistory, recordQuadrantSnapshot,
-    findNearestSnapshotBefore, findDigestBaseline, describeQuadrantChange, urgencyReasonWithTag,
+    findNearestSnapshotBefore, describeQuadrantChange, urgencyReasonWithTag,
     describeStoredEdit, buildDigest, describeBaseline, stalenessReminderTier, daysUntouchedAt,
     buildStalenessCheckIns,
   };

@@ -351,11 +351,13 @@ const CALENDAR_WEEKDAY_HEADS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 // calendar_display_mode: "pace" (existing red/green/blue/gray coloring, unchanged) or
 // "capacity" (effort vs. daily_capacity_points, same two-mode pattern as
-// overview_display_mode / list_display_mode).
+// overview_display_mode / list_display_mode). A per-device display preference (localStorage),
+// same category as sort/grouping/theme/folder-count-style — the on-page toggle is its only UI.
 const CALENDAR_MODES = [
   { key: "pace", label: "Pace" },
   { key: "capacity", label: "Capacity" },
 ];
+let calendarDisplayMode = localStorage.getItem("calendarDisplayMode") === "capacity" ? "capacity" : "pace";
 
 function renderCalendar() {
   if (activeView !== "calendar") return; // nothing visible to draw; skip the work
@@ -377,7 +379,7 @@ function renderCalendar() {
 
   renderCalendarToolbar();
   renderCalendarModeToggle();
-  if (settings.calendar_display_mode === "capacity") {
+  if (calendarDisplayMode === "capacity") {
     renderCalendarCapacityLegend();
     renderCalendarCapacityGrid(data, today);
   } else {
@@ -394,7 +396,7 @@ function renderCalendarModeToggle() {
   CALENDAR_MODES.forEach(mode => {
     const btn = document.createElement("button");
     btn.type = "button";
-    const active = settings.calendar_display_mode === mode.key;
+    const active = calendarDisplayMode === mode.key;
     btn.className = "view-switch-btn" + (active ? " active" : "");
     btn.setAttribute("role", "tab");
     btn.setAttribute("aria-selected", active ? "true" : "false");
@@ -405,9 +407,9 @@ function renderCalendarModeToggle() {
 }
 
 function setCalendarDisplayMode(mode) {
-  if (settings.calendar_display_mode === mode) return;
-  settings = normalizeSettings(Object.assign({}, settings, { calendar_display_mode: mode }));
-  persist();
+  if (calendarDisplayMode === mode) return;
+  calendarDisplayMode = mode;
+  localStorage.setItem("calendarDisplayMode", mode);
   render();
 }
 
@@ -511,7 +513,7 @@ function renderCalendarGridScaffold(cellFn) {
   });
 
   const dates = daysInMonthArray(calendarMonth.year, calendarMonth.month);
-  const firstWeekday = (parseLocalDate(dates[0]).getDay() + 6) % 7; // Monday = 0, matches startOfWeekISODate
+  const firstWeekday = mondayOffset(parseLocalDate(dates[0]));
   for (let i = 0; i < firstWeekday; i++) grid.appendChild(makeCalendarBlankCell());
   dates.forEach(dateStr => grid.appendChild(cellFn(dateStr)));
   const trailing = (7 - ((firstWeekday + dates.length) % 7)) % 7;
@@ -647,9 +649,7 @@ function renderCalendarCapacityLegend() {
   legend.appendChild(note);
 }
 
-function pluralCount(n, noun) {
-  return n + " " + noun + (n === 1 ? "" : "s");
-}
+// pluralCount(n, noun) now lives in urgency.js (loads before this file), shared with digest.js.
 
 // Hover text: why the day is the color it is, then each overlay, then the badge count.
 function calendarCellTitle(stats) {
