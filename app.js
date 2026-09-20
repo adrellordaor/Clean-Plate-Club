@@ -34,6 +34,8 @@ const ICONS = {
   focus: `<svg ${SVG_ATTRS}><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/></svg>`,
   close: `<svg ${SVG_ATTRS}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`,
   plus: `<svg ${SVG_ATTRS}><path d="M12 5v14"/><path d="M5 12h14"/></svg>`,
+  // Skip: double-chevron "skip forward," distinct from the checkbox and from edit/delete.
+  skip: `<svg ${SVG_ATTRS}><path d="m5 4 6 8-6 8"/><path d="m13 4 6 8-6 8"/></svg>`,
   // Bite-size marker: a small apple with a bite out of it, drawn at 12px on cards.
   bite: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6c-1.5-1.5-4.5-1.5-6 1-2 3-1 8 1.5 11 1.2 1.5 3 1.5 4.5.5 1.5 1 3.3 1 4.5-.5a10 10 0 0 0 2.2-4.5c-2.5-.2-4.2-2.3-3.7-4.8-1-.3-2-1.5-3-2.7Z"/><path d="M12 6c0-2 1-3 3-3.5"/></svg>`,
 };
@@ -186,6 +188,7 @@ function normalizeRecurringFields(rt) {
   if (rt.day_of_month === undefined) rt.day_of_month = null;
   if (typeof rt.missed_last_period !== "boolean") rt.missed_last_period = false;
   if (rt.created_at === undefined) rt.created_at = null;
+  if (rt.skipped_date === undefined) rt.skipped_date = null;
 }
 
 function serializeState() {
@@ -342,6 +345,7 @@ function makeRecurringTask(overrides) {
     // and doubles as the habit's "do date" for Now inclusion (isRecurringNowMember)
     day_of_month: null, // 1-31, monthly only; optional, null reads as the month's last day (recurringDayOfMonth)
     last_completed_date: null, // "YYYY-MM-DD"; checking off sets this to today
+    skipped_date: null, // "YYYY-MM-DD"; the Skip action sets this to today, distinct from completion (writes no CompletionLog row)
     missed_last_period: false, // previous day/week/month went by uncompleted (runDailyMaintenance); cleared on completion
     created_at: new Date().toISOString(), // so a brand-new habit isn't flagged for a period it didn't exist in
   }, overrides);
@@ -371,8 +375,28 @@ function isRecurringDoneNow(rt) {
   return rt.last_completed_date >= period.start && rt.last_completed_date <= today;
 }
 
+// Same "does this date fall in the current period" reading as isRecurringDoneNow, but for
+// skipped_date, the Skip action's own field (see toggleRecurringSkip). Resets automatically
+// the same way: once the period rolls over, skipped_date no longer matches and this goes false
+// on its own, no maintenance scan needed (mirrors the comment on isRecurringDoneNow above it).
+function isRecurringSkippedNow(rt) {
+  if (!rt.skipped_date) return false;
+  const today = todayISODate();
+  if (rt.cadence === "daily") return rt.skipped_date === today;
+  const period = periodRangeFor(rt.cadence, today);
+  return rt.skipped_date >= period.start && rt.skipped_date <= today;
+}
+
+// "Resolved for today" — done or deliberately skipped. Spec: a skip gets the same visibility
+// effect as a completion (not actively nagging) without actually being a completion, so this
+// is what UI fractions/sorting/styling should key on instead of isRecurringDoneNow alone.
+function isRecurringResolvedNow(rt) {
+  return isRecurringDoneNow(rt) || isRecurringSkippedNow(rt);
+}
+
 // Completing clears the missed flag on the spot ("back on track"); undoing recomputes it
-// from the log, so a mis-click doesn't lose the nudge.
+// from the log, so a mis-click doesn't lose the nudge. Completing also clears a same-period
+// skip (the skip is superseded — the habit did happen after all).
 function toggleRecurringTask(rt) {
   const today = todayISODate();
   if (isRecurringDoneNow(rt)) {
@@ -382,9 +406,22 @@ function toggleRecurringTask(rt) {
     rt.missed_last_period = computeMissedLastPeriod(rt, today, completionLog);
   } else {
     rt.last_completed_date = today;
+    rt.skipped_date = null;
     completionLog.push({ id: makeId(), recurring_task_id: rt.id, completed_date: today });
     rt.missed_last_period = false;
   }
+  persist();
+  render();
+}
+
+// The Skip action: a distinct, per-occurrence "not today" state, never the completion
+// checkbox. Writes nothing to CompletionLog. Toggle behavior mirrors toggleRecurringTask so a
+// mis-click can be undone the same way; missed_last_period is refreshed exactly like completion
+// does since a deliberate skip counts the same as a completion for missed-tracking (spec).
+function toggleRecurringSkip(rt) {
+  const today = todayISODate();
+  rt.skipped_date = isRecurringSkippedNow(rt) ? null : today;
+  rt.missed_last_period = computeMissedLastPeriod(rt, today, completionLog);
   persist();
   render();
 }
@@ -956,6 +993,16 @@ function appendMissedBadge(el, rt) {
   if (rt.missed_last_period && MISSED_LABELS[rt.cadence]) el.appendChild(makeBadge(MISSED_LABELS[rt.cadence], "badge-missed"));
 }
 
+// "Skipped today / this week / this month": shown only while the skip is actually in effect
+// and hasn't been superseded by a completion (isRecurringDoneNow takes visual priority).
+const SKIPPED_LABELS = Object.freeze({ daily: "Skipped today", weekly: "Skipped this week", monthly: "Skipped this month" });
+
+function appendSkippedBadge(el, rt) {
+  if (!isRecurringDoneNow(rt) && isRecurringSkippedNow(rt) && SKIPPED_LABELS[rt.cadence]) {
+    el.appendChild(makeBadge(SKIPPED_LABELS[rt.cadence], "badge-skipped"));
+  }
+}
+
 // One line under the title showing just the quadrant label; the numbers behind it
 // (priority, urgency + reason, deadline) live in the tooltip.
 function renderUrgencyMeta(task, assessment) {
@@ -1012,7 +1059,7 @@ function renderRecurringBox(cadence, containerId, label) {
   container.innerHTML = "";
 
   const items = recurringTasks.filter(rt => rt.cadence === cadence);
-  const doneCount = items.filter(isRecurringDoneNow).length;
+  const doneCount = items.filter(isRecurringResolvedNow).length;
 
   const header = document.createElement("div");
   header.className = "recurring-box-header";
@@ -1092,7 +1139,7 @@ function renderRecurringFolderSection(folder, cadence, folderItems) {
 
   const count = document.createElement("span");
   count.className = "folder-count";
-  const done = folderItems.filter(isRecurringDoneNow).length;
+  const done = folderItems.filter(isRecurringResolvedNow).length;
   count.textContent = done + "/" + folderItems.length;
   header.appendChild(count);
 
@@ -1112,12 +1159,34 @@ function renderRecurringFolderSection(folder, cadence, folderItems) {
   return section;
 }
 
+const SKIP_PERIOD_LABELS = Object.freeze({ daily: "today", weekly: "this week", monthly: "this month" });
+
+// The Skip action: small and icon-only so it reads as distinct from the checkbox beside it,
+// toggled (aria-pressed) the same way the checkbox itself is, so a skip can be undone here too.
+// A no-op while the habit is already done today — completing supersedes a skip, not the other
+// way around (see toggleRecurringTask), so the control is disabled rather than double-acting.
+function makeSkipButton(rt) {
+  const done = isRecurringDoneNow(rt);
+  const skipped = isRecurringSkippedNow(rt);
+  const period = SKIP_PERIOD_LABELS[rt.cadence] || "today";
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "btn-icon btn-skip";
+  btn.innerHTML = ICONS.skip;
+  btn.setAttribute("aria-pressed", skipped ? "true" : "false");
+  btn.disabled = done;
+  btn.title = skipped ? "Undo skip" : "Skip for " + period;
+  btn.setAttribute("aria-label", (skipped ? "Undo skip: " : "Skip: ") + rt.title);
+  btn.addEventListener("click", () => toggleRecurringSkip(rt));
+  return btn;
+}
+
 function renderRecurringRow(rt) {
   const li = document.createElement("li");
 
   const row = document.createElement("div");
   const done = isRecurringDoneNow(rt);
-  row.className = "task-row" + (done ? " done" : "");
+  row.className = "task-row" + (isRecurringResolvedNow(rt) ? " done" : "");
 
   const spacer = document.createElement("span");
   spacer.className = "task-caret-spacer";
@@ -1128,6 +1197,8 @@ function renderRecurringRow(rt) {
   checkbox.checked = done;
   checkbox.addEventListener("change", () => toggleRecurringTask(rt));
   row.appendChild(checkbox);
+
+  row.appendChild(makeSkipButton(rt));
 
   const main = document.createElement("div");
   main.className = "task-main";
@@ -1143,6 +1214,7 @@ function renderRecurringRow(rt) {
   const schedule = recurringScheduleLabel(rt);
   if (schedule) titleLine.appendChild(makeBadge(schedule, "badge-recurring"));
   appendMissedBadge(titleLine, rt);
+  appendSkippedBadge(titleLine, rt);
 
   main.appendChild(titleLine);
   row.appendChild(main);

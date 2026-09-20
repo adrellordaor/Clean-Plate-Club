@@ -148,6 +148,12 @@ function recurringDoneInRange(rt, range, completionLog) {
   return completionLog.some(l => l.recurring_task_id === rt.id && l.completed_date >= range.start && l.completed_date <= range.end);
 }
 
+// skipped_date is a single field, not a log (the Skip action writes no CompletionLog row), so
+// "skipped within range" just tests whether that one date falls inside it.
+function recurringSkippedInRange(rt, range) {
+  return Boolean(rt.skipped_date && rt.skipped_date >= range.start && rt.skipped_date <= range.end);
+}
+
 // A daily habit is done for a day if it was logged that day. A weekly habit is done for its
 // scheduled day if any CompletionLog row for it falls in that same Mon–Sun week — the same
 // "done this week" reading isRecurringDoneNow uses in the Checklist. Monthly: that month.
@@ -156,14 +162,17 @@ function recurringDoneFor(rt, dateStr, completionLog) {
 }
 
 // missed_last_period: the previous period (yesterday / last week / last month) went by with
-// no completion, and the habit already existed by the end of it. Refreshed at every reset
-// boundary by runDailyMaintenance, cleared the moment the current period is completed.
-// A habit with no created_at (written before the field existed) counts as having existed.
+// no completion AND no skip, and the habit already existed by the end of it. A deliberate skip
+// counts the same as a completion here (a rest day is a real choice, not neglect). Refreshed at
+// every reset boundary by runDailyMaintenance, cleared the moment the current period is
+// completed or skipped. A habit with no created_at (written before the field existed) counts
+// as having existed.
 function computeMissedLastPeriod(rt, today, completionLog) {
   const previous = previousPeriodRangeFor(rt.cadence, today);
   if (rt.created_at && toLocalDateString(rt.created_at) > previous.end) return false;
-  if (recurringDoneInRange(rt, previous, completionLog)) return false;
-  return !recurringDoneInRange(rt, periodRangeFor(rt.cadence, today), completionLog);
+  if (recurringDoneInRange(rt, previous, completionLog) || recurringSkippedInRange(rt, previous)) return false;
+  const current = periodRangeFor(rt.cadence, today);
+  return !(recurringDoneInRange(rt, current, completionLog) || recurringSkippedInRange(rt, current));
 }
 
 // Pace bucket for one day, in strict priority order (spec, Calendar view):
@@ -839,7 +848,7 @@ if (typeof module !== "undefined" && module.exports) {
     CALENDAR_DAY_BUCKETS, addDaysISODate, weekDates, daysInMonthArray,
     completedDateOf, taskExistedOn, isOverdueOn, isPlannedOn, plannedTaskDone,
     buildPlannedRecord, plannedRecordFor, recurringScheduledOn, recurringDoneFor,
-    periodRangeFor, previousPeriodRangeFor, recurringDoneInRange, computeMissedLastPeriod,
+    periodRangeFor, previousPeriodRangeFor, recurringDoneInRange, recurringSkippedInRange, computeMissedLastPeriod,
     computeDayStats, completionsOnDay, computeWeekSummary,
     quickWinWeight, computeDayCapacity,
   };

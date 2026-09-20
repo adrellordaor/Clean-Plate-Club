@@ -812,6 +812,29 @@ kbd {
   color: var(--text);
 }
 
+/* Skip action: always visible next to the checkbox (unlike the hover-only edit/delete pair in
+   .task-actions), so it reads as an equally-primary alternative to checking off — but a
+   distinct shape/color keeps the two from ever being confused. Pressed (aria-pressed) shows
+   the skip is currently in effect, the same on/off-through-appearance language as .size-toggle. */
+.btn-skip {
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+
+.btn-skip[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.btn-skip:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.window-habit-skip {
+  flex-shrink: 0;
+}
+
 .folder-list {
   display: flex;
   flex-direction: column;
@@ -929,6 +952,10 @@ kbd {
 .task-row input[type="checkbox"] {
   margin-top: 0.25rem;
   cursor: pointer;
+}
+
+.task-row .btn-skip {
+  margin-top: 0.1rem;
 }
 
 .task-caret {
@@ -3362,6 +3389,15 @@ kbd {
 .badge-missed {
   background: var(--tag-due-today-bg);
   color: var(--tag-due-today-text);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* "Skipped today / this week / this month": the deliberate-rest-day marker, reusing the
+   neutral recurring-badge palette so it reads as a state, not an alert. */
+.badge-skipped {
+  background: var(--badge-recurring-bg);
+  color: var(--badge-recurring-text);
   text-transform: none;
   letter-spacing: 0;
 }

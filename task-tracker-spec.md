@@ -159,6 +159,15 @@ file in an OneDrive-backed folder.
   the same pattern urgency uses.
 - status: active | done | dropped
 - completed_at (nullable)
+- **Deletion is true removal, no history preserved.** A completed Task
+  stays in the Completed Today folder for the rest of the day it was
+  finished, then hides from every active view the next day, only
+  reachable afterward through the Calendar's day-repository, that's the
+  completion path. Deleting is different: it removes the row entirely,
+  including from Calendar history, nothing lingers. There's no separate
+  log for regular Tasks, `completed_at` lives directly on the one row
+  that exists, so deleting it has nothing left to preserve, by design,
+  not an oversight.
 
 **RecurringTask** (no importance/urgency/deadline/quadrant, lives outside
 the Eisenhower matrix, but still assigned to a Folder for grouping)
@@ -178,16 +187,43 @@ the Eisenhower matrix, but still assigned to a Folder for grouping)
   weekly/monthly) and unchecks anything whose last_completed_date has
   lapsed. The task itself is singular and resets, it never spawns new
   instances.
+- skipped_date (nullable) — a per-occurrence "not today" state, distinct
+  from completion, for exactly the "rest day" case: you don't want it
+  marked done (that would falsely record it as completed in
+  CompletionLog), but you also don't want to delete the habit (you still
+  want reminded next time). Set to today (or the current period, for
+  weekly/monthly) via a distinct action separate from the completion
+  checkbox, never the checkbox itself. Writes nothing to CompletionLog.
+  Resets automatically the same way `last_completed_date` already does,
+  once the period rolls over, `skipped_date` no longer matches "today"
+  and the habit shows normally again, fully un-skipped, no manual reset
+  needed. While `skipped_date == today`, the habit is treated as resolved
+  for today (not actively nagging), same visibility effect as being
+  complete, without actually being marked complete.
 - missed_last_period: bool — set at the reset boundary (day/week/month
   turnover) if the *previous* period's instance was never completed
-  (e.g. `last_completed_date` doesn't fall within last week for a weekly
-  task). Shown as a small flag ("Missed yesterday" / "Missed last week" /
+  **and never skipped either** (e.g. neither `last_completed_date` nor
+  `skipped_date` falls within last week for a weekly task). A deliberate
+  skip counts the same as a completion here, a rest day is a real choice,
+  not neglect, and shouldn't later flag as "missed." Shown as a small
+  flag ("Missed yesterday" / "Missed last week" /
   "Missed last month" depending on cadence), and clears the moment the
-  *current* period's instance gets completed, it's a nudge to get back on
-  track, not a permanent mark.
+  *current* period's instance gets completed or skipped, it's a nudge to
+  get back on track, not a permanent mark.
+- **Deletion preserves history, unlike regular Tasks.** Deleting a
+  RecurringTask removes the definition, title, cadence, schedule, so it
+  stops recurring and stops surfacing anywhere going forward. But its
+  `CompletionLog` rows are never deleted alongside it, they're
+  independent historical facts, not something tied to the definition
+  still existing. Calendar's day-repository and the Weekly panel keep
+  correctly showing past completions from a habit you've since deleted.
 
 **CompletionLog**
-- id, recurring_task_id, completed_date
+- id, recurring_task_id, completed_date, **title** (snapshot of the
+  RecurringTask's title at the moment of completion, same reasoning as
+  `plannedHistory`'s stored titles: if the parent RecurringTask is later
+  deleted, a log row needs to remain fully self-sufficient and correctly
+  labeled on its own, not dependent on a row that may no longer exist)
 - One row written each time a recurring task is checked off. This is the
   only thing that accumulates, the task itself stays a single row. Feeds
   the productivity view's history without needing old completed instances
@@ -695,7 +731,15 @@ The app has three views:
     Today folder instead, there's only ever one canonical place to look
     for everything finished today, regardless of where it was checked
     off. No new storage, `completed_at == today` already identifies this
-    set.
+    set. **Habits follow the same visual resolution, just presented per
+    view**: a habit completed today shows crossed out directly in the
+    Recurring habit boxes (its permanent home), and if it's currently
+    surfacing in Daily Plate as well, it moves into this same Completed
+    Today folder alongside regular tasks, rather than a separate habit-
+    only version of the concept. Either way it naturally reverts to
+    active/uncompleted at the next reset, same as always, this is purely
+    about how a completed-today habit displays, not a change to its
+    underlying reset behavior.
   - **Pile size indicator, Fire and Ice**: a visual sense of how full
     each window is, dramatic particle accents (not a static icon or
     badge) scaling with count, fire for Daily Plate, ice for Fridge, this
@@ -832,18 +876,26 @@ The app has three views:
   clearing your fires shouldn't mean the important-but-quiet Plan/Backlog
   items get forgotten by default.
 - **Recurring habit boxes** (top right, entirely separate from the folder/
-  matrix system below): three small boxes, Monthly on top, then Weekly,
-  then Daily. Within each box, RecurringTasks are grouped by Folder, collapsible, the
+  matrix system below): three small boxes, Daily on top, then Weekly,
+  then Monthly. Within each box, RecurringTasks are grouped by Folder, collapsible, the
   same pattern as the main List view (e.g. "Work" section listing "Refresh
   report", "Chores" section listing "Dishes", "Cleaning"), just reusing
   the existing Folder grouping rather than a separate system. Each task
-  has a checkbox; each box shows a completion fraction (e.g. "3/5"). A
-  task showing `missed_last_period` displays its small flag here too
-  ("Missed yesterday" / "Missed last week" / "Missed last month").
-  Checking one off just sets `last_completed_date` and writes a
-  CompletionLog row, nothing here touches importance, urgency, or the
-  quadrant system, recurring tasks never appear in the heat-map or the
-  Overview.
+  has a checkbox, plus a small, distinct Skip control beside it (never
+  styled or positioned so it could be mistaken for the checkbox) that
+  sets `skipped_date` instead of completing; each box's completion
+  fraction (e.g. "3/5") counts a skipped-for-today task the same as a
+  completed one, both are "resolved for today." A task showing
+  `missed_last_period` displays its small flag here too ("Missed
+  yesterday" / "Missed last week" / "Missed last month"), and a task
+  currently skipped shows its own small flag ("Skipped today" /
+  "Skipped this week" / "Skipped this month"). Checking one off just sets
+  `last_completed_date` and writes a CompletionLog row (also clearing any
+  skip already in effect, the completion supersedes it); nothing here
+  touches importance, urgency, or the quadrant system, recurring tasks
+  never appear in the heat-map or the Overview. This same checkbox +
+  Skip pairing appears wherever else a habit surfaces, including the
+  Now/Later windows below.
 
 Typical flow: open app → glance at the Overview (10 seconds) → switch
 to List view → work through tasks with Daily Plate/Fridge and heat-map colors

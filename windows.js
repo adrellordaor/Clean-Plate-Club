@@ -465,7 +465,7 @@ const CADENCE_ORDER = Object.freeze({ daily: 0, weekly: 1, monthly: 2 });
 function windowHabits(win, today) {
   const due = recurringTasks.filter(rt => win.habitMember(rt, today));
   const cadenceOrder = rt => (CADENCE_ORDER[rt.cadence] !== undefined ? CADENCE_ORDER[rt.cadence] : 3);
-  due.sort((a, b) => Number(isRecurringDoneNow(a)) - Number(isRecurringDoneNow(b))
+  due.sort((a, b) => Number(isRecurringResolvedNow(a)) - Number(isRecurringResolvedNow(b))
     || compareDoDates(nextRecurringOccurrence(a, today), nextRecurringOccurrence(b, today))
     || cadenceOrder(a) - cadenceOrder(b));
   return due;
@@ -476,7 +476,7 @@ function windowHabits(win, today) {
 function renderWindowHabits(win, today) {
   const due = windowHabits(win, today);
   if (due.length === 0) return null;
-  const doneCount = due.filter(isRecurringDoneNow).length;
+  const doneCount = due.filter(isRecurringResolvedNow).length;
 
   const block = document.createElement("div");
   block.className = "window-habits";
@@ -516,7 +516,7 @@ function renderWindowHabits(win, today) {
 function renderWindowHabitRow(rt, today) {
   const done = isRecurringDoneNow(rt);
   const row = document.createElement("label");
-  row.className = "window-habit habit-" + rt.cadence + (done ? " done" : "");
+  row.className = "window-habit habit-" + rt.cadence + (isRecurringResolvedNow(rt) ? " done" : "");
 
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
@@ -525,12 +525,17 @@ function renderWindowHabitRow(rt, today) {
   checkbox.addEventListener("change", () => toggleRecurringTask(rt));
   row.appendChild(checkbox);
 
+  // A <button> inside this <label> would otherwise have its click bubble up and re-forward to
+  // the checkbox (native label behavior) — stopPropagation keeps Skip from also toggling Done.
+  row.appendChild(makeWindowSkipButton(rt));
+
   const title = document.createElement("span");
   title.className = "window-habit-title";
   title.textContent = rt.title;
   row.appendChild(title);
 
   appendMissedBadge(row, rt);
+  appendSkippedBadge(row, rt);
 
   const folder = folders.find(f => f.id === rt.folder_id);
   const meta = document.createElement("span");
@@ -542,6 +547,26 @@ function renderWindowHabitRow(rt, today) {
   row.appendChild(meta);
 
   return row;
+}
+
+function makeWindowSkipButton(rt) {
+  const done = isRecurringDoneNow(rt);
+  const skipped = isRecurringSkippedNow(rt);
+  const period = SKIP_PERIOD_LABELS[rt.cadence] || "today";
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "btn-icon btn-skip window-habit-skip";
+  btn.innerHTML = ICONS.skip;
+  btn.setAttribute("aria-pressed", skipped ? "true" : "false");
+  btn.disabled = done;
+  btn.title = skipped ? "Undo skip" : "Skip for " + period;
+  btn.setAttribute("aria-label", (skipped ? "Undo skip: " : "Skip: ") + rt.title);
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleRecurringSkip(rt);
+  });
+  return btn;
 }
 
 // ---------- Body: flat list or buckets ----------
