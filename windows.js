@@ -458,12 +458,23 @@ function topLevelEntries(entries) {
 // ---------- Habits in the windows ----------
 // The same RecurringTasks the habit boxes show, split between the windows by schedule
 // (see file header). Undone first, then by next occurrence, then daily < weekly < monthly.
-// Done ones stay visible and ticked (like the boxes) so a mis-click can be undone here too.
+// Skipped-but-not-done ones stay visible and ticked (like the boxes) so a mis-click can be
+// undone here too. A habit actually completed today moves out entirely, into Now's Completed
+// Today folder instead (see isHabitInCompletedToday / renderCompletedToday) — it still shows
+// crossed out in its permanent home, the full-List-mode habit boxes, untouched by this.
 
 const CADENCE_ORDER = Object.freeze({ daily: 0, weekly: 1, monthly: 2 });
 
+// True once a habit has left Daily Plate's own listing for the Completed Today folder: it was
+// actually completed today (not merely skipped — a skip writes no CompletionLog row and isn't
+// this) and it's currently a Now-window habit. Later-window habits never qualify, "Completed
+// Today" is a Daily Plate-only concept, same as for regular Tasks.
+function isHabitInCompletedToday(rt, today) {
+  return rt.last_completed_date === today && isRecurringNowMember(rt, settings, today);
+}
+
 function windowHabits(win, today) {
-  const due = recurringTasks.filter(rt => win.habitMember(rt, today));
+  const due = recurringTasks.filter(rt => win.habitMember(rt, today) && !(win.key === "now" && isHabitInCompletedToday(rt, today)));
   const cadenceOrder = rt => (CADENCE_ORDER[rt.cadence] !== undefined ? CADENCE_ORDER[rt.cadence] : 3);
   due.sort((a, b) => Number(isRecurringResolvedNow(a)) - Number(isRecurringResolvedNow(b))
     || compareDoDates(nextRecurringOccurrence(a, today), nextRecurringOccurrence(b, today))
@@ -998,12 +1009,15 @@ function renderInlineDates(task, card) {
 
 // ---------- Completed Today (Now only) ----------
 // Every task completed today (completed_at's local date == today, whichever window or list it
-// was checked off in), in a folder collapsed by default at the bottom of Now. Nothing stored:
-// the set clears itself at the next day boundary because the date test is live.
+// was checked off in) PLUS every habit completed today that's currently surfacing in Daily
+// Plate (isHabitInCompletedToday) — one shared folder, collapsed by default at the bottom of
+// Now, rather than a separate habit-only version of the concept. Nothing stored: both sets
+// clear themselves at the next day boundary because the date tests are live.
 function renderCompletedToday(today) {
-  const done = tasks.filter(t => t.status === "done" && t.completed_at && toLocalDateString(t.completed_at) === today);
-  if (done.length === 0) return null;
-  done.sort((a, b) => (a.completed_at < b.completed_at ? 1 : a.completed_at > b.completed_at ? -1 : 0)); // newest first
+  const doneTasks = tasks.filter(t => t.status === "done" && t.completed_at && toLocalDateString(t.completed_at) === today);
+  const doneHabits = recurringTasks.filter(rt => isHabitInCompletedToday(rt, today));
+  if (doneTasks.length === 0 && doneHabits.length === 0) return null;
+  doneTasks.sort((a, b) => (a.completed_at < b.completed_at ? 1 : a.completed_at > b.completed_at ? -1 : 0)); // newest first
 
   const block = document.createElement("div");
   block.className = "window-completed" + (completedTodayOpen ? " open" : "");
@@ -1022,7 +1036,7 @@ function renderCompletedToday(today) {
   header.appendChild(label);
   const count = document.createElement("span");
   count.className = "window-count";
-  count.textContent = done.length;
+  count.textContent = doneTasks.length + doneHabits.length;
   header.appendChild(count);
   header.addEventListener("click", () => {
     completedTodayOpen = !completedTodayOpen;
@@ -1033,31 +1047,41 @@ function renderCompletedToday(today) {
   if (completedTodayOpen) {
     const list = document.createElement("div");
     list.className = "window-completed-list";
-    done.forEach(task => {
-      const row = document.createElement("label");
-      row.className = "window-completed-row";
-      const checkbox = document.createElement("input");
-      checkbox.type = "checkbox";
-      checkbox.checked = true;
-      checkbox.setAttribute("aria-label", "Reopen " + task.title);
-      checkbox.addEventListener("change", () => toggleTaskDone(task));
-      row.appendChild(checkbox);
-      const title = document.createElement("span");
-      title.className = "window-completed-title";
-      title.textContent = task.title;
-      row.appendChild(title);
-      const context = taskContextLabel(task);
-      if (context) {
-        const meta = document.createElement("span");
-        meta.className = "window-habit-meta";
-        meta.textContent = context;
-        row.appendChild(meta);
-      }
-      list.appendChild(row);
+    doneTasks.forEach(task => {
+      list.appendChild(renderCompletedTodayRow(task.title, taskContextLabel(task), "Reopen " + task.title, () => toggleTaskDone(task)));
+    });
+    doneHabits.forEach(rt => {
+      const folder = folders.find(f => f.id === rt.folder_id);
+      const meta = [folder ? folder.name : null, "recurring"].filter(Boolean).join(" · ");
+      list.appendChild(renderCompletedTodayRow(rt.title, meta, "Undo " + rt.title, () => toggleRecurringTask(rt)));
     });
     block.appendChild(list);
   }
   return block;
+}
+
+// One Completed Today row, shared by regular tasks and habits alike: checkbox (checked,
+// reopens/undoes on uncheck), title, optional meta line.
+function renderCompletedTodayRow(titleText, metaText, ariaLabel, onToggle) {
+  const row = document.createElement("label");
+  row.className = "window-completed-row";
+  const checkbox = document.createElement("input");
+  checkbox.type = "checkbox";
+  checkbox.checked = true;
+  checkbox.setAttribute("aria-label", ariaLabel);
+  checkbox.addEventListener("change", onToggle);
+  row.appendChild(checkbox);
+  const title = document.createElement("span");
+  title.className = "window-completed-title";
+  title.textContent = titleText;
+  row.appendChild(title);
+  if (metaText) {
+    const meta = document.createElement("span");
+    meta.className = "window-habit-meta";
+    meta.textContent = metaText;
+    row.appendChild(meta);
+  }
+  return row;
 }
 
 // ---------- Empty-Now suggestion ----------

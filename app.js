@@ -12,7 +12,7 @@ function makeId() {
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-const DATA_VERSION = 7; // v3: settings object; v4: quadrantHistory (daily digest); v5: quadrantHistory
+const DATA_VERSION = 8; // v3: settings object; v4: quadrantHistory (daily digest); v5: quadrantHistory
 // records enriched with deadline/importance/last_touched_at/priority_score, for the primary
 // (automatic drift) vs secondary (manual edit) digest split; v6: manual_urgent_flag removed
 // (migrated to deadline = today / do_date = today), do_date + is_quick_win added to Task,
@@ -20,7 +20,9 @@ const DATA_VERSION = 7; // v3: settings object; v4: quadrantHistory (daily diges
 // window rebuilt as a live union (do_date == today OR quadrant Do/Clear) — the old
 // transition-detection auto-population is gone, so quadrantHistory and every do_date written
 // under that design are discarded once (resetToV7), not migrated; snapshot records gain a
-// do_date key for the digest's "became Do Today" check
+// do_date key for the digest's "became Do Today" check; v8: CompletionLog rows gain a title
+// snapshot (so a completion outlives its parent RecurringTask being deleted) — existing rows
+// are backfilled once from their still-existing parent, if any (migrateCompletionLogToV8)
 
 // Minimalist outline icons (stroke = currentColor, so they inherit button text color).
 const SVG_ATTRS = 'viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
@@ -131,8 +133,22 @@ function loadState(data) {
   const version = Number(data.version) || 0;
   if (version < 6) migrateTasksToV6(tasks, todayISODate());
   if (version < 7) quadrantHistory = resetToV7(tasks);
+  if (version < 8) migrateCompletionLogToV8(completionLog, recurringTasks);
   tasks.forEach(normalizeTaskFields);
   recurringTasks.forEach(normalizeRecurringFields);
+}
+
+// One-time v8 backfill, gated on the file's version: every CompletionLog row written before
+// the title snapshot existed gets one now, read off its parent RecurringTask while that's
+// still possible. A row whose parent was already deleted before this ran has no title to
+// recover from and is left as-is (displayed with a fallback label; see calendar.js).
+function migrateCompletionLogToV8(log, recurringTaskList) {
+  log.forEach(entry => {
+    if (entry.title === undefined) {
+      const rt = recurringTaskList.find(r => r.id === entry.recurring_task_id);
+      entry.title = rt ? rt.title : null;
+    }
+  });
 }
 
 // One-time v7 reset, gated on the file's version. The pre-v7 Now window auto-populated
@@ -407,7 +423,7 @@ function toggleRecurringTask(rt) {
   } else {
     rt.last_completed_date = today;
     rt.skipped_date = null;
-    completionLog.push({ id: makeId(), recurring_task_id: rt.id, completed_date: today });
+    completionLog.push({ id: makeId(), recurring_task_id: rt.id, completed_date: today, title: rt.title });
     rt.missed_last_period = false;
   }
   persist();

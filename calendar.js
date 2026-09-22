@@ -286,7 +286,10 @@ function computeDayCapacity(dateStr, data, settings, today) {
 
 // Everything completed on `dateStr`: regular tasks via completed_at, recurring tasks (daily
 // AND weekly) via CompletionLog rows for that date. Each entry: { kind: "task" | "recurring",
-// task, folder }.
+// task, folder }. A recurring entry's title comes from the log's own stored snapshot, not a
+// lookup on the parent RecurringTask, so a completion from a since-deleted habit still
+// displays correctly (folder is still a live lookup, best-effort, since only title is
+// snapshotted — see CompletionLog in the Data Model).
 function completionsOnDay(dateStr, data) {
   const regular = data.tasks
     .filter(t => t.completed_at && toLocalDateString(t.completed_at) === dateStr)
@@ -295,9 +298,9 @@ function completionsOnDay(dateStr, data) {
     .filter(l => l.completed_date === dateStr)
     .map(log => {
       const rt = data.recurringTasks.find(r => r.id === log.recurring_task_id);
-      return rt ? { kind: "recurring", task: rt, folder: data.folders.find(f => f.id === rt.folder_id) || null } : null;
-    })
-    .filter(Boolean);
+      const task = { id: log.recurring_task_id, title: log.title || "(deleted habit)", folder_id: rt ? rt.folder_id : null };
+      return { kind: "recurring", task, folder: rt ? data.folders.find(f => f.id === rt.folder_id) || null : null };
+    });
   return regular.concat(recurring);
 }
 
