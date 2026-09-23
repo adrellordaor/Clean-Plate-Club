@@ -587,9 +587,31 @@ function makeWindowSkipButton(rt) {
 
 // ---------- Body: flat list or buckets ----------
 
+// Auto-scroll during drag: a card dragged within AUTOSCROLL_EDGE_PX of the window's top or
+// bottom edge scrolls it in that direction (faster the closer to the edge), so a bucket
+// currently out of view can be reached and dropped into without releasing, manually
+// scrolling, and re-dragging. Registered in the capture phase so it still fires even when a
+// nested bucket's own dragover handler stops propagation (see wireDropZone). Checks dragState
+// (set by makeTaskDraggable) so an unrelated native drag never triggers it.
+const AUTOSCROLL_EDGE_PX = 48;
+const AUTOSCROLL_MAX_STEP_PX = 16;
+
+function handleWindowAutoScroll(e) {
+  if (!dragState) return;
+  const body = e.currentTarget;
+  const fromTop = e.clientY - body.getBoundingClientRect().top;
+  const fromBottom = body.getBoundingClientRect().bottom - e.clientY;
+  if (fromTop < AUTOSCROLL_EDGE_PX) {
+    body.scrollTop -= AUTOSCROLL_MAX_STEP_PX * (1 - fromTop / AUTOSCROLL_EDGE_PX);
+  } else if (fromBottom < AUTOSCROLL_EDGE_PX) {
+    body.scrollTop += AUTOSCROLL_MAX_STEP_PX * (1 - fromBottom / AUTOSCROLL_EDGE_PX);
+  }
+}
+
 function renderWindowBody(win, entries, today, expanded) {
   const body = document.createElement("div");
   body.className = "window-body";
+  body.addEventListener("dragover", handleWindowAutoScroll, true);
 
   const habits = bucketsTakeHabits(windowPrefs.sort) ? windowHabits(win, today) : [];
   const buckets = bucketWindowEntries(entries, windowPrefs.sort, win.key, today, habits);
