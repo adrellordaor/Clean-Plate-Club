@@ -35,10 +35,21 @@ file in an OneDrive-backed folder.
 
 **Task**
 - id, folder_id, parent_task_id (nullable — enables nesting)
+- **Subtasks are excluded from the matrix entirely.** A task with
+  `parent_task_id` set doesn't get its own independent importance,
+  urgency, `priority_score`, or quadrant, and is exempt from the
+  Deadline requirement, none of that machinery applies below the
+  top-level task. For display (e.g. heat-map coloring if a subtask is
+  ever shown standalone), a subtask simply inherits its parent's
+  `priority_score` and quadrant rather than being scored on its own.
+  This keeps subtasks as what they actually are, checklist items under a
+  real task, not independent citizens of the Eisenhower system.
 - title, notes
 - created_at, last_touched_at
 - deadline (nullable) — the real consequence date, drives the urgency
-  engine, Overdue callout, and Calendar Red
+  engine, Overdue callout, and Calendar Red. **Not required on
+  subtasks**, the Deadline requirement only ever applies to top-level
+  tasks.
 - do_date (nullable) — self-chosen "I intend to tackle this on this day."
   Set two ways: manually (typed directly, or dragged from the main List
   view into the Now window, in either case set to today, prompting for a
@@ -96,13 +107,15 @@ file in an OneDrive-backed folder.
 - is_quick_win: bool — **no stated label or marker on either state**, on
   cards this is pure size differentiation, a smaller card and nothing
   else, no chip, tag, or icon indicating the state either way. This was
-  originally a stated "Bite-size" marker, but since it defaults true for
+  originally a stated "Bite-size" marker, but since it defaulted true for
   every task, the mark carried no real information (nearly everything
   had it), removed entirely rather than flipping which state gets
   marked, size alone is obvious enough. Purely
   a display/organization property, no effect on scoring. **Defaults to
-  true for every newly created task**, universally, not conditional on
-  how or where it's added. A weekly-recurring "sort field" also treats
+  false for every newly created task**, reversed from the earlier
+  universal-true default based on real usage, most tasks turned out not
+  to be bite-size, defaulting true just meant toggling it off constantly.
+  A weekly-recurring "sort field" also treats
   daily
   RecurringTasks as equivalent to `true` for sort placement only (see
   Size sort under the Now/Fridge sections), without giving them the
@@ -539,6 +552,10 @@ The app has three views:
   **Cards support adding nested subtasks directly**, a bare "+", not a
   text label, same underlying action the original folder-based list has
   always had, not something that requires opening the full edit form.
+  **Completing a parent task cascades down**: checking off a task with
+  subtasks marks all of them complete too, one direction only, completing
+  a subtask never marks its parent complete, that would be guessing at
+  intent the parent hasn't confirmed.
   - **RecurringTasks also surface here**, as a filtered view of the same
     Recurring habit boxes (see Views, "full" List mode below), not a
     second storage location: daily RecurringTasks always show; weekly
@@ -657,6 +674,10 @@ The app has three views:
       still genuinely urgent underneath, it stays, just without the Do
       Today tag. Dragging a card up past the divider sets `do_date` to
       today, same effect as the general drag-in.
+    - **Auto-scroll during drag**: dragging a card near the bottom edge
+      of the window scrolls it, so a bucket currently out of view can
+      actually be reached and dropped into, rather than requiring a
+      release, manual scroll, and re-drag.
   - **Drag-and-drop, in**: dragging a task from the main List view into
     Now sets `do_date` to today (applying the urgency floor, which
     reclassifies it into Do or Clear; prompts for a deadline first if
@@ -681,10 +702,10 @@ The app has three views:
     independently and freely editable afterward, exactly like any other
     field, nothing special to toggle.
     - **General "+ Add to Now"** (the blank, non-bucket-specific icon):
-      `do_date` defaults to today, `deadline` defaults to **the day after
-      tomorrow**, giving some real leeway rather than forcing every new
-      task to be immediately due, "add to Daily Plate" shouldn't mean
-      "due today" by default.
+      `do_date` defaults to today, `deadline` also defaults to **today**,
+      reversed from the earlier day-after-tomorrow leeway default based
+      on real usage, this now matches the Today bucket's own add behavior
+      instead of being a special case.
     - **Bucket-specific add** (any Do Date or Urgency bucket's own add
       button): both `do_date` and `deadline` default to that bucket's
       date, adding from Tomorrow sets both to tomorrow, adding from Later
@@ -853,10 +874,16 @@ The app has three views:
     separate Planning Mode, same underlying field, just surfaced
     conditionally rather than behind a whole new toggleable state. Fridge
     is where planning actually happens, unlike Daily Plate's countdown
-    treatment, a literal editable date makes sense here. **Guard rail**:
-    setting `do_date` to a date after the task's `deadline` prompts a
-    warning before allowing it, that combination is logically
-    inconsistent, planning to do something after it's already due.
+    treatment, a literal editable date makes sense here. **Guard rails,
+    both directions**: setting `do_date` to a date after the task's
+    `deadline` prompts a warning before allowing it, that combination is
+    logically inconsistent, planning to do something after it's already
+    due. The reverse also applies: setting `deadline` to a date before
+    the existing `do_date` prompts the same warning, **unless `do_date`
+    has already rolled over into the past** (`do_date < today`), a stale,
+    rolled-over `do_date` isn't a meaningful future commitment anymore,
+    just an artifact of the task not being done yet, so it shouldn't
+    constrain a new deadline.
   Has its own "+ Add task" affordance, opening the same shared task form
   with no special prefill, unlike Now there's no single default to
   prefill toward, a task's landing in Plan vs. Backlog is derived after
@@ -1073,15 +1100,16 @@ productivity view")
 - Required deadline on High/Critical importance tasks landing in Plan,
   closing the "important but dateless forever" loophole; do_date defaults
   to the deadline so it surfaces at latest by then
-- **Quick-capture**: hidden behind a small icon in the header, not an
-  always-visible field, this isn't used often enough to justify
-  permanent header space. Clicking the icon, or pressing the `N`
-  shortcut, expands it into a focused text input in place. While
-  expanded, Enter submits and parses tags exactly as already built
-  (`#folder`, `@date`, `!`, bare title → Inbox), then re-focuses the
-  field for rapid successive captures, same behavior as before. It
-  collapses back to just the icon on `Esc` or on losing focus (clicking
-  elsewhere), so it never lingers open once you're done with it.
+- **Quick-capture retired.** The hidden tag-parsing field and its icon
+  are gone entirely, no `#folder`/`@date`/`!`/`*` single-line syntax to
+  remember for everyday task entry, that friction wasn't worth it for
+  how rarely it actually got used. The `N` keyboard shortcut now simply
+  opens the regular task form, the same one "+ Add to Now" already
+  opens, with the same defaults (do_date and deadline both today). One
+  form, one way to add a task, not two competing paths. Bulk Import (see
+  below) is unaffected, it's a separate, still-unbuilt v2 feature that
+  happens to share the same tag vocabulary for batch-pasting a whole
+  list at once, not the same thing as this single-line shortcut.
 - Daily digest (snapshot + quadrant changes)
 - Weekly digest (trend view)
 - Simple daily log: completed / rolled over / dropped

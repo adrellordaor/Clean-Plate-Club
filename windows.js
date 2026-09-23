@@ -266,6 +266,11 @@ function renderNowLaterWindows() {
   toolbar.innerHTML = "";
   toolbar.appendChild(makeWindowSortSelect(WINDOW_SORT_KEYS, windowPrefs.sort, key => setWindowPref("sort", key), "Sort (both windows)"));
   toolbar.appendChild(makeWindowSwitch(WINDOW_GROUP_MODES, windowPrefs.group, key => setWindowPref("group", key), "Window grouping"));
+  // Category/folder management otherwise only surfaces in "full" List mode (category tabs,
+  // folder-list "+"); Plate mode needs its own reach to them too, or there'd be no way to add
+  // either without switching modes (the task form has no folder/category creation of its own).
+  toolbar.appendChild(makeAddIcon("Add a category", "Add category", openCategoryModal, "Category"));
+  toolbar.appendChild(makeAddIcon("Add a folder", "Add folder", openFolderModal, "Folder"));
 
   const row = document.getElementById("windows-row");
   row.classList.toggle("focus-now", windowPrefs.focus === "now");
@@ -607,7 +612,12 @@ function renderWindowBody(win, entries, today, expanded) {
       // drop) — four buckets all saying "Drop a card here." at once was just repetitive noise.
       zone.appendChild(makeEmptyHint("Nothing here.", "window-zone-empty"));
     }
-    if (bucket.addPrefill) zone.appendChild(makeBucketAddIcon(bucket.label, () => addTaskFromBucket(bucket.addPrefill)));
+    // When grouped by folder and the bucket has entries, appendCards already gave each folder
+    // subgroup its own "+" (inheriting this bucket's prefill, see appendCards) — a bucket-level
+    // one here would just be a redundant duplicate. Only add one when no folder subgroup already
+    // did the job (flat grouping, or an empty bucket with nothing to group).
+    const foldersAlreadyAdded = windowPrefs.group === "folder" && bucket.entries.length > 0;
+    if (bucket.addPrefill && !foldersAlreadyAdded) zone.appendChild(makeBucketAddIcon(bucket.label, () => addTaskFromBucket(bucket.addPrefill)));
     wireBucketDrop(zone, win, bucket);
     body.appendChild(zone);
   });
@@ -1260,10 +1270,11 @@ function toggleQuickWin(task) {
 }
 
 // An explicit do_date write — the inline field, a bucket drop, Later's with-date drop. A
-// genuine edit: touches last_touched_at and resets the rollover count. Setting a date on a
-// deadline-less task runs the same deadline prompt as adding to Now would. Guard rail: a
-// do_date after the task's deadline (planning to do it once it's already due) asks first.
-// Resolves true when the write happened.
+// genuine edit: touches last_touched_at and resets the rollover count. Setting a do_date of
+// today (i.e. actually landing in Daily Plate) on a deadline-less task runs the same deadline
+// prompt as adding to Now would; a future do_date (planning ahead in Fridge) doesn't, it's not
+// actually joining Daily Plate. Guard rail: a do_date after the task's deadline (planning to do
+// it once it's already due) asks first. Resolves true when the write happened.
 function setDoDateExplicit(task, value) {
   const next = value || null;
   if (next === (task.do_date || null)) return Promise.resolve(false);
@@ -1278,7 +1289,7 @@ function setDoDateExplicit(task, value) {
     persist();
     render();
   };
-  if (next && !task.deadline) {
+  if (next === todayISODate() && !task.deadline) {
     return promptForDeadline(task, NOW_DEADLINE_PROMPT).then(date => {
       if (!date) { render(); return false; } // cancelled: re-render puts the old value back
       task.deadline = date;
@@ -1365,13 +1376,13 @@ function defaultFolderPrefill() {
   return { folder_id: (candidates[0] || folders[0]).id };
 }
 
-// Now's global "+": the task form planned for today, with a deadline the day after tomorrow —
-// some real leeway rather than "due today" by default. Both stay freely editable.
+// Now's global "+" (also what the "N" keyboard shortcut opens): the task form planned for
+// today, deadline defaulted to today too. Both stay freely editable.
 function addTaskToNowDirectly() {
   const base = defaultFolderPrefill();
   if (!base) { alert("Add a folder first."); return; }
   const today = todayISODate();
-  openTaskModal(Object.assign(base, { do_date: today, deadline: addDaysISODate(today, 2) }));
+  openTaskModal(Object.assign(base, { do_date: today, deadline: today }));
 }
 
 // Later's global "+": the plain shared form, no special prefill — unlike Now there's no

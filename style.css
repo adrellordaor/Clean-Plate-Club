@@ -241,84 +241,6 @@ body {
   border-color: var(--text-muted);
 }
 
-/* Quick capture: sits inline in the header's top row (between the view switch and the header
-   icon buttons), collapsed to a small icon by default so it never claims a standing row of its
-   own; the icon or the "N" shortcut expands it into the field in the same spot. */
-.quick-capture {
-  display: flex;
-  flex-shrink: 0;
-}
-
-.quick-capture-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text-muted);
-  border-radius: 999px;
-  width: 2.1rem;
-  height: 2.1rem;
-  font-size: 1.1rem;
-  line-height: 1;
-}
-
-.quick-capture-icon:hover {
-  border-color: var(--text-muted);
-  color: var(--text);
-}
-
-.quick-capture-bar {
-  display: flex;
-  gap: 0.4rem;
-  width: min(280px, 55vw);
-}
-
-.quick-capture-bar[hidden] {
-  display: none;
-}
-
-.quick-capture-input {
-  flex: 1;
-  min-width: 0;
-  padding: 0.45rem 0.7rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--bg);
-  color: var(--text);
-  font-size: 0.88rem;
-}
-
-.quick-capture-input:focus {
-  outline: none;
-  border-color: var(--accent);
-}
-
-/* Brief confirmation flash on a successful add — the only feedback this modeless flow gets,
-   since there's no modal to close as an implicit "saved" cue. */
-@keyframes quick-capture-flash {
-  from { border-color: var(--accent); background: var(--row-hover); }
-  to { border-color: var(--border); background: var(--bg); }
-}
-
-.quick-capture-input.quick-capture-flash {
-  animation: quick-capture-flash 0.6s ease-out;
-}
-
-.quick-capture-submit {
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  width: 2.1rem;
-  height: 2.1rem;
-  flex-shrink: 0;
-  font-size: 1.1rem;
-  line-height: 1;
-}
-
-.quick-capture-submit:hover {
-  border-color: var(--text-muted);
-}
-
 /* Keyboard shortcuts cheat-sheet */
 .shortcuts-list {
   margin: 0 0 0.9rem;
@@ -520,8 +442,16 @@ kbd {
 
 .folder-tabs {
   display: flex;
+  align-items: center;
   gap: 0.25rem;
   overflow-x: auto;
+}
+
+/* The category "+ Category" add button borrows .window-bucket-add's bucket-list styling, whose
+   align-self: flex-start pins it to the top there — wrong here, where it should sit level with
+   the tabs beside it. */
+.folder-tabs .window-bucket-add {
+  align-self: center;
 }
 
 .folder-tab {
@@ -1433,6 +1363,15 @@ kbd {
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--bg);
+}
+
+/* Category/folder add: same "+" icon, but with a word after it naming what it adds, so it
+   doesn't get lost among the several other plain "+" icons on the same page. */
+.window-bucket-add-labeled {
+  gap: 0.3rem;
+  padding: 0.2rem 0.65rem 0.2rem 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 600;
 }
 
 /* Buckets: each a drop target that makes a dropped card belong there, kept droppable even

@@ -672,12 +672,19 @@ function renderHeatMapLegend() {
 }
 
 // One add-affordance policy app-wide: a plain "+" icon, not a text link, positioned at the end
-// of whatever it's adding to. Shares styling with windows.js's makeBucketAddIcon.
-function makeAddIcon(title, ariaLabel, onAdd) {
+// of whatever it's adding to. Shares styling with windows.js's makeBucketAddIcon. An optional
+// `label` (category/folder add only) keeps the "+" icon but appends a word after it, since a
+// bare icon among several other bare "+" icons on the same page was ambiguous.
+function makeAddIcon(title, ariaLabel, onAdd, label) {
   const btn = document.createElement("button");
   btn.type = "button";
-  btn.className = "btn-icon window-bucket-add";
+  btn.className = "btn-icon window-bucket-add" + (label ? " window-bucket-add-labeled" : "");
   btn.innerHTML = ICONS.plus;
+  if (label) {
+    const span = document.createElement("span");
+    span.textContent = label;
+    btn.appendChild(span);
+  }
   btn.title = title;
   btn.setAttribute("aria-label", ariaLabel);
   btn.addEventListener("click", onAdd);
@@ -708,7 +715,7 @@ function renderCategoryTabs() {
     nav.appendChild(btn);
   });
 
-  nav.appendChild(makeAddIcon("Add a category", "Add category", openCategoryModal));
+  nav.appendChild(makeAddIcon("Add a category", "Add category", openCategoryModal, "Category"));
 }
 
 // A completed task keeps showing (struck through) in its folder for the rest of the day it
@@ -739,7 +746,7 @@ function renderFolderList() {
     container.appendChild(hint);
   }
 
-  container.appendChild(makeAddIcon("Add a folder", "Add folder", openFolderModal));
+  container.appendChild(makeAddIcon("Add a folder", "Add folder", openFolderModal, "Folder"));
 }
 
 function renderFolderSection(folder) {
@@ -1489,11 +1496,13 @@ taskForm.addEventListener("submit", e => {
   };
 
   // Deadline requirement, one pattern everywhere it applies (see windows.js's promptForDeadline):
-  // a do_date without a deadline would roll forward silently forever with nothing else eventually
-  // forcing it to surface; a High/Critical task would otherwise sit dateless in Plan. Assess the
-  // second case as the task would actually be saved (last_touched_at reset, staleness at zero).
+  // a do_date of today without a deadline (i.e. actually landing in Daily Plate) would roll
+  // forward silently forever with nothing else eventually forcing it to surface; a High/Critical
+  // task would otherwise sit dateless in Plan. A future do_date (planning ahead in Fridge) isn't
+  // either case, so it's exempt. Assess the second case as the task would actually be saved
+  // (last_touched_at reset, staleness at zero).
   const candidate = Object.assign({}, existing || makeTask({}), data, { last_touched_at: now, status: "active" });
-  const opts = (data.do_date && !data.deadline) ? NOW_DEADLINE_PROMPT
+  const opts = (data.do_date === todayISODate() && !data.deadline) ? NOW_DEADLINE_PROMPT
     : isDeadlineViolator(candidate, todayISODate()) ? DEADLINE_REQUIRED_PROMPT
     : null;
   if (opts) {
@@ -2019,145 +2028,11 @@ function scheduleMidnightRender() {
 }
 scheduleMidnightRender();
 
-// ---------- Quick capture ----------
-// Frictionless add, sort later: one field, no modal, no required folder pick. A bare title
-// lands in an auto-created Inbox folder; optional mechanical tags (same vocabulary as the
-// spec's Bulk Import) route or date it on the way in instead. Importance defaults to Low, so
-// the deadline requirement never blocks a capture — sorting it into a real quadrant is exactly
-// the follow-up work this feature intentionally defers.
-
-const quickCaptureIconBtn = document.getElementById("quick-capture-icon-btn");
-const quickCaptureForm = document.getElementById("quick-capture-form");
-const quickCaptureInput = document.getElementById("quick-capture-input");
-
-const QUICK_CAPTURE_WEEKDAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-
-// "today" / "tomorrow" / a weekday name (full or 3-letter, next occurrence, today doesn't
-// count) / a literal "YYYY-MM-DD". Returns null for anything else, left in the title as-is.
-function parseQuickCaptureDate(token) {
-  const word = token.toLowerCase();
-  if (word === "today") return todayISODate();
-  if (word === "tomorrow") return addDaysISODate(todayISODate(), 1);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(token)) return token;
-  const weekday = QUICK_CAPTURE_WEEKDAYS.findIndex(name => name === word || name.slice(0, 3) === word);
-  if (weekday === -1) return null;
-  const diff = (weekday - new Date().getDay() + 7) % 7;
-  return addDaysISODate(todayISODate(), diff === 0 ? 7 : diff);
-}
-
-// Auto-created once, then reused: a dedicated landing spot so an untagged capture never has
-// to block on "which folder", the whole point of this being frictionless.
-function ensureInboxFolder() {
-  let category = categories.find(c => c.name.toLowerCase() === "inbox");
-  if (!category) {
-    category = { id: makeId(), name: "Inbox" };
-    categories.push(category);
-  }
-  let folder = folders.find(f => f.category_id === category.id && f.name.toLowerCase() === "inbox");
-  if (!folder) {
-    folder = { id: makeId(), category_id: category.id, name: "Inbox" };
-    folders.push(folder);
-  }
-  return folder;
-}
-
-// Strips #folder / @date / a standalone ! out of the raw text; whatever's left, trimmed, is
-// the title. Each tag is optional and independent, same as the Bulk Import spec's line format.
-function parseQuickCapture(raw) {
-  let title = raw;
-  let folder = null;
-  let deadline = null;
-
-  title = title.replace(/#(\S+)/, (match, name) => {
-    const found = folders.find(f => f.name.toLowerCase() === name.toLowerCase());
-    if (found) folder = found;
-    return "";
-  });
-
-  title = title.replace(/@(\S+)/, (match, token) => {
-    const parsed = parseQuickCaptureDate(token);
-    if (parsed) deadline = parsed;
-    return parsed ? "" : match;
-  });
-
-  title = title.replace(/(^|\s)!(?=\s|$)/, (match, before) => {
-    deadline = todayISODate();
-    return before;
-  });
-
-  return { title: title.replace(/\s+/g, " ").trim(), folder, deadline };
-}
-
-function flashQuickCapture() {
-  quickCaptureInput.classList.remove("quick-capture-flash");
-  void quickCaptureInput.offsetWidth; // restart the animation on back-to-back captures
-  quickCaptureInput.classList.add("quick-capture-flash");
-}
-
-// Collapsed to just the icon by default — expanding is the one deliberate action; collapsing
-// back happens on its own (Esc, or losing focus to anything outside the form) so it never
-// sits open once you're done with it.
-function expandQuickCapture() {
-  quickCaptureIconBtn.hidden = true;
-  quickCaptureForm.hidden = false;
-  quickCaptureInput.focus();
-  quickCaptureInput.select();
-}
-
-function collapseQuickCapture() {
-  quickCaptureForm.hidden = true;
-  quickCaptureIconBtn.hidden = false;
-  quickCaptureInput.value = "";
-}
-
-function isQuickCaptureExpanded() {
-  return !quickCaptureForm.hidden;
-}
-
-quickCaptureIconBtn.addEventListener("click", expandQuickCapture);
-
-// focusout (unlike blur) reports what's about to gain focus via relatedTarget, so a click on
-// the form's own submit button doesn't get mistaken for "clicked elsewhere" and collapse out
-// from under the click. Anything else — clicking the page background, another button, another
-// field — has a relatedTarget outside the form (or none at all), and that's a real "done here."
-quickCaptureForm.addEventListener("focusout", e => {
-  if (!quickCaptureForm.contains(e.relatedTarget)) collapseQuickCapture();
-});
-
-// Belt-and-suspenders alongside the form's own implicit Enter-submits-a-single-field
-// behavior: some IME/autofill/extension setups swallow that native path, and this is the
-// one interaction the whole feature hinges on working every time.
-quickCaptureInput.addEventListener("keydown", e => {
-  if (e.key === "Enter") {
-    e.preventDefault();
-    quickCaptureForm.requestSubmit();
-  }
-});
-
-quickCaptureForm.addEventListener("submit", e => {
-  e.preventDefault();
-  const raw = quickCaptureInput.value;
-  if (!raw.trim()) return;
-
-  const { title, folder, deadline } = parseQuickCapture(raw);
-  if (!title) { quickCaptureInput.value = ""; return; }
-
-  const data = { folder_id: (folder || ensureInboxFolder()).id, title, deadline };
-  applyDeadlineDefault(data);
-  tasks.push(makeTask(data));
-
-  quickCaptureInput.value = "";
-  persist();
-  render();
-  flashQuickCapture();
-  quickCaptureInput.focus(); // stays put (and stays expanded) so a run of captures needs no re-click
-});
-
 // ---------- Keyboard shortcuts ----------
-// A short, deliberate set: jump to Quick add, switch views, toggle Focus mode, and a cheat
-// sheet so they stay discoverable. Suppressed while typing anywhere (any field, including
-// Quick add itself) or when a modifier key is held, so browser/OS shortcuts are never shadowed
-// — Esc is the one exception, since backing out of whatever's open should always work.
+// A short, deliberate set: add a task, switch views, toggle Focus mode, and a cheat sheet so
+// they stay discoverable. Suppressed while typing anywhere (any field) or when a modifier key
+// is held, so browser/OS shortcuts are never shadowed — Esc is the one exception, since backing
+// out of whatever's open should always work.
 
 const shortcutsModal = document.getElementById("shortcuts-modal");
 
@@ -2198,9 +2073,6 @@ function anyModalOpen() {
 document.addEventListener("keydown", e => {
   if (e.key === "Escape") {
     if (anyModalOpen()) { closeTopModal(); return; }
-    // Blurring (rather than collapsing directly) routes through the same focusout listener
-    // a click-elsewhere would use, so there's exactly one place that decides "done here."
-    if (isQuickCaptureExpanded()) quickCaptureInput.blur();
     return; // Focus mode's own Esc handling lives in windows.js
   }
 
@@ -2208,7 +2080,7 @@ document.addEventListener("keydown", e => {
 
   if (e.key === "n" || e.key === "N") {
     e.preventDefault();
-    expandQuickCapture();
+    addTaskToNowDirectly();
   } else if (e.key === "f" || e.key === "F") {
     if (activeView === "list" && listDisplayMode === "windows") {
       e.preventDefault();
