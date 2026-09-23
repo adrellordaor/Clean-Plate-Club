@@ -1296,13 +1296,16 @@ function toggleQuickWin(task) {
 // today (i.e. actually landing in Daily Plate) on a deadline-less task runs the same deadline
 // prompt as adding to Now would; a future do_date (planning ahead in Fridge) doesn't, it's not
 // actually joining Daily Plate. Guard rail: a do_date after the task's deadline (planning to do
-// it once it's already due) asks first. Resolves true when the write happened.
+// it once it's already due) is logically inconsistent, so the write is blocked outright — no
+// override, unlike the reverse direction's stale-do_date exception (see inlineSetDeadline).
+// Resolves true when the write happened.
 function setDoDateExplicit(task, value) {
   const next = value || null;
   if (next === (task.do_date || null)) return Promise.resolve(false);
   if (next && task.deadline && next > task.deadline) {
-    const ok = confirm("That's after this task's deadline (" + task.deadline + ") — planning to do it once it's already due. Set it anyway?");
-    if (!ok) { render(); return Promise.resolve(false); } // re-render puts the old value back
+    alert("That's after this task's deadline (" + task.deadline + ") — can't plan to do it once it's already due.");
+    render(); // re-render puts the old value back
+    return Promise.resolve(false);
   }
   const finish = () => {
     task.do_date = next;
@@ -1344,6 +1347,17 @@ function clearDoDate(task) {
 function inlineSetDeadline(task, value) {
   const next = value || null;
   if (next === (task.deadline || null)) return;
+  const today = todayISODate();
+  // Guard rail (reverse direction, see setDoDateExplicit): moving the deadline before an
+  // existing do_date is the same inconsistency the other direction blocks — planning to do it
+  // once it's already due — blocked outright. Exception: a do_date that's already rolled over
+  // into the past (do_date < today) is a stale artifact, not a real commitment, so a new
+  // deadline is free to land before it.
+  if (next && task.do_date && next < task.do_date && !(task.do_date < today)) {
+    alert("This task's do date (" + task.do_date + ") is after that — can't set a deadline before it's already planned to be done.");
+    render();
+    return;
+  }
   const now = new Date().toISOString();
   const candidate = Object.assign({}, task, { deadline: next, last_touched_at: now });
   if (isDeadlineViolator(candidate, todayISODate())) {
