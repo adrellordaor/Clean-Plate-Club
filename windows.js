@@ -921,9 +921,10 @@ function makeSubtaskCaret(task) {
 }
 
 // Nested subtasks under a card: every child (done ones struck through, like the folder list),
-// each with its own checkbox, tag, and, recursively, its own subtasks. Active rows carry
-// their own live quadrant hue and are draggable with the card's window as source, so a
-// subtask can be planned into Now or deprioritized out of it on its own.
+// each with its own checkbox, tag, and, recursively, its own subtasks. Subtasks are exempt
+// from the matrix entirely, so an active row inherits its top-level ancestor's quadrant hue
+// for display rather than computing its own, and isn't a drag source: with no independent
+// membership, it has nowhere of its own to be planned into or deprioritized out of.
 function renderCardSubtasks(children, win, today) {
   const list = document.createElement("div");
   list.className = "window-card-subtasks";
@@ -938,11 +939,10 @@ function renderCardSubtaskRow(task, win, today) {
   const grandchildren = tasks.filter(t => t.parent_task_id === task.id);
 
   if (task.status === "active") {
-    const assessment = assessTask(task, settings, today);
+    const assessment = assessTask(topLevelTask(task, tasks), settings, today);
     row.classList.add("quadrant-" + assessment.quadrant.key);
     row.style.setProperty("--p", assessment.intensity.toFixed(3));
     row.title = buildTaskTooltip(task, assessment, { quadrant: true, urgency: true });
-    makeTaskDraggable(row, task, win.key);
   }
 
   const head = document.createElement("div");

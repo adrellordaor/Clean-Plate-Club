@@ -52,7 +52,9 @@ function fieldsDiffer(a, b) {
 function buildDailySnapshot(tasks, settings, today) {
   const snapshot = {};
   tasks.forEach(task => {
-    if (task.status !== "active") return;
+    // Subtasks have no independent quadrant/priority_score to snapshot — the matrix and its
+    // digest never run below the top-level task.
+    if (task.status !== "active" || task.parent_task_id) return;
     const assessment = assessTask(task, settings, today);
     snapshot[task.id] = Object.assign(
       { quadrant: assessment.quadrant.key, priorityScore: assessment.priorityScore },
@@ -215,6 +217,7 @@ function buildDigest(history, tasks, settings, today) {
   const becameDoToday = [];
 
   tasks.forEach(task => {
+    if (task.parent_task_id) return; // subtasks are exempt from the matrix/digest entirely
     const fromRecord = yesterday[task.id];
     if (task.status !== "active") {
       if (fromRecord) left.push({ task, from: QUADRANTS[fromRecord.quadrant], status: task.status });
@@ -318,7 +321,7 @@ function buildStalenessCheckIns(history, tasks, settings, today) {
   const yesterday = baseline.snapshot;
   const checkIns = [];
   tasks.forEach(task => {
-    if (task.status !== "active" || task.deadline) return;
+    if (task.status !== "active" || task.deadline || task.parent_task_id) return;
     const fromRecord = yesterday[task.id];
     if (!fromRecord) return;
 

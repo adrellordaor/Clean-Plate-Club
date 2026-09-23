@@ -404,6 +404,23 @@ function priorityIntensity(score, quadrant, settings) {
   return Math.min(1, Math.max(0, (score - min) / (max - min)));
 }
 
+// Subtask exemption (spec, Data Model): a task with parent_task_id set has no independent
+// importance/urgency/priority_score/quadrant of its own, none of that machinery runs below
+// the top-level task. For display it inherits its top-level ancestor's assessment instead, so
+// every caller that might hand assessTask a subtask should resolve it through this first.
+// Guards against a corrupt/cyclic parent chain by never revisiting the same id twice.
+function topLevelTask(task, taskList) {
+  let current = task;
+  const seen = new Set();
+  while (current && current.parent_task_id && !seen.has(current.id)) {
+    seen.add(current.id);
+    const parent = taskList.find(t => t.id === current.parent_task_id);
+    if (!parent) break;
+    current = parent;
+  }
+  return current;
+}
+
 // Everything the views need for one task, computed together:
 // { urgency, importanceScore, priorityScore (0-100 integer), intensity (0-1), quadrant }
 function assessTask(task, settings, today) {
@@ -447,7 +464,7 @@ if (typeof module !== "undefined" && module.exports) {
     QUADRANTS, localDateString, toLocalDateString, parseLocalDate, calendarDaysBetween, interpolate,
     deadlineUrgencyScore, stalenessUrgencyScore, urgencyLevel, computeUrgency, baseUrgency,
     importanceScore, splitScore, importanceBucket, urgencyBucket, quadrantFor,
-    priorityScore, priorityRangeFor, priorityIntensity, assessTask, buildTaskTooltip, mondayOffset,
+    priorityScore, priorityRangeFor, priorityIntensity, assessTask, topLevelTask, buildTaskTooltip, mondayOffset,
     pluralCount,
     ESCALATING_TAGS, escalatingTag, isDeadlineDriven, isNowMember, isLaterMember,
     recurringWeekday, daysUntilWeekEnd, daysInMonthOf, recurringDayOfMonth, daysUntilMonthEnd,

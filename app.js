@@ -316,7 +316,7 @@ function applyDeadlineDefault(task) {
 // high, it has no deadline, and its live quadrant is Plan (i.e. nothing else — a do_date of
 // today, staleness already at high — is lifting its urgency).
 function isDeadlineViolator(task, today) {
-  if (task.status !== "active" || task.deadline) return false;
+  if (task.status !== "active" || task.deadline || task.parent_task_id) return false;
   if (importanceBucket(task.importance, settings) !== "high") return false;
   return assessTask(task, settings, today).quadrant.key === "q2";
 }
@@ -834,11 +834,14 @@ function renderTaskRow(task) {
   // class picks the hue, --p (0-1 intensity from priority_score) drives saturation/lightness
   // in CSS, so the colour maths stays theme-aware without a re-render on theme toggle.
   const today = todayISODate();
-  const assessment = task.status === "active" ? assessTask(task, settings, today) : null;
+  // Subtasks are exempt from the matrix entirely (no independent importance/urgency/priority_
+  // score/quadrant); the row inherits its top-level ancestor's assessment for its heat-map
+  // color, and isn't its own drag source into Now since it has no independent membership.
+  const assessment = task.status === "active" ? assessTask(topLevelTask(task, tasks), settings, today) : null;
   if (assessment) {
     row.classList.add("quadrant-" + assessment.quadrant.key);
     row.style.setProperty("--p", assessment.intensity.toFixed(3));
-    makeTaskDraggable(row, task); // into the Now window (see windows.js)
+    if (!task.parent_task_id) makeTaskDraggable(row, task); // into the Now window (see windows.js)
   }
 
   // `children` (full, done included) drives the honest subtask-progress percentage; a task

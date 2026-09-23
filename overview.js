@@ -46,11 +46,15 @@ function renderOverview() {
   renderDigest(today);
 }
 
-// Every active task assessed and sorted by priority_score, best first, with its 1-based
-// rank attached. Ties keep the original array order.
+// Every active TOP-LEVEL task assessed and sorted by priority_score, best first, with its
+// 1-based rank attached. Subtasks (parent_task_id set) are excluded entirely — they have no
+// independent importance/urgency/priority_score/quadrant, none of that machinery runs below
+// the top-level task, so they never enter this ranking (which drives the scatter, the
+// quadrant-list, the priority panel, and Now/Later's own membership and bucketing). Ties keep
+// the original array order.
 function rankActiveTasks(today) {
   return tasks
-    .filter(t => t.status === "active")
+    .filter(t => t.status === "active" && !t.parent_task_id)
     .map(task => ({ task, assessment: assessTask(task, settings, today) }))
     .sort((a, b) => b.assessment.priorityScore - a.assessment.priorityScore)
     .map((entry, i) => Object.assign(entry, { rank: i + 1 }));
@@ -454,8 +458,9 @@ function taskContextLabel(task) {
 
 // ---------- Priority summary panel ----------
 // Default: the top-N-or-flagged summary. Expanded (a per-device preference, like the theme):
-// every active regular task, subtasks included, in priority order — a third access point,
-// "just show me the raw ranking", independent of both List display modes. Expanded rows get
+// every active top-level task (subtasks excluded — see rankActiveTasks), in priority order —
+// a third access point, "just show me the raw ranking", independent of both List display
+// modes. Expanded rows get
 // basic inline editing (importance, do date, deadline, plus the pencil for the full form);
 // completion still lives in the List view, so there's no checkbox here.
 

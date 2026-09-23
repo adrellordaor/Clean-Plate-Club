@@ -324,9 +324,10 @@ function computeWeekSummary(weekStartDate, data, settings, today) {
       const label = category ? category.name : "Uncategorized";
       categoryCounts.set(label, (categoryCounts.get(label) || 0) + 1);
 
-      // Only regular Tasks carry a priority_score (RecurringTasks live outside the
-      // Eisenhower matrix entirely), so the biggest-win pool is regular tasks only.
-      if (entry.kind === "task") {
+      // Only top-level regular Tasks carry a priority_score (RecurringTasks live outside the
+      // Eisenhower matrix entirely, and a subtask has no independent score of its own), so the
+      // biggest-win pool is top-level regular tasks only.
+      if (entry.kind === "task" && !entry.task.parent_task_id) {
         const assessment = assessTask(entry.task, settings, today);
         if (!biggestWin || assessment.priorityScore > biggestWin.assessment.priorityScore) {
           biggestWin = { task: entry.task, assessment };
