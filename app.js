@@ -345,7 +345,7 @@ function makeTask(overrides) {
     do_date: null,        // "YYYY-MM-DD" the user intends to tackle it (or the deadline default); rolls forward daily
     do_date_rollover_count: 0, // consecutive silent rollovers; reset by any genuine do_date write
     importance: "Low",
-    is_quick_win: true,   // "Bite-size" (true) vs "Main Course" sizing: display/organization only, no scoring effect
+    is_quick_win: false,  // "Bite-size" (true) vs "Main Course" sizing: display/organization only, no scoring effect
     status: "active",
     completed_at: null,
   }, overrides);
@@ -1336,8 +1336,8 @@ function openTaskModal(prefillOrTask) {
   document.getElementById("task-deadline").value = prefillOrTask.deadline || "";
   document.getElementById("task-do-date").value = prefillOrTask.do_date || "";
   document.getElementById("task-importance").value = prefillOrTask.importance || "Low";
-  // Bite-size is the universal default for a new task; an edit shows the task's own value.
-  setSizeToggle(prefillOrTask.is_quick_win === undefined ? true : !!prefillOrTask.is_quick_win);
+  // Bite-size defaults false for a new task; an edit shows the task's own value.
+  setSizeToggle(prefillOrTask.is_quick_win === undefined ? false : !!prefillOrTask.is_quick_win);
   renderWeekPicker();
   taskError.textContent = "";
 
