@@ -1274,15 +1274,30 @@ function renderRecurringRow(rt) {
 
 // ---------- Task actions ----------
 
+// Completing a parent marks every still-active descendant done too, recursively — one
+// direction only, completing a subtask never completes its parent (that would be guessing at
+// intent the parent hasn't confirmed), and reopening a task never cascades either.
+function completeDescendants(taskId, now) {
+  tasks.filter(t => t.parent_task_id === taskId).forEach(child => {
+    if (child.status !== "active") return;
+    child.status = "done";
+    child.completed_at = now;
+    child.last_touched_at = now;
+    completeDescendants(child.id, now);
+  });
+}
+
 function toggleTaskDone(task) {
+  const now = new Date().toISOString();
   if (task.status === "done") {
     task.status = "active";
     task.completed_at = null;
   } else {
     task.status = "done";
-    task.completed_at = new Date().toISOString();
+    task.completed_at = now;
+    completeDescendants(task.id, now);
   }
-  task.last_touched_at = new Date().toISOString();
+  task.last_touched_at = now;
   persist();
   render();
 }
