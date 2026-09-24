@@ -268,9 +268,12 @@ function renderNowLaterWindows() {
   toolbar.appendChild(makeWindowSwitch(WINDOW_GROUP_MODES, windowPrefs.group, key => setWindowPref("group", key), "Window grouping"));
   // Category/folder management otherwise only surfaces in "full" List mode (category tabs,
   // folder-list "+"); Plate mode needs its own reach to them too, or there'd be no way to add
-  // either without switching modes (the task form has no folder/category creation of its own).
-  toolbar.appendChild(makeAddIcon("Add a category", "Add category", openCategoryModal, "Category"));
-  toolbar.appendChild(makeAddIcon("Add a folder", "Add folder", openFolderModal, "Folder"));
+  // either without switching modes (the task form's own folder picker also has an inline
+  // "+ New folder…" option, but only once you're already adding/editing a task).
+  // Wrapped, not passed directly: makeAddIcon wires each as a click handler, which would hand
+  // openCategoryModal/openFolderModal the click event as their targetSelect argument otherwise.
+  toolbar.appendChild(makeAddIcon("Add a category", "Add category", () => openCategoryModal(), "Category"));
+  toolbar.appendChild(makeAddIcon("Add a folder", "Add folder", () => openFolderModal(), "Folder"));
 
   const row = document.getElementById("windows-row");
   row.classList.toggle("focus-now", windowPrefs.focus === "now");

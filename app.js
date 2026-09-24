@@ -715,7 +715,9 @@ function renderCategoryTabs() {
     nav.appendChild(btn);
   });
 
-  nav.appendChild(makeAddIcon("Add a category", "Add category", openCategoryModal, "Category"));
+  // Wrapped, not passed directly: makeAddIcon wires this as a click handler, which would hand
+  // openCategoryModal the click event as its targetSelect argument otherwise.
+  nav.appendChild(makeAddIcon("Add a category", "Add category", () => openCategoryModal(), "Category"));
 }
 
 // A completed task keeps showing (struck through) in its folder for the rest of the day it
@@ -746,7 +748,7 @@ function renderFolderList() {
     container.appendChild(hint);
   }
 
-  container.appendChild(makeAddIcon("Add a folder", "Add folder", openFolderModal, "Folder"));
+  container.appendChild(makeAddIcon("Add a folder", "Add folder", () => openFolderModal(), "Folder"));
 }
 
 function renderFolderSection(folder) {
@@ -1338,6 +1340,25 @@ const taskFolderSelect = document.getElementById("task-folder");
 const taskParentSelect = document.getElementById("task-parent");
 const taskError = document.getElementById("task-error");
 
+// Every folder/category picker (task form, folder-add form) is the same "one field, multiple
+// entry points" component (populateFolderSelectInto / populateFolderCategorySelect), so the
+// inline "+ New…" option lives once in each and reaches every caller: the main intake form,
+// the Now/Later add forms (general and bucket-specific — all funnel through openTaskModal),
+// the edit form, and the subtask add form.
+const NEW_FOLDER_OPTION = "__new_folder__";
+const NEW_CATEGORY_OPTION = "__new_category__";
+
+// The select's last real (non-sentinel) value, so choosing "+ New folder…" can revert the
+// select's own displayed value immediately (it's not a real choice, just an action) while the
+// folder modal is open on top, and so a cancel there leaves the field exactly as it was.
+let taskFolderLastRealValue = null;
+
+function selectTaskFolder(folderId) {
+  taskFolderSelect.value = folderId || "";
+  taskFolderLastRealValue = taskFolderSelect.value;
+  populateParentSelect(taskFolderSelect.value, document.getElementById("task-id").value || null, null);
+}
+
 // `prefillOrTask` is either an existing task (edit) or a prefill object for a new one:
 // folder_id / parent_task_id as before, plus optional deadline / do_date / importance /
 // is_quick_win (the Now window's "+ Add to Now" uses these).
@@ -1345,7 +1366,7 @@ function openTaskModal(prefillOrTask) {
   const isEdit = tasks.some(t => t.id === prefillOrTask.id);
   document.getElementById("task-modal-title").textContent = isEdit ? "Edit Task" : "Add Task";
 
-  populateFolderSelectInto(taskFolderSelect, prefillOrTask.folder_id);
+  populateFolderSelectInto(taskFolderSelect, prefillOrTask.folder_id, true);
   populateParentSelect(prefillOrTask.folder_id, isEdit ? prefillOrTask.id : null, prefillOrTask.parent_task_id);
 
   document.getElementById("task-id").value = isEdit ? prefillOrTask.id : "";
@@ -1360,6 +1381,7 @@ function openTaskModal(prefillOrTask) {
   taskError.textContent = "";
 
   taskFolderSelect.value = prefillOrTask.folder_id || folders[0]?.id || "";
+  taskFolderLastRealValue = taskFolderSelect.value;
   taskParentSelect.value = prefillOrTask.parent_task_id || "";
 
   taskModal.classList.remove("hidden");
@@ -1372,7 +1394,10 @@ function closeTaskModal() {
   taskError.textContent = "";
 }
 
-function populateFolderSelectInto(selectEl, selectedId) {
+// `includeCreateOption` appends a trailing "+ New folder…" sentinel — only the task form's
+// picker wants it (see NEW_FOLDER_OPTION); the recurring-habit form reuses this same function
+// without it, since inline creation there isn't one of this fix's entry points.
+function populateFolderSelectInto(selectEl, selectedId, includeCreateOption) {
   selectEl.innerHTML = "";
   categories.forEach(category => {
     const categoryFolders = folders.filter(f => f.category_id === category.id);
@@ -1387,6 +1412,12 @@ function populateFolderSelectInto(selectEl, selectedId) {
     });
     selectEl.appendChild(group);
   });
+  if (includeCreateOption) {
+    const opt = document.createElement("option");
+    opt.value = NEW_FOLDER_OPTION;
+    opt.textContent = "+ New folder…";
+    selectEl.appendChild(opt);
+  }
   if (selectedId) selectEl.value = selectedId;
 }
 
@@ -1405,8 +1436,14 @@ function populateParentSelect(folderId, excludeTaskId, selectedParentId) {
 }
 
 taskFolderSelect.addEventListener("change", () => {
-  const currentId = document.getElementById("task-id").value || null;
-  populateParentSelect(taskFolderSelect.value, currentId, null);
+  if (taskFolderSelect.value === NEW_FOLDER_OPTION) {
+    // Not a real choice — revert the visible value immediately, then let the folder modal
+    // (opened on top, task form stays open underneath) create and hand back a real one.
+    taskFolderSelect.value = taskFolderLastRealValue || "";
+    openFolderModal(taskFolderSelect);
+    return;
+  }
+  selectTaskFolder(taskFolderSelect.value);
 });
 
 // ---- Sizing toggle (Bite-size on/off) ----
@@ -1568,6 +1605,14 @@ const folderModal = document.getElementById("folder-modal");
 const folderForm = document.getElementById("folder-form");
 const folderCategorySelect = document.getElementById("folder-category");
 
+// Which select to populate+select once the new folder is created: taskFolderSelect when
+// opened inline from the task form's "+ New folder…" (see the taskFolderSelect change
+// listener above), null for the standalone header/folder-list "+" icon.
+let folderModalTarget = null;
+// Same revert-on-open-the-nested-modal pattern as taskFolderLastRealValue, one level down:
+// folder-category's own "+ New category…" option.
+let folderCategoryLastRealValue = null;
+
 function populateFolderCategorySelect(selectedId) {
   folderCategorySelect.innerHTML = "";
   categories.forEach(category => {
@@ -1576,16 +1621,24 @@ function populateFolderCategorySelect(selectedId) {
     opt.textContent = category.name;
     folderCategorySelect.appendChild(opt);
   });
-  if (selectedId) folderCategorySelect.value = selectedId;
+  const newOpt = document.createElement("option");
+  newOpt.value = NEW_CATEGORY_OPTION;
+  newOpt.textContent = "+ New category…";
+  folderCategorySelect.appendChild(newOpt);
+  folderCategorySelect.value = selectedId || (categories[0] ? categories[0].id : NEW_CATEGORY_OPTION);
+  folderCategoryLastRealValue = folderCategorySelect.value === NEW_CATEGORY_OPTION ? null : folderCategorySelect.value;
 }
 
-function openFolderModal() {
-  if (categories.length === 0) {
-    alert("Add a category first.");
-    return;
-  }
+// `targetSelect` (optional): the folder picker to populate+select once this folder is saved —
+// see folderModalTarget. No categories yet is no longer a dead end (the old blocking alert()
+// is gone): the category select opens with only "+ New category…" available, so one is
+// created inline without leaving this modal either.
+function openFolderModal(targetSelect) {
+  folderModalTarget = targetSelect || null;
   folderForm.reset();
-  const defaultCategoryId = activeCategoryFilter !== "all" ? activeCategoryFilter : categories[0].id;
+  const defaultCategoryId = activeCategoryFilter !== "all" && categories.some(c => c.id === activeCategoryFilter)
+    ? activeCategoryFilter
+    : (categories[0] ? categories[0].id : null);
   populateFolderCategorySelect(defaultCategoryId);
   folderModal.classList.remove("hidden");
   document.getElementById("folder-name").focus();
@@ -1593,17 +1646,33 @@ function openFolderModal() {
 
 function closeFolderModal() {
   folderModal.classList.add("hidden");
+  folderModalTarget = null;
 }
+
+folderCategorySelect.addEventListener("change", () => {
+  if (folderCategorySelect.value === NEW_CATEGORY_OPTION) {
+    folderCategorySelect.value = folderCategoryLastRealValue || "";
+    openCategoryModal(folderCategorySelect);
+    return;
+  }
+  folderCategoryLastRealValue = folderCategorySelect.value;
+});
 
 folderForm.addEventListener("submit", e => {
   e.preventDefault();
   const name = document.getElementById("folder-name").value.trim();
   const categoryId = folderCategorySelect.value;
-  if (!name || !categoryId) return;
-  folders.push({ id: makeId(), category_id: categoryId, name });
+  if (!name || !categoryId || categoryId === NEW_CATEGORY_OPTION) return;
+  const folder = { id: makeId(), category_id: categoryId, name };
+  folders.push(folder);
+  const target = folderModalTarget;
   closeFolderModal();
   persist();
   render();
+  if (target === taskFolderSelect) {
+    populateFolderSelectInto(taskFolderSelect, folder.id, true);
+    selectTaskFolder(folder.id);
+  }
 });
 
 document.getElementById("folder-cancel-btn").addEventListener("click", closeFolderModal);
@@ -1706,7 +1775,14 @@ recurringModal.addEventListener("click", e => {
 const categoryModal = document.getElementById("category-modal");
 const categoryForm = document.getElementById("category-form");
 
-function openCategoryModal() {
+// Which select to populate+select once the new category is created: folderCategorySelect
+// when opened inline from the folder modal's own "+ New category…" (itself reachable from the
+// task form's "+ New folder…", so a brand-new category is never a dead end there either); null
+// for the standalone header "+ Category" icon.
+let categoryModalTarget = null;
+
+function openCategoryModal(targetSelect) {
+  categoryModalTarget = targetSelect || null;
   categoryForm.reset();
   categoryModal.classList.remove("hidden");
   document.getElementById("category-name").focus();
@@ -1714,6 +1790,7 @@ function openCategoryModal() {
 
 function closeCategoryModal() {
   categoryModal.classList.add("hidden");
+  categoryModalTarget = null;
 }
 
 categoryForm.addEventListener("submit", e => {
@@ -1722,10 +1799,14 @@ categoryForm.addEventListener("submit", e => {
   if (!name) return;
   const category = { id: makeId(), name };
   categories.push(category);
-  activeCategoryFilter = category.id;
+  const target = categoryModalTarget;
+  // Switching the active category tab is only right for the standalone icon flow — a nested
+  // "just need a category to hang this folder off" creation shouldn't yank the main view's tab.
+  if (!target) activeCategoryFilter = category.id;
   closeCategoryModal();
   persist();
   render();
+  if (target === folderCategorySelect) populateFolderCategorySelect(category.id);
 });
 
 document.getElementById("category-cancel-btn").addEventListener("click", closeCategoryModal);
