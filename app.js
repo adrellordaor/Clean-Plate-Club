@@ -40,6 +40,8 @@ const ICONS = {
   skip: `<svg ${SVG_ATTRS}><path d="m5 4 6 8-6 8"/><path d="m13 4 6 8-6 8"/></svg>`,
   // Bite-size marker: a small apple with a bite out of it, drawn at 12px on cards.
   bite: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6c-1.5-1.5-4.5-1.5-6 1-2 3-1 8 1.5 11 1.2 1.5 3 1.5 4.5.5 1.5 1 3.3 1 4.5-.5a10 10 0 0 0 2.2-4.5c-2.5-.2-4.2-2.3-3.7-4.8-1-.3-2-1.5-3-2.7Z"/><path d="M12 6c0-2 1-3 3-3.5"/></svg>`,
+  // Bulk import: an arrow dropping into a tray.
+  import: `<svg ${SVG_ATTRS}><path d="M12 3v11"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg>`,
 };
 
 // Daily Plate / Fridge icons: bigger than the rest of the icon set (this pair doubles as each
@@ -1814,6 +1816,179 @@ categoryModal.addEventListener("click", e => {
   if (e.target === categoryModal) closeCategoryModal();
 });
 
+// ---------- Bulk import ----------
+// Lightweight, mechanical line parser — no AI call, no file upload, just a paste box. One
+// task created per non-empty line:
+//   #folder    assigns the task to that folder (its category comes along with it), creating
+//              the folder — under an Inbox category, since a line names no category of its
+//              own — if no folder of that name exists yet. Must be the FIRST token if present.
+//   @friday / @2026-10-01   sets deadline: a weekday name (this coming one, today counts) or
+//              an exact "YYYY-MM-DD" date. An unrecognized @token is left as plain title text.
+//   !          sets deadline to today.
+//   *          sets do_date to today, independent of deadline (the do_date default from a
+//              deadline still applies afterward via applyDeadlineDefault, same as everywhere
+//              else a deadline gets set).
+// Tags combine freely and in any order after the folder tag; everything left over, in its
+// original order, is the title. A line with no #folder tag (recognized or not) falls back to
+// an Inbox folder/category (created if needed) — there's nothing else to place it under.
+
+const bulkImportModal = document.getElementById("bulk-import-modal");
+const bulkImportForm = document.getElementById("bulk-import-form");
+const bulkImportText = document.getElementById("bulk-import-text");
+const bulkImportError = document.getElementById("bulk-import-error");
+const bulkImportResults = document.getElementById("bulk-import-results");
+const bulkImportSummary = document.getElementById("bulk-import-summary");
+const bulkImportList = document.getElementById("bulk-import-list");
+
+const BULK_IMPORT_WEEKDAYS = Object.freeze({
+  sun: 0, sunday: 0, mon: 1, monday: 1, tue: 2, tues: 2, tuesday: 2,
+  wed: 3, weds: 3, wednesday: 3, thu: 4, thur: 4, thurs: 4, thursday: 4,
+  fri: 5, friday: 5, sat: 6, saturday: 6,
+});
+
+// The next date (today counts) matching this weekday — same "this week if it hasn't passed,
+// else next week" rule the recurring-habit engine already uses (recurringWeekday/nextRecurringOccurrence).
+function nextWeekdayDate(weekdayNum, today) {
+  const base = parseLocalDate(today);
+  base.setDate(base.getDate() + ((weekdayNum - base.getDay() + 7) % 7));
+  return localDateString(base);
+}
+
+// Returns a "YYYY-MM-DD" string, or null if `raw` (the text after '@') isn't a recognized
+// weekday name or an exact ISO date.
+function parseBulkImportDeadline(raw, today) {
+  const value = raw.toLowerCase();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  if (BULK_IMPORT_WEEKDAYS[value] !== undefined) return nextWeekdayDate(BULK_IMPORT_WEEKDAYS[value], today);
+  return null;
+}
+
+// One line -> { title, folderName, deadline, doDateToday }, or null for a blank line.
+// folderName/deadline are null when absent; unresolved tokens (a bare '#' with nothing after
+// it, an '@' that didn't parse) fall through into the title rather than vanishing silently.
+function parseBulkImportLine(line, today) {
+  const tokens = line.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return null;
+
+  let folderName = null;
+  let deadline = null;
+  let doDateToday = false;
+  const titleTokens = [];
+
+  tokens.forEach((token, i) => {
+    if (i === 0 && token.length > 1 && token[0] === "#") {
+      folderName = token.slice(1);
+      return;
+    }
+    if (token === "!") { deadline = today; return; }
+    if (token === "*") { doDateToday = true; return; }
+    if (token.length > 1 && token[0] === "@") {
+      const parsed = parseBulkImportDeadline(token.slice(1), today);
+      if (parsed) { deadline = parsed; return; }
+    }
+    titleTokens.push(token);
+  });
+
+  return { title: titleTokens.join(" ").trim(), folderName, deadline, doDateToday };
+}
+
+function findOrCreateInboxCategory() {
+  const existing = categories.find(c => c.name.toLowerCase() === "inbox");
+  if (existing) return existing;
+  const category = { id: makeId(), name: "Inbox" };
+  categories.push(category);
+  return category;
+}
+
+function findOrCreateInboxFolder() {
+  const existing = folders.find(f => f.name.toLowerCase() === "inbox");
+  if (existing) return existing;
+  const folder = { id: makeId(), category_id: findOrCreateInboxCategory().id, name: "Inbox" };
+  folders.push(folder);
+  return folder;
+}
+
+// A #tag names a folder by its plain name (matched case-insensitively against every existing
+// folder, regardless of category) — reuses the same shape the folder-add form's own creation
+// logic writes (id / category_id / name), just without a form around it. A brand-new folder
+// has no category of its own to go by, so it lands in Inbox, exactly like an untagged line.
+function findOrCreateBulkImportFolder(name) {
+  const existing = folders.find(f => f.name.toLowerCase() === name.toLowerCase());
+  if (existing) return existing;
+  const folder = { id: makeId(), category_id: findOrCreateInboxCategory().id, name };
+  folders.push(folder);
+  return folder;
+}
+
+// Runs the whole paste through parseBulkImportLine and creates one task per line that ends up
+// with a title. Returns { created: [{task, folder}], skipped } — skipped counts lines that
+// were entirely tags (or blank) and so had nothing left to title a task with.
+function runBulkImport(text, today) {
+  const created = [];
+  let skipped = 0;
+
+  text.split("\n").forEach(rawLine => {
+    const parsed = parseBulkImportLine(rawLine, today);
+    if (!parsed) return; // blank line, not worth counting as skipped
+    if (!parsed.title) { skipped++; return; }
+
+    const folder = parsed.folderName ? findOrCreateBulkImportFolder(parsed.folderName) : findOrCreateInboxFolder();
+    const overrides = { folder_id: folder.id, title: parsed.title };
+    if (parsed.deadline) overrides.deadline = parsed.deadline;
+    if (parsed.doDateToday) overrides.do_date = today;
+    applyDeadlineDefault(overrides); // same deadline -> do_date default every other path follows
+
+    const task = makeTask(overrides);
+    tasks.push(task);
+    created.push({ task, folder });
+  });
+
+  if (created.length > 0) { persist(); render(); }
+  return { created, skipped };
+}
+
+function openBulkImportModal() {
+  bulkImportForm.reset();
+  bulkImportError.textContent = "";
+  bulkImportForm.hidden = false;
+  bulkImportResults.hidden = true;
+  bulkImportModal.classList.remove("hidden");
+  bulkImportText.focus();
+}
+
+function closeBulkImportModal() {
+  bulkImportModal.classList.add("hidden");
+}
+
+bulkImportForm.addEventListener("submit", e => {
+  e.preventDefault();
+  if (!bulkImportText.value.trim()) {
+    bulkImportError.textContent = "Paste at least one line first.";
+    return;
+  }
+  const { created, skipped } = runBulkImport(bulkImportText.value, todayISODate());
+
+  bulkImportForm.hidden = true;
+  bulkImportResults.hidden = false;
+  const skippedNote = skipped ? " (" + pluralCount(skipped, "line") + " skipped — no title once tags were removed)" : "";
+  bulkImportSummary.textContent = created.length === 0
+    ? "Nothing imported." + skippedNote
+    : "Imported " + pluralCount(created.length, "task") + "." + skippedNote;
+  bulkImportList.innerHTML = "";
+  created.forEach(({ task, folder }) => {
+    const li = document.createElement("li");
+    li.textContent = task.title + " — " + folder.name;
+    bulkImportList.appendChild(li);
+  });
+});
+
+document.getElementById("bulk-import-btn").addEventListener("click", openBulkImportModal);
+document.getElementById("bulk-import-cancel-btn").addEventListener("click", closeBulkImportModal);
+document.getElementById("bulk-import-done-btn").addEventListener("click", closeBulkImportModal);
+bulkImportModal.addEventListener("click", e => {
+  if (e.target === bulkImportModal) closeBulkImportModal();
+});
+
 // ---------- Settings modal ----------
 // Thresholds live in the synced data file. Saving re-renders immediately, which is all a
 // "recalculation" needs since urgency is derived at render time and never stored.
@@ -1938,6 +2113,7 @@ themeToggleBtn.addEventListener("click", () => {
 
 applyThemeIcon();
 document.getElementById("settings-btn").innerHTML = ICONS.gear;
+document.getElementById("bulk-import-btn").innerHTML = ICONS.import;
 
 // ---------- Storage UI ----------
 
@@ -2171,19 +2347,23 @@ function isTypingTarget(el) {
 }
 
 // backfill-modal is deliberately excluded: it has no cancel path anywhere, by design (see its
-// markup comment), so Esc must not open one either.
+// markup comment), so Esc must not open one either. Category and folder are checked before
+// task: the task form's inline "+ New folder…"/"+ New category…" can stack either or both on
+// top of it (see taskFolderSelect/folderCategorySelect), and Esc should close the topmost one
+// first, not the task form underneath it.
 function closeTopModal() {
-  if (!taskModal.classList.contains("hidden")) return closeTaskModal();
-  if (!folderModal.classList.contains("hidden")) return closeFolderModal();
-  if (!recurringModal.classList.contains("hidden")) return closeRecurringModal();
   if (!categoryModal.classList.contains("hidden")) return closeCategoryModal();
+  if (!folderModal.classList.contains("hidden")) return closeFolderModal();
+  if (!taskModal.classList.contains("hidden")) return closeTaskModal();
+  if (!recurringModal.classList.contains("hidden")) return closeRecurringModal();
   if (!settingsModal.classList.contains("hidden")) return closeSettingsModal();
   if (!shortcutsModal.classList.contains("hidden")) return closeShortcutsModal();
   if (!nowDeadlineModal.classList.contains("hidden")) return settleDeadlinePrompt(null);
+  if (!bulkImportModal.classList.contains("hidden")) return closeBulkImportModal();
 }
 
 function anyModalOpen() {
-  return [taskModal, folderModal, recurringModal, categoryModal, settingsModal, shortcutsModal, nowDeadlineModal]
+  return [taskModal, folderModal, recurringModal, categoryModal, settingsModal, shortcutsModal, nowDeadlineModal, bulkImportModal]
     .some(modal => !modal.classList.contains("hidden"));
 }
 

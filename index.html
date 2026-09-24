@@ -86,6 +86,7 @@
     <div class="toolbar">
       <div id="heatmap-legend" class="heatmap-legend"></div>
       <div id="list-mode" class="view-switch list-mode" role="tablist" aria-label="List display mode"></div>
+      <button type="button" id="bulk-import-btn" class="btn-icon" aria-label="Bulk import tasks" title="Bulk import: paste multiple lines, one task per line"></button>
     </div>
 
     <!-- "windows": Now (live union: do_date == today OR quadrant Do/Clear, plus today's habits)
@@ -265,6 +266,39 @@
         <button type="submit" class="btn btn-primary">Save</button>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- Bulk import: a plain paste box, no file upload. One task per line, parsed mechanically
+     (no AI call) — see parseBulkImportLine / runBulkImport in app.js. -->
+<div id="bulk-import-modal" class="modal hidden">
+  <div class="modal-content modal-content-wide">
+    <h2>Bulk Import</h2>
+    <form id="bulk-import-form">
+      <p class="settings-hint">
+        One task per line. Tags (combine freely, <code>#folder</code> must come first if used):
+        <code>#folder</code> folder (created if new) &middot;
+        <code>@friday</code> / <code>@2026-10-01</code> deadline &middot;
+        <code>!</code> deadline today &middot;
+        <code>*</code> do date today.
+        Lines with no <code>#folder</code> land in Inbox.
+      </p>
+      <label>Tasks
+        <textarea id="bulk-import-text" class="bulk-import-text" rows="10" placeholder="#Work @friday Ship the weekly report&#10;! Call the dentist&#10;Buy milk"></textarea>
+      </label>
+      <p id="bulk-import-error" class="settings-error" aria-live="polite"></p>
+      <div class="modal-actions">
+        <button type="button" id="bulk-import-cancel-btn" class="btn btn-secondary">Cancel</button>
+        <button type="submit" class="btn btn-primary">Import</button>
+      </div>
+    </form>
+    <div id="bulk-import-results" class="bulk-import-results" hidden>
+      <p id="bulk-import-summary" class="bulk-import-summary" aria-live="polite"></p>
+      <ul id="bulk-import-list" class="bulk-import-list"></ul>
+      <div class="modal-actions">
+        <button type="button" id="bulk-import-done-btn" class="btn btn-primary">Done</button>
+      </div>
+    </div>
   </div>
 </div>
 

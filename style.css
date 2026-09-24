@@ -1974,6 +1974,43 @@ kbd {
   margin-right: auto;
 }
 
+.settings-hint code {
+  background: var(--row-hover);
+  border-radius: 4px;
+  padding: 0.05rem 0.3rem;
+  font-size: 0.85em;
+}
+
+.bulk-import-text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  resize: vertical;
+}
+
+.bulk-import-summary {
+  font-size: 0.85rem;
+  margin: 0 0 0.5rem;
+}
+
+.bulk-import-list {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.bulk-import-list li {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.85rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.bulk-import-list li:last-child {
+  border-bottom: none;
+}
+
 .modal-content input[type="text"],
 .modal-content input[type="date"],
 .modal-content input[type="number"],
