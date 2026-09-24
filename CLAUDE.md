@@ -1,0 +1,25 @@
+# Clean Plate Club: standing rules for Claude Code
+
+## 1. The spec is read-only
+Never write to or edit `task-tracker-spec.md`, not even to keep it in sync with code.
+That includes restoring it, reverting it, or checking out an older version with git. Only
+read it. Spec changes happen exclusively in a separate claude.ai chat and get handed down
+from there. If the code and the spec disagree, list the out-of-date passages in chat and
+leave the file alone.
+
+## 2. One commit per discrete change
+Commit after each discrete change or fix, not in one giant commit at the end of a batch.
+When given a numbered list of items, treat each item as its own commit.
+
+## 3. Never push automatically
+Commit locally and stop. Only push to GitHub when explicitly told to (e.g. "push it",
+"push this").
+
+## 4. Explain things in plain language
+The owner has no coding or technical background. When reporting back or explaining
+anything (errors, what changed, next steps), use plain language. Don't assume familiarity
+with git or developer terms: if one is needed, add a quick explanation alongside it.
+
+## 5. Visual/design work: look before calling it done
+For any visual or design work, take screenshots and self-critique against the given brief
+before considering a section done, rather than moving on right after writing the code.
