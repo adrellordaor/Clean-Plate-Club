@@ -1126,7 +1126,35 @@ productivity view")
   (highlights, never a score)
 - Heat-map row coloring in List view, tied to each task's live quadrant
 
-## Backlog (v2+, not in scope now)
+## Visual Design System
+
+Full visual redesign (Overview, Checklist windows and list, Calendar,
+modals, Focus mode, light theme, mobile width) is complete as of commit
+`30aff16`, editorial/spacious direction inspired by konrad.com's
+structural language, cooking motif preserved as functional minimal
+line-iconography and naming only, never illustrative.
+
+**Color principle, corrected**: Fire and Ice are reserved for genuine
+urgency/quadrant-state signaling (heat-map, Calendar pace coloring, pile
+indicators, Focus mode's urgency glow), not the only two colors permitted
+anywhere in the app. Other elements that already carried real meaning
+through color, habit type, importance badges, the Capacity view, the
+"big win" callout, keep distinct color, chosen for coherence with the
+new base palette rather than reverting to the old exact hex values. The
+rule this replaces ("Fire and Ice are the only two saturated colors")
+was read correctly but was underspecified, it meant to block decorative
+color creep on chrome/buttons, not strip meaning-bearing color elsewhere.
+Each major view (Overview, Checklist, Calendar) also carries a subtle
+distinguishing accent, used lightly on that view's typography/framing,
+not as a decorative wash.
+
+**Note (this file was edited directly by Claude Code during the visual
+pass, contrary to the established workflow where only chat edits this
+file, worth reconciling manually and not repeating going forward).**
+
+**Queued, not yet built**: category tabs in the Daily Plate/Fridge
+windows, matching the main List view's category tabs, with assignable
+colors per category.
 - Bulk import via AI parsing of unstructured pasted text (ongoing API cost
   per use — start with template/tag-based parsing instead, see below)
 - (Daily time-capacity limits moved out of Backlog and into the Calendar
