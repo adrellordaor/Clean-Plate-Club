@@ -386,8 +386,11 @@ showing up for the first time isn't a quadrant *change* the way a drift,
 an edit, or a finish is, and on a heavy capture day it drowned out the
 actual drift signal the digest exists to surface.
 
-Weekly digest = same idea, rolled up: what's trending toward Do, what's been
-sitting in Plan too long. Same primary/secondary split applies.
+**Weekly digest, retired.** Considered as a weekly rollup of the same
+drift signal, but dropped: "stuck in Plan too long" is already surfaced
+per-task by the Overview's staleness check-ins below, and a second weekly
+summary would overlap with the Calendar's Weekly Accomplishments panel
+without adding a genuinely new signal.
 
 **Staleness check-ins** (undated tasks only, softer tone than the drift
 tiers above, own card in the Overview sidebar underneath the Priority
@@ -1111,8 +1114,11 @@ productivity view")
   happens to share the same tag vocabulary for batch-pasting a whole
   list at once, not the same thing as this single-line shortcut.
 - Daily digest (snapshot + quadrant changes)
-- Weekly digest (trend view)
-- Simple daily log: completed / rolled over / dropped
+- Weekly digest and Simple daily log, retired: both considered and
+  dropped, redundant with signals already covered by the Daily Digest,
+  staleness check-ins, and the Calendar's Weekly Accomplishments panel and
+  day-repository, Simple daily log in particular was never more than a
+  three-word placeholder with no real definition behind it
 - Calendar view: pace-based coloring across all tasks (not just habits),
   gold glow for big wins, count badge, click-through repository, a
   Capacity view toggle (effort vs. daily_capacity_points, using
@@ -1138,11 +1144,15 @@ productivity view")
 
 ## Bulk Import (v1, lightweight)
 One task per line, with optional inline tags parsed mechanically (no AI
-call, no ongoing cost):
+call, no ongoing cost), pasted directly into a paste box in the app, no
+file upload:
 - `#folder` — assigns folder (and its parent category)
 - `@friday` / `@2026-10-01` — sets deadline
 - `!` — sets `deadline` to today (the ad-hoc-fire equivalent, since the
   separate urgent flag was removed, see Urgency Engine)
+- `*` — sets `do_date` to today without touching `deadline`, for
+  intention-to-tackle-today without a real due date
+Tags can combine on one line, folder tag always first if present.
 Unrecognized lines still import as plain tasks in an Inbox folder (under an
 Inbox category) for manual sorting.
 
