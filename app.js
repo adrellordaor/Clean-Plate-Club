@@ -49,44 +49,42 @@ const ICONS = {
 
 // Daily Plate / Fridge icons: bigger than the rest of the icon set (this pair doubles as each
 // window's expand/focus control, so they need to read as more than a generic small glyph) and
-// state-aware — plate shows food when Daily Plate is expanded, fridge shows its door open when
-// Fridge is expanded, empty/closed otherwise, the same on/off-through-appearance language as
+// state-aware — the plate's lid comes off when Daily Plate is expanded, the fridge door opens
+// when Fridge is expanded, covered/closed otherwise, the same on/off-through-appearance language as
 // the Bite-size toggle rather than a text or icon-shape swap for "expand" vs. "shrink".
-const PLACE_ICON_ATTRS = 'viewBox="0 0 28 22" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"';
+const PLACE_ICON_ATTRS = 'viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"';
 
-function plateIcon(hasFood) {
-  const food = hasFood
-    ? '<circle cx="12.5" cy="9.5" r="1.9" fill="currentColor" stroke="none"/>'
-      + '<circle cx="16" cy="11.5" r="1.5" fill="currentColor" stroke="none"/>'
-      + '<circle cx="12.5" cy="13.5" r="1.7" fill="currentColor" stroke="none"/>'
-    : "";
-  // Fork (left, three tines merging into a stem) — plate (center circle) — knife (right,
-  // a blade that bulges out then tapers back into its handle).
+// Daily Plate: a covered dish (cloche over a plate line) at rest; expanded, the lid is off and
+// steam rises from what's on the plate — "served hot", which also ties it to the Fire pile.
+function plateIcon(served) {
+  if (served) {
+    return `<svg ${PLACE_ICON_ATTRS}>`
+      + '<path d="M3 18.5h18"/>'
+      + '<path d="M6.5 18.5c1-2.4 3-3.5 5.5-3.5s4.5 1.1 5.5 3.5"/>'
+      + '<path d="M8.5 11.5c-1-1.3 1-2.2 0-3.6"/><path d="M12 10.5c-1-1.3 1-2.2 0-3.6"/><path d="M15.5 11.5c-1-1.3 1-2.2 0-3.6"/>'
+      + "</svg>";
+  }
   return `<svg ${PLACE_ICON_ATTRS}>`
-    + '<circle cx="14" cy="11" r="6.5"/>'
-    + '<path d="M2 2v5"/><path d="M3.5 2v5"/><path d="M5 2v5"/><path d="M3.5 7v13"/>'
-    + '<path d="M24 2c1.3 0 2 1.6 2 3.5S25.3 9 24 9"/><path d="M24 9v11"/>'
-    + food
+    + '<path d="M3 18.5h18"/>'
+    + '<path d="M5 18.5a7 7 0 0 1 14 0"/>'
+    + '<path d="M12 11.5V10"/><circle cx="12" cy="8.8" r="1"/>'
     + "</svg>";
 }
 
+// Fridge: an upright two-door fridge (freezer divide, two handle ticks) at rest; expanded, the
+// door swings open to the left and the shelves show — the same "revealed" state as the plate.
 function fridgeIcon(open) {
   if (open) {
-    // Body (interior) rect, a door leaf swung open to the left, two shelf lines standing in
-    // for the handle marks a closed door would show instead.
     return `<svg ${PLACE_ICON_ATTRS}>`
-      + '<rect x="10" y="2" width="15" height="18" rx="2"/>'
-      + '<path d="M10 3 3 5v14l7-2"/>'
-      + '<line x1="13" y1="8" x2="22" y2="8"/>'
-      + '<line x1="13" y1="13" x2="22" y2="13"/>'
+      + '<rect x="9" y="2" width="11" height="20" rx="1.5"/>'
+      + '<path d="M9 2.5 4 4.5v15l5 2"/>'
+      + '<path d="M11.5 9h6"/><path d="M11.5 15h6"/>'
       + "</svg>";
   }
-  // Closed: a plain door rect, the freezer divide near the top, two small handle ticks.
   return `<svg ${PLACE_ICON_ATTRS}>`
-    + '<rect x="7" y="2" width="15" height="18" rx="2"/>'
-    + '<line x1="7" y1="8" x2="22" y2="8"/>'
-    + '<line x1="10" y1="4.5" x2="10" y2="6.5"/>'
-    + '<line x1="10" y1="10.5" x2="10" y2="13"/>'
+    + '<rect x="6" y="2" width="12" height="20" rx="1.5"/>'
+    + '<path d="M6 9h12"/>'
+    + '<path d="M9 4.5v2"/><path d="M9 11.5v4"/>'
     + "</svg>";
 }
 
@@ -502,6 +500,8 @@ document.querySelectorAll("#view-switch .view-switch-btn").forEach(btn => {
 });
 
 function renderViewSwitch() {
+  // Drives the per-view accent (--view-accent in style.css) on the view's framing and type.
+  document.documentElement.dataset.view = activeView;
   document.querySelectorAll("#view-switch .view-switch-btn").forEach(btn => {
     const isActive = btn.dataset.view === activeView;
     btn.classList.toggle("active", isActive);

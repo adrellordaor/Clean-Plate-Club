@@ -1,11 +1,11 @@
 // Calendar view: retrospective, replaces the earlier "productivity view" idea. A monthly
 // grid colored by that day's overall pace across ALL tasks (regular deadlines plus recurring
-// habits), two independent overlays (an overdue ring and a "big win" star), future
+// habits), two independent overlays (an overdue ring and a gold "big win" glow + star), future
 // due-date markers, a secondary badge for regular tasks completed, a click-through day
 // repository, and a Weekly Accomplishments panel. Read-only, like Overview — nothing to tick
 // off here, that happens in the List view.
 //
-// Red, the overdue ring, the big-win star, the count badge and the future markers are derived
+// Red, the overdue ring, the big-win glow, the count badge and the future markers are derived
 // live from fields that never move retroactively (deadline, completed_at, created_at,
 // importance, CompletionLog). The Green/Blue/Gray "planned" set is different: it reads
 // do_date, and do_date rolls forward every day a task stays unfinished (see
@@ -236,11 +236,11 @@ function computeDayStats(dateStr, data, settings, today) {
   else if (doneCount === dueCount) bucket = CALENDAR_DAY_BUCKETS.green;
   else bucket = CALENDAR_DAY_BUCKETS.blue;
 
-  // Big-win star (the "gold glow" in older notes, hence goldWins): a regular task completed
-  // that day whose importance buckets High/Critical — the same importanceBucket boundary
+  // Gold glow (the big win): a regular task completed that day whose importance buckets
+  // High/Critical — the same importanceBucket boundary
   // (quadrant_split_score) the Red rule above uses, so "important" means the same thing
   // everywhere on this grid. No new setting. Independent of the base color: a red day can
-  // still carry the star if something important also got cleared.
+  // still glow gold if something important also got cleared.
   const goldWins = regularCompleted.filter(task => importanceBucket(task.importance, settings) === "high");
 
   return {
@@ -505,8 +505,8 @@ function makeCalendarLegendChip(text, extraClass, hint) {
 }
 
 // A future due-date marker: a plain dot, the larger accented diamond for a task the
-// Overview's priority panel would list, or the hollow square for a weekly RecurringTask's
-// scheduled day (hueless, like every other habit surface in the app).
+// Overview's priority panel would list, or the violet square for a weekly RecurringTask's
+// scheduled day (the weekly violet, same hue the habit boxes use for "weekly").
 // `task` is null for the legend sample.
 function makeCalendarMarker(top, task, recurring) {
   const m = document.createElement("span");
@@ -600,7 +600,7 @@ function renderCalendarCell(dateStr, data, today) {
 // ---------- Capacity view rendering ----------
 // Same grid scaffold and day-click/day-repo/weekly-panel behavior as Pace; only the fill
 // and markers differ — a continuous effort/capacity gradient instead of a discrete bucket,
-// with no overdue ring, big-win star, or deadline markers, since those all carry the red/green
+// with no overdue ring, big-win glow, or deadline markers, since those all carry the red/green
 // "judgment" this view deliberately avoids.
 
 function renderCalendarCapacityGrid(data, today) {

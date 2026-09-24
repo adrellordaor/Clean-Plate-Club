@@ -1,10 +1,13 @@
 /* ---- Design system ----
    Editorial, flat, near-black. Hierarchy is carried by type size and weight, sections are
    separated by whitespace and hairline rules, never by boxed cards, drop-shadows or rounded
-   chrome. Color is reserved strictly for meaning: Fire (urgent) and Ice (not urgent) are the
-   only two saturated hues in the app, and they only ever mark urgency/quadrant state — the
-   pile indicators, the heat-map, the Calendar's pace fills, the escalating tags. Everything
-   else (buttons, active tabs, focus rings, habits, capacity) is neutral ink on charcoal.
+   chrome. Color is reserved strictly for meaning, never decoration: chrome (buttons, toggles,
+   focus rings, inputs) is neutral ink on charcoal. Fire (urgent) and Ice (not urgent) carry
+   urgency/quadrant state — the pile indicators, the heat-map, the Calendar's pace fills, the
+   escalating tags, Focus mode's glow. Other meaning-bearing systems keep their own hues,
+   tuned to this base: habit cadence (aqua / violet / magenta), Capacity (plum), importance and
+   big wins (gold). The one non-semantic color is each view's quiet accent (--view-accent),
+   used only on that view's framing rules and active-tab marks.
    Dark is the default theme; light is the same system on paper. */
 :root {
   --font: "Bricolage Grotesque", "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -55,10 +58,16 @@
   --tag-due-today-text: var(--fire-amber);
   --tag-overdue-bg: var(--fire);
   --tag-overdue-text: #161616;
+  /* Gold = importance: the High/Critical badges and the Calendar's "big win" (a High/Critical
+     task completed) share it. A pale, yellower gold than Fire's amber (46° vs 36°, lighter),
+     so it never reads as Clear / Due Today. */
+  --gold: #f0cd5e;
+  --gold-soft: rgba(240, 205, 94, 0.14);
+  --gold-glow: rgba(240, 205, 94, 0.5);
   --badge-high-bg: transparent;
-  --badge-high-text: var(--text-muted);
-  --badge-critical-bg: transparent;
-  --badge-critical-text: var(--text);
+  --badge-high-text: var(--gold);
+  --badge-critical-bg: var(--gold);
+  --badge-critical-text: #161616;
   --badge-recurring-bg: transparent;
   --badge-recurring-text: var(--text-muted);
 
@@ -75,13 +84,35 @@
   --day-gray-bg: #212120;
   --day-gray-text: #8f8e8a;
   /* Overlays on any base fill: the minor-overdue ring borrows fire (it's an overdue signal
-     without the red fill); the big-win mark is plain ink, a shape rather than a hue. */
+     without the red fill); the big win is gold (importance), a glow plus a star. */
   --day-ring: var(--fire);
-  --day-win: var(--text);
+  --day-win: var(--gold);
+  --day-win-glow: var(--gold-glow);
 
-  /* Capacity view: a neutral lightness ramp — volume, not judgment, so no hue at all. */
-  --capacity-l0: 13%;  --capacity-l1: 40%;
-  --capacity-overload: var(--text);
+  /* Capacity view: its own plum hue (300°), deliberately none of Pace's fire/ice or the gold —
+     volume, not judgment. A continuous dusk -> vivid ramp; the overload marker is the same hue
+     pushed brighter, so "busy" can never be mistaken for "missed something important". */
+  --capacity-h: 300;
+  --capacity-s0: 10%;  --capacity-s1: 42%;
+  --capacity-l0: 13%;  --capacity-l1: 34%;
+  --capacity-overload: #e98ad9;
+
+  /* Habit cadence hues: a separate system from the quadrants (habits sit outside the
+     Eisenhower matrix), so the hue says "daily / weekly / monthly", never a priority. Daily is
+     aqua rather than the old sky, since sky is now Ice (Plan). Reused wherever something is
+     specifically day- or week-scoped (the Calendar's day repository, Weekly panel, markers). */
+  --daily-h: 172;
+  --weekly-h: 262;
+  --monthly-h: 322;
+  --habit-acc-s: 62%;  --habit-acc-l: 70%;   /* rules, titles, fractions, row bars */
+  --habit-wash-s: 28%; --habit-wash-l: 12%;  /* faint row ground, like a pale heat-map band */
+
+  /* Per-view accent: quiet, desaturated, used only on the active view's framing (section
+     rules, active-tab underline, mode-toggle underline) — never fills, never state. Hues
+     picked away from what each view already uses for meaning. */
+  --accent-overview: hsl(262 34% 74%);   /* lilac: Overview shows no habits (violet) */
+  --accent-list: hsl(148 24% 63%);       /* sage */
+  --accent-calendar: hsl(34 34% 66%);    /* sand */
 
   /* Staleness check-in tiers: ice (Plan's hue — an undated task quietly aging is exactly
      the "important, not urgent" case), deepening with severity. Wording never escalates. */
@@ -90,8 +121,10 @@
   --staleness-high-text: #a9e2ff;
 
   --overlay: rgba(0, 0, 0, 0.62);
-  /* Focus mode dims much harder than a plain modal backdrop — real isolation. */
+  /* Focus mode dims much harder than a plain modal backdrop — real isolation — and its panel
+     carries a soft fire glow: an urgency signal ("this is the urgent stuff"), not decoration. */
   --focus-overlay: rgba(0, 0, 0, 0.84);
+  --focus-glow: rgba(255, 90, 44, 0.26);
 
   /* Heat-map ramp: each quadrant has a fixed hue (see .quadrant-* below); a row's --p
      (0 = pale, 1 = vivid, from priority_score) slides saturation and lightness between
@@ -139,7 +172,22 @@
   --day-gray-bg: #e4e2db;
   --day-gray-text: #6b6a64;
 
-  --capacity-l0: 96%;  --capacity-l1: 70%;
+  --gold: #8c6d00;
+  --gold-soft: rgba(176, 138, 0, 0.12);
+  --gold-glow: rgba(214, 166, 0, 0.55);
+  --badge-critical-bg: #e9c24a;
+  --badge-critical-text: #1a1400;
+
+  --capacity-s0: 14%;  --capacity-s1: 58%;
+  --capacity-l0: 96%;  --capacity-l1: 80%;
+  --capacity-overload: #7a1f63;
+
+  --habit-acc-s: 55%;  --habit-acc-l: 38%;
+  --habit-wash-s: 45%; --habit-wash-l: 95.5%;
+
+  --accent-overview: hsl(262 26% 48%);
+  --accent-list: hsl(145 20% 34%);
+  --accent-calendar: hsl(30 28% 38%);
 
   --staleness-low-text: #5e879d;
   --staleness-medium-text: #0c84c6;
@@ -147,6 +195,7 @@
 
   --overlay: rgba(20, 20, 18, 0.4);
   --focus-overlay: rgba(15, 15, 13, 0.7);
+  --focus-glow: rgba(214, 64, 14, 0.35);
 
   --tint-s0: 30%;  --tint-s1: 72%;
   --tint-l0: 95.5%; --tint-l1: 84%;
@@ -156,6 +205,11 @@
 
   color-scheme: light;
 }
+
+/* The active view's accent (data-view is set on <html> by renderViewSwitch in app.js). */
+:root[data-view="overview"] { --view-accent: var(--accent-overview); }
+:root[data-view="list"] { --view-accent: var(--accent-list); }
+:root[data-view="calendar"] { --view-accent: var(--accent-calendar); }
 
 * {
   box-sizing: border-box;
@@ -729,11 +783,23 @@ kbd {
   }
 }
 
-/* Recurring habit boxes (Daily / Weekly / Monthly): outside the Eisenhower system, so no
-   hue at all — a habit's cadence is carried by the box's heading, not a color. Same open
-   section treatment as everything else: a rule, a bold label, the fraction as a numeral. */
+/* Habit cadence hue (see --daily-h / --weekly-h / --monthly-h): set per box and per row, so
+   everything habit-scoped reads "daily", "weekly" or "monthly" at a glance — a separate
+   system from the quadrant hues, never a priority level. */
+#recurring-daily, .habit-daily { --habit-h: var(--daily-h); }
+#recurring-weekly, .habit-weekly { --habit-h: var(--weekly-h); }
+#recurring-monthly, .habit-monthly { --habit-h: var(--monthly-h); }
+
+.recurring-box, .window-habit {
+  --habit-color: hsl(var(--habit-h) var(--habit-acc-s) var(--habit-acc-l));
+  --habit-wash: hsl(var(--habit-h) var(--habit-wash-s) var(--habit-wash-l));
+}
+
+/* Recurring habit boxes (Daily / Weekly / Monthly): the same open section treatment as
+   everything else — a rule, a bold label, the fraction as a numeral — with the rule, label
+   and fraction in the box's cadence hue. No wash across the box. */
 .recurring-box {
-  border-top: 1px solid var(--border-strong);
+  border-top: 2px solid var(--habit-color);
 }
 
 .recurring-box-header {
@@ -748,12 +814,13 @@ kbd {
   font-size: 1.3rem;
   font-weight: 800;
   letter-spacing: var(--tracking-tight);
+  color: var(--habit-color);
 }
 
 .recurring-box-fraction {
   font-size: 0.9rem;
   font-weight: 700;
-  color: var(--text-muted);
+  color: var(--habit-color);
   font-variant-numeric: tabular-nums;
 }
 
@@ -879,6 +946,11 @@ kbd {
 
 .folder-section {
   border-top: 1px solid var(--border-strong);
+}
+
+/* Top-level folders are List mode's main framing, so their rules take the view accent. */
+.folder-list > .folder-section {
+  border-top-color: var(--view-accent, var(--border-strong));
 }
 
 .folder-header {
@@ -1085,18 +1157,17 @@ kbd {
    priority panel and the quadrant list truncate long titles with white-space: nowrap), so a
    long task name can never clip the tag off. See .priority-card-score-col / .matrix-item-score-col. */
 
-/* Importance badges: neutral outlines (importance isn't urgency), Critical a step bolder than
-   High via an ink rule — never louder than the fire Overdue tag beside them. */
+/* Importance badges: gold, the importance hue (shared with the Calendar's big-win glow). High
+   is a gold outline, Critical solid gold — importance, not urgency, so never fire. */
 .badge-high {
   background: var(--badge-high-bg);
   color: var(--badge-high-text);
-  border-color: var(--border-strong);
+  border-color: var(--gold);
 }
 
 .badge-critical {
   background: var(--badge-critical-bg);
   color: var(--badge-critical-text);
-  border-color: var(--text);
 }
 
 .badge-recurring {
@@ -1236,7 +1307,7 @@ kbd {
    buttons, inputs and selects all set their own cursor anyway so this never fights them.
    No box: a heavy rule on top, the title set large beneath it. */
 .window-panel {
-  border-top: 2px solid var(--text);
+  border-top: 2px solid var(--view-accent, var(--text));
   padding: 1rem 0 0;
   min-width: 0;
   cursor: pointer;
@@ -1772,8 +1843,8 @@ kbd {
 
 /* ---- Habits in Daily Plate ----
    Schedule-filtered view of the Daily/Weekly/Monthly boxes, under the task cards. Outside the
-   Eisenhower system, so no heat-map and no hue: a hairline row, the cadence spelled out in
-   the meta. */
+   Eisenhower system, so no heat-map: each row takes its cadence hue instead (bar, faint
+   ground, meta), the same flat band shape as a task card so the two read as siblings. */
 .window-habits {
   margin-top: 1.4rem;
   border-top: 1px solid var(--border);
@@ -1804,6 +1875,7 @@ kbd {
 .window-habits-list {
   display: flex;
   flex-direction: column;
+  gap: 3px;
 }
 
 .window-habit {
@@ -1811,13 +1883,10 @@ kbd {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.3rem 0.6rem;
-  padding: 0.5rem 0.1rem;
-  border-bottom: 1px solid var(--border);
+  padding: 0.5rem 0.7rem 0.5rem 0.6rem;
+  border-left: 3px solid var(--habit-color);
+  background: var(--habit-wash);
   cursor: pointer;
-}
-
-.window-habit:last-child {
-  border-bottom: none;
 }
 
 .window-habit-title {
@@ -1837,7 +1906,7 @@ kbd {
 
 .window-habit-meta {
   font-size: 0.72rem;
-  color: var(--text-faint);
+  color: var(--habit-color, var(--text-faint));
   font-weight: 600;
   white-space: nowrap;
   margin-left: auto; /* drops under the title, right-aligned, when the column is narrow */
@@ -1891,7 +1960,8 @@ kbd {
 /* ---- Focus mode ----
    On-demand overlay over the page: only the Plate's do_date == today subset, expanded cards.
    The heavily dimmed backdrop (the overlay itself) is the deprioritize drop target; the panel
-   isn't. Isolation comes from the dim alone — the panel is flat, no glow. */
+   isn't. The panel carries a fire rule and a soft fire glow — the one glow in the app, and an
+   urgency signal ("this is the urgent stuff"), the same category as the pile indicators. */
 .focus-overlay {
   position: fixed;
   inset: 0;
@@ -1920,8 +1990,9 @@ kbd {
   display: flex;
   flex-direction: column;
   background: var(--bg);
-  border-top: 2px solid var(--text);
+  border-top: 2px solid var(--fire);
   padding: 1.25rem 1.5rem 1.5rem;
+  box-shadow: 0 0 40px 2px var(--focus-glow);
 }
 
 .focus-header {
@@ -2275,7 +2346,7 @@ kbd {
 
 .view-switch-btn.active {
   color: var(--text);
-  border-bottom-color: var(--text);
+  border-bottom-color: var(--view-accent, var(--text));
 }
 
 /* Secondary mode toggles (Plate/List, Scatter/Quadrants, Pace/Capacity, Flat/Folder) sit a
@@ -2334,7 +2405,7 @@ kbd {
 }
 
 .overview-panel {
-  border-top: 2px solid var(--text);
+  border-top: 2px solid var(--view-accent, var(--text));
   padding-top: 0.9rem;
 }
 
@@ -2844,7 +2915,7 @@ kbd {
 /* What changed since yesterday */
 .digest {
   margin-top: 3rem;
-  border-top: 2px solid var(--text);
+  border-top: 2px solid var(--view-accent, var(--text));
   padding-top: 0.9rem;
 }
 
@@ -2996,7 +3067,7 @@ kbd {
    the "important but not urgent, don't forget it" case Plan exists for. Severity is carried
    by color alone (the message tint), the wording never escalates. */
 .digest-staleness {
-  border-top: 2px solid var(--text);
+  border-top: 2px solid var(--view-accent, var(--text));
   padding-top: 0.9rem;
 }
 
@@ -3120,9 +3191,13 @@ kbd {
   align-items: flex-start;
 }
 
+/* The grid's own framing rule takes the Calendar's view accent, level with the weekly
+   panel's violet rule beside it. */
 .calendar-main {
   flex: 1;
   min-width: 0;
+  border-top: 2px solid var(--view-accent, var(--text));
+  padding-top: 0.9rem;
 }
 
 .calendar-grid {
@@ -3205,16 +3280,20 @@ kbd {
 }
 
 /* ---- Capacity view: continuous effort/capacity gradient (--p, 0-1, set per cell in JS),
-   one neutral lightness ramp shared by past AND future days alike — deliberately no hue at
-   all, this is volume, not judgment. ---- */
+   one plum hue shared by past AND future days alike — deliberately none of Pace's fire/ice
+   fills, this is volume, not judgment. ---- */
 .calendar-cell-capacity, .calendar-legend-chip.calendar-cell-capacity {
-  background: hsl(0 0% calc(var(--capacity-l0) + (var(--capacity-l1) - var(--capacity-l0)) * var(--p, 0)));
+  background: hsl(
+    var(--capacity-h)
+    calc(var(--capacity-s0) + (var(--capacity-s1) - var(--capacity-s0)) * var(--p, 0))
+    calc(var(--capacity-l0) + (var(--capacity-l1) - var(--capacity-l0)) * var(--p, 0))
+  );
   color: var(--text);
 }
 
-/* Overload marker: fires once effort crosses 100% of daily capacity. An ink ring (not fire —
-   see --capacity-overload) so it can never be mistaken for Pace's overdue trigger; they're
-   different claims ("busy" vs. "missed something important"). */
+/* Overload marker: fires once effort crosses 100% of daily capacity. A ring in Capacity's own
+   plum, pushed brighter (not fire — see --capacity-overload), so it can never be mistaken for
+   Pace's overdue trigger; they're different claims ("busy" vs. "missed something important"). */
 .calendar-cell-capacity-overload::after {
   content: "";
   position: absolute;
@@ -3242,18 +3321,24 @@ kbd {
   pointer-events: none;
 }
 
-/* Big win: a High/Critical-importance task got completed this day. A small ink star in the
-   top-right corner — a shape rather than a hue, so it layers on any base fill (a fire day
-   can still carry a win if something important also got cleared). */
+/* Big win: a High/Critical-importance task got completed this day. Gold, the importance hue:
+   an inset glow at the cell's edge (inward, so it never bleeds under neighbours) plus a small
+   gold star in the top-right corner, so the win still reads on a fire or ice fill. Layers on
+   any base color — a fire day can still carry a win if something important also got cleared.
+   Both live on ::before (a full-cell frame whose text is the star), keeping ::after free for
+   the overdue ring. */
 .calendar-cell-gold::before {
-  content: "";
+  content: "✦";
   position: absolute;
-  top: 0.4rem;
-  right: 0.4rem;
-  width: 11px;
-  height: 11px;
-  background: var(--day-win);
-  clip-path: polygon(50% 0%, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0% 50%, 39% 39%);
+  inset: 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  padding: 0.3rem 0.4rem;
+  font-size: 0.85rem;
+  line-height: 1;
+  color: var(--day-win);
+  box-shadow: inset 0 0 0 1.5px var(--day-win), inset 0 0 12px 1px var(--day-win-glow);
   pointer-events: none;
 }
 
@@ -3262,16 +3347,15 @@ kbd {
 }
 
 .calendar-legend-chip.calendar-cell-gold {
-  padding-left: 1.3rem;
+  padding-left: 1.35rem;
 }
 
 .calendar-legend-chip.calendar-cell-gold::before {
-  top: 50%;
-  left: 0.4rem;
-  right: auto;
-  width: 9px;
-  height: 9px;
-  transform: translateY(-50%);
+  justify-content: flex-start;
+  align-items: center;
+  padding: 0 0.4rem;
+  font-size: 0.75rem;
+  box-shadow: inset 0 0 0 1px var(--day-win), inset 0 0 6px 0 var(--day-win-glow);
 }
 
 /* ---- Future due-date markers (days after today only) ---- */
@@ -3315,15 +3399,15 @@ kbd {
   margin: 0 1px;
 }
 
-/* Weekly/monthly RecurringTask marker: a hollow square — distinct in shape from both the
-   plain deadline dot and the filled top-priority diamond, and hueless like every other
-   habit surface. Daily habits deliberately get no marker at all. */
+/* Weekly/monthly RecurringTask marker: a small square in the weekly violet used everywhere
+   else for "weekly" (the habit box, the Weekly Accomplishments panel) — distinct in shape
+   from both the plain deadline dot and the top-priority diamond. Daily habits deliberately
+   get no marker at all. */
 .calendar-cell-marker-recurring {
   width: 7px;
   height: 7px;
   border-radius: 0;
-  background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--text-muted);
+  background: hsl(var(--weekly-h) var(--habit-acc-s) var(--habit-acc-l));
 }
 
 .calendar-legend-chip .calendar-cell-marker-recurring {
@@ -3368,11 +3452,13 @@ kbd {
   opacity: 0.85;
 }
 
-/* A single day's completions: an open section under the grid, ink rule on top. The Weekly
-   Accomplishments panel beside it gets the same treatment — neither carries a hue. */
+/* A single day's completions: an open section under the grid, its rule and heading in the
+   daily habit hue (aqua) — it's day-scoped, like the Daily box. The Weekly Accomplishments
+   panel beside it takes the weekly violet the same way, so the two summaries read as clearly
+   different things. */
 .calendar-day-repo {
   margin-top: 2rem;
-  border-top: 2px solid var(--text);
+  border-top: 2px solid hsl(var(--daily-h) var(--habit-acc-s) var(--habit-acc-l));
   padding: 0.9rem 0 0;
   position: relative;
 }
@@ -3383,6 +3469,7 @@ kbd {
   font-weight: 800;
   letter-spacing: var(--tracking-tight);
   padding-right: 2rem;
+  color: hsl(var(--daily-h) var(--habit-acc-s) var(--habit-acc-l));
 }
 
 .calendar-day-repo-close {
@@ -3420,7 +3507,7 @@ kbd {
 .calendar-weekly-panel {
   width: 320px;
   flex-shrink: 0;
-  border-top: 2px solid var(--text);
+  border-top: 2px solid hsl(var(--weekly-h) var(--habit-acc-s) var(--habit-acc-l));
   padding: 0.9rem 0 0;
 }
 
@@ -3450,6 +3537,7 @@ kbd {
   letter-spacing: -0.015em;
   min-width: 8rem;
   text-align: center;
+  color: hsl(var(--weekly-h) var(--habit-acc-s) var(--habit-acc-l));
 }
 
 .calendar-weekly-thisweek {
