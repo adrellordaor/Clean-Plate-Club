@@ -1,11 +1,11 @@
 // Calendar view: retrospective, replaces the earlier "productivity view" idea. A monthly
 // grid colored by that day's overall pace across ALL tasks (regular deadlines plus recurring
-// habits), two independent overlays (an overdue ring and a gold "big win" glow), future
+// habits), two independent overlays (an overdue ring and a "big win" star), future
 // due-date markers, a secondary badge for regular tasks completed, a click-through day
 // repository, and a Weekly Accomplishments panel. Read-only, like Overview — nothing to tick
 // off here, that happens in the List view.
 //
-// Red, the overdue ring, the gold glow, the count badge and the future markers are derived
+// Red, the overdue ring, the big-win star, the count badge and the future markers are derived
 // live from fields that never move retroactively (deadline, completed_at, created_at,
 // importance, CompletionLog). The Green/Blue/Gray "planned" set is different: it reads
 // do_date, and do_date rolls forward every day a task stays unfinished (see
@@ -25,11 +25,13 @@
 
 // Strict priority order — the first rule that applies wins (same override pattern as the
 // do_date urgency floor). "upcoming" is for days after today, which haven't happened yet.
+// Keys keep their original color names (they're class names and spec vocabulary); the
+// visible labels name the meaning instead, since the fills are now Fire/Ice, not red/green/blue.
 const CALENDAR_DAY_BUCKETS = Object.freeze({
-  red: Object.freeze({ key: "red", label: "Red" }),
-  green: Object.freeze({ key: "green", label: "Green" }),
-  blue: Object.freeze({ key: "blue", label: "Blue" }),
-  gray: Object.freeze({ key: "gray", label: "Gray" }),
+  red: Object.freeze({ key: "red", label: "Overdue" }),
+  green: Object.freeze({ key: "green", label: "All done" }),
+  blue: Object.freeze({ key: "blue", label: "Partly done" }),
+  gray: Object.freeze({ key: "gray", label: "Nothing planned" }),
   upcoming: Object.freeze({ key: "upcoming", label: "Upcoming" }),
 });
 
@@ -234,10 +236,11 @@ function computeDayStats(dateStr, data, settings, today) {
   else if (doneCount === dueCount) bucket = CALENDAR_DAY_BUCKETS.green;
   else bucket = CALENDAR_DAY_BUCKETS.blue;
 
-  // Gold glow: a regular task completed that day whose importance buckets High/Critical —
-  // the same importanceBucket boundary (quadrant_split_score) the Red rule above uses, so
-  // "important" means the same thing everywhere on this grid. No new setting. Independent
-  // of the base color: a red day can still glow if something important also got cleared.
+  // Big-win star (the "gold glow" in older notes, hence goldWins): a regular task completed
+  // that day whose importance buckets High/Critical — the same importanceBucket boundary
+  // (quadrant_split_score) the Red rule above uses, so "important" means the same thing
+  // everywhere on this grid. No new setting. Independent of the base color: a red day can
+  // still carry the star if something important also got cleared.
   const goldWins = regularCompleted.filter(task => importanceBucket(task.importance, settings) === "high");
 
   return {
@@ -473,8 +476,8 @@ function renderCalendarLegend() {
   // Overlays and markers, each drawn with the same class the grid cell uses so the legend
   // shows the real visual rather than describing it.
   legend.appendChild(makeCalendarLegendChip("Ring", "calendar-day-gray calendar-cell-overdue-ring",
-    "A Low/Medium-importance task was overdue as of that day (never forces red)"));
-  legend.appendChild(makeCalendarLegendChip("Glow", "calendar-day-gray calendar-cell-gold",
+    "A Low/Medium-importance task was overdue as of that day (never forces the Overdue fill)"));
+  legend.appendChild(makeCalendarLegendChip("Big win", "calendar-day-gray calendar-cell-gold",
     "Big win: a High/Critical-importance task got completed that day"));
 
   const markerChip = makeCalendarLegendChip("", "calendar-day-upcoming",
@@ -502,8 +505,8 @@ function makeCalendarLegendChip(text, extraClass, hint) {
 }
 
 // A future due-date marker: a plain dot, the larger accented diamond for a task the
-// Overview's priority panel would list, or the violet square for a weekly RecurringTask's
-// scheduled day (same hue the habit boxes use for "weekly", elsewhere in the app).
+// Overview's priority panel would list, or the hollow square for a weekly RecurringTask's
+// scheduled day (hueless, like every other habit surface in the app).
 // `task` is null for the legend sample.
 function makeCalendarMarker(top, task, recurring) {
   const m = document.createElement("span");
@@ -597,7 +600,7 @@ function renderCalendarCell(dateStr, data, today) {
 // ---------- Capacity view rendering ----------
 // Same grid scaffold and day-click/day-repo/weekly-panel behavior as Pace; only the fill
 // and markers differ — a continuous effort/capacity gradient instead of a discrete bucket,
-// with no overdue ring, gold glow, or deadline markers, since those all carry the red/green
+// with no overdue ring, big-win star, or deadline markers, since those all carry the red/green
 // "judgment" this view deliberately avoids.
 
 function renderCalendarCapacityGrid(data, today) {
@@ -654,7 +657,7 @@ function renderCalendarCapacityLegend() {
   legend.appendChild(gradientChip);
 
   legend.appendChild(makeCalendarLegendChip("Overload", "calendar-cell-capacity calendar-cell-capacity-overload",
-    "Effort crossed 100% of daily capacity — a volume flag, not the same red as Pace's overdue trigger"));
+    "Effort crossed 100% of daily capacity — a volume flag, not Pace's overdue signal"));
 
   const note = document.createElement("span");
   note.className = "legend-note";
@@ -772,7 +775,7 @@ function renderCalendarWeeklyPanel(data, today) {
   prevBtn.type = "button";
   prevBtn.className = "btn-icon";
   prevBtn.setAttribute("aria-label", "Previous week");
-  prevBtn.textContent = "‹";
+  prevBtn.innerHTML = ICONS.prev;
   prevBtn.addEventListener("click", () => { calendarSelectedWeekStart = addDaysISODate(calendarSelectedWeekStart, -7); render(); });
   header.appendChild(prevBtn);
 
@@ -785,7 +788,7 @@ function renderCalendarWeeklyPanel(data, today) {
   nextBtn.type = "button";
   nextBtn.className = "btn-icon";
   nextBtn.setAttribute("aria-label", "Next week");
-  nextBtn.textContent = "›";
+  nextBtn.innerHTML = ICONS.next;
   nextBtn.addEventListener("click", () => { calendarSelectedWeekStart = addDaysISODate(calendarSelectedWeekStart, 7); render(); });
   header.appendChild(nextBtn);
 

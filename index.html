@@ -5,12 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Clean Plate Club</title>
 <script>
+  // Charcoal is the design's base, so dark is the default; light is an explicit choice only.
   (function () {
     var saved = localStorage.getItem("theme");
-    var theme = saved || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-    document.documentElement.setAttribute("data-theme", theme);
+    document.documentElement.setAttribute("data-theme", saved === "light" ? "light" : "dark");
   })();
 </script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -275,14 +278,14 @@
   <div class="modal-content modal-content-wide">
     <h2>Bulk Import</h2>
     <form id="bulk-import-form">
-      <p class="settings-hint">
-        One task per line. Tags (combine freely, <code>#folder</code> must come first if used):
-        <code>#folder</code> folder (created if new) &middot;
-        <code>@friday</code> / <code>@2026-10-01</code> deadline &middot;
-        <code>!</code> deadline today &middot;
-        <code>*</code> do date today.
-        Lines with no <code>#folder</code> land in Inbox.
-      </p>
+      <p class="settings-help">One task per line. Tags combine freely:</p>
+      <ol class="bulk-import-rules">
+        <li class="bulk-import-rule"><span><code>#folder</code> folder, created if new. Must come first if used.</span></li>
+        <li class="bulk-import-rule"><span><code>@friday</code> / <code>@2026-10-01</code> deadline</span></li>
+        <li class="bulk-import-rule"><span><code>!</code> deadline today</span></li>
+        <li class="bulk-import-rule"><span><code>*</code> do date today</span></li>
+      </ol>
+      <p class="bulk-import-note">Lines with no <code>#folder</code> land in Inbox.</p>
       <label>Tasks
         <textarea id="bulk-import-text" class="bulk-import-text" rows="10" placeholder="#Work @friday Ship the weekly report&#10;! Call the dentist&#10;Buy milk"></textarea>
       </label>

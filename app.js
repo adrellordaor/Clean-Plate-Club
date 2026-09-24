@@ -42,6 +42,9 @@ const ICONS = {
   bite: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6c-1.5-1.5-4.5-1.5-6 1-2 3-1 8 1.5 11 1.2 1.5 3 1.5 4.5.5 1.5 1 3.3 1 4.5-.5a10 10 0 0 0 2.2-4.5c-2.5-.2-4.2-2.3-3.7-4.8-1-.3-2-1.5-3-2.7Z"/><path d="M12 6c0-2 1-3 3-3.5"/></svg>`,
   // Bulk import: an arrow dropping into a tray.
   import: `<svg ${SVG_ATTRS}><path d="M12 3v11"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg>`,
+  // Previous / next (Calendar month and week navigation).
+  prev: `<svg ${SVG_ATTRS}><path d="m15 5-7 7 7 7"/></svg>`,
+  next: `<svg ${SVG_ATTRS}><path d="m9 5 7 7-7 7"/></svg>`,
 };
 
 // Daily Plate / Fridge icons: bigger than the rest of the icon set (this pair doubles as each
@@ -622,16 +625,21 @@ function renderOverdueCard(entry, today) {
   const { task, assessment } = entry;
   const daysOver = calendarDaysBetween(task.deadline, today);
 
+  const pending = pendingDone.has(task.id);
   const card = document.createElement("div");
-  card.className = "overdue-card quadrant-" + assessment.quadrant.key;
+  card.className = "overdue-card quadrant-" + assessment.quadrant.key + (pending ? " done-pending" : "");
   card.style.setProperty("--p", assessment.intensity.toFixed(3));
   card.title = buildTaskTooltip(task, assessment, { quadrant: true, importance: true, deadline: true });
 
+  // Same completion pattern as every other card: strike through at once, commit after the
+  // grace period (scheduleCardDone, windows.js), so the check animation plays before the card
+  // leaves the strip.
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
-  checkbox.className = "overdue-card-check";
+  checkbox.checked = pending;
+  checkbox.dataset.checkId = task.id;
   checkbox.setAttribute("aria-label", "Mark done");
-  checkbox.addEventListener("change", () => toggleTaskDone(task));
+  checkbox.addEventListener("change", () => scheduleCardDone(task, card, checkbox.checked));
   card.appendChild(checkbox);
 
   const body = document.createElement("button");
@@ -880,6 +888,7 @@ function renderTaskRow(task) {
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
   checkbox.checked = task.status === "done" || pending;
+  checkbox.dataset.checkId = task.id;
   // Same completion pattern as Plate/Fridge cards and subtasks: strike through at once, commit
   // after a short grace period (scheduleCardDone, windows.js); un-completing an already-done
   // task is instant, there's nothing left to strike through.
@@ -937,6 +946,13 @@ function renderTaskRow(task) {
     main.appendChild(subtaskContainer);
   }
 
+  row.appendChild(main);
+
+  const actions = document.createElement("div");
+  actions.className = "task-actions";
+
+  // The add-subtask "+" sits in the hover-revealed actions cluster, not on a line of its own
+  // under the title, where an invisible-until-hover control reserved an empty row on every task.
   const addSub = document.createElement("button");
   addSub.type = "button";
   addSub.className = "link-btn add-subtask-row";
@@ -944,12 +960,7 @@ function renderTaskRow(task) {
   addSub.title = "Add subtask";
   addSub.setAttribute("aria-label", "Add subtask to " + task.title);
   addSub.addEventListener("click", () => openTaskModal({ folder_id: task.folder_id, parent_task_id: task.id }));
-  main.appendChild(addSub);
-
-  row.appendChild(main);
-
-  const actions = document.createElement("div");
-  actions.className = "task-actions";
+  actions.appendChild(addSub);
 
   const editBtn = document.createElement("button");
   editBtn.type = "button";
@@ -1225,6 +1236,7 @@ function renderRecurringRow(rt) {
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
   checkbox.checked = done;
+  checkbox.dataset.checkId = rt.id;
   checkbox.addEventListener("change", () => toggleRecurringTask(rt));
   row.appendChild(checkbox);
 
@@ -1975,8 +1987,9 @@ bulkImportForm.addEventListener("submit", e => {
     ? "Nothing imported." + skippedNote
     : "Imported " + pluralCount(created.length, "task") + "." + skippedNote;
   bulkImportList.innerHTML = "";
-  created.forEach(({ task, folder }) => {
+  created.forEach(({ task, folder }, i) => {
     const li = document.createElement("li");
+    li.style.setProperty("--i", i); // staggers the confirmation rows' entrance (style.css)
     li.textContent = task.title + " — " + folder.name;
     bulkImportList.appendChild(li);
   });
@@ -2092,6 +2105,36 @@ settingsModal.addEventListener("click", e => {
   if (e.target === settingsModal) closeSettingsModal();
 });
 
+// ---------- Completion check animation ----------
+// The one deliberate flourish in the UI (.check-anim in style.css): checking any completion
+// box fills it and draws the tick. Wired once, globally, in the capture phase so it sees the
+// change before the box's own handler runs. Some handlers (habits) re-render synchronously and
+// replace the element, so on the next frame — still before paint — the animation is also
+// applied to whichever box now carries the same data-check-id and isn't already playing it.
+function playCheckAnimation(box) {
+  box.classList.remove("check-anim");
+  void box.offsetWidth; // restart cleanly on a quick uncheck/recheck
+  box.classList.add("check-anim");
+  setTimeout(() => box.classList.remove("check-anim"), 450);
+}
+
+function wireCheckAnimation() {
+  document.addEventListener("change", e => {
+    const box = e.target;
+    if (!(box instanceof HTMLInputElement) || box.type !== "checkbox" || !box.checked) return;
+    const id = box.dataset.checkId;
+    if (!id) return;
+    playCheckAnimation(box);
+    requestAnimationFrame(() => {
+      document.querySelectorAll('input[type="checkbox"][data-check-id="' + CSS.escape(id) + '"]').forEach(b => {
+        if (b.checked && !b.classList.contains("check-anim")) playCheckAnimation(b);
+      });
+    });
+  }, true);
+}
+
+wireCheckAnimation();
+
 // ---------- Theme toggle ----------
 
 const themeToggleBtn = document.getElementById("theme-toggle-btn");
@@ -2113,6 +2156,8 @@ themeToggleBtn.addEventListener("click", () => {
 
 applyThemeIcon();
 document.getElementById("settings-btn").innerHTML = ICONS.gear;
+document.getElementById("calendar-prev-btn").innerHTML = ICONS.prev;
+document.getElementById("calendar-next-btn").innerHTML = ICONS.next;
 document.getElementById("bulk-import-btn").innerHTML = ICONS.import;
 
 // ---------- Storage UI ----------

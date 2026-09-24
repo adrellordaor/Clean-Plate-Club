@@ -1,185 +1,160 @@
+/* ---- Design system ----
+   Editorial, flat, near-black. Hierarchy is carried by type size and weight, sections are
+   separated by whitespace and hairline rules, never by boxed cards, drop-shadows or rounded
+   chrome. Color is reserved strictly for meaning: Fire (urgent) and Ice (not urgent) are the
+   only two saturated hues in the app, and they only ever mark urgency/quadrant state — the
+   pile indicators, the heat-map, the Calendar's pace fills, the escalating tags. Everything
+   else (buttons, active tabs, focus rings, habits, capacity) is neutral ink on charcoal.
+   Dark is the default theme; light is the same system on paper. */
 :root {
-  --bg: #f7f7f5;
-  --surface: #ffffff;
-  --border: #e0e0dc;
-  --text: #2a2a28;
-  --text-muted: #767570;
-  --accent: #4a6fa5;
-  --accent-hover: #3d5c8a;
-  --danger: #b5514a;
-  --danger-hover: #97423c;
-  --done: #9a9a94;
-  --row-hover: #fafaf8;
+  --font: "Bricolage Grotesque", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  /* Escalating tag (Do Today < Due Today < Overdue), one slot, most severe wins. */
-  --tag-do-today-bg: #dcefe6;
-  --tag-do-today-text: #1f6b45;
-  --tag-due-today-bg: #fbe8c9;
-  --tag-due-today-text: #93600a;
-  --tag-overdue-bg: #fbdcd8;
-  --tag-overdue-text: #a32d21;
-  --badge-high-bg: #e4ecf7;
-  --badge-high-text: #4a6fa5;
-  --badge-critical-bg: #fbe8c9;
-  --badge-critical-text: #93600a;
-  --badge-recurring-bg: #ece9df;
-  --badge-recurring-text: #767570;
+  /* Type scale: section labels (window titles, quadrant names, folder/category names) are
+     set well above UI text; task titles sit at body size in medium weight; metadata drops
+     smaller and quieter. */
+  --fs-display: 2.25rem;  /* Daily Plate / Fridge / Focus */
+  --fs-section: 1.6rem;   /* Do / Plan / Clear / Backlog, panel headings, modal titles */
+  --fs-group: 1.08rem;    /* folder / category / bucket names */
+  --fs-body: 0.95rem;     /* task titles */
+  --fs-meta: 0.76rem;     /* dates, context, scores */
+  --fs-micro: 0.66rem;    /* tags, uppercase labels */
+  --tracking-tight: -0.025em;
 
-  /* Calendar day-color buckets: dedicated tokens (not reused from the badge system) so
-     the fill can be tuned to read as a vivid pace signal at full-cell size rather than
-     the subtler tone a small text badge wants. Red = high-importance overdue, green =
-     everything due done, blue = only some of it done, gray stays deliberately muted — it
-     means "nothing was due", not a low score. */
-  --day-green-bg: #cdeed0;
-  --day-green-text: #1f6b30;
-  --day-blue-bg: #cfe0f6;
-  --day-blue-text: #2a5a91;
-  --day-red-bg: #f3c9c4;
-  --day-red-text: #9c332b;
-  --day-gray-bg: #e4e2d8;
-  --day-gray-text: #6b6a64;
-  /* Overlays that layer on any base color: the thin ring for a Low/Medium overdue task
-     borrows red's text tone so it still reads as "overdue" without a red fill (and stays
-     visible on a red cell, where it's darker than the fill); the gold glow is its own hue,
-     used nowhere else in the app, so "something big got cleared" is unmistakable. */
-  --day-ring: var(--day-red-text);
-  --day-gold: #e0a616;
-  --day-gold-soft: rgba(224, 166, 22, 0.45);
+  --radius: 2px;           /* the only corner radius: small controls and tags, never panels */
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
 
-  /* Capacity view: a single neutral hue (magenta-plum, unused anywhere else in the app —
-     nearest neighbor is the weekly-habit violet at 44° away) for a continuous pale->vivid
-     effort/capacity gradient, deliberately not one of Pace's red/green/blue/gold. The
-     overload marker reuses the same hue at a darker, more saturated tone, so "busy" and
-     Pace's "missed something important" (red) can never be mistaken for each other. */
-  --capacity-h: 300;
-  --capacity-s0: 12%;  --capacity-s1: 65%;
-  --capacity-l0: 97%;  --capacity-l1: 82%;
-  --capacity-overload: #7a1f63;
+  --bg: #161616;
+  --surface: #1e1e1e;      /* raised: modals, inputs, focus panel — never a card background */
+  --border: #2b2b2b;       /* hairline */
+  --border-strong: #4a4a48; /* section rules, control outlines */
+  --text: #f1f0ec;
+  --text-muted: #a3a29d;
+  --text-faint: #6f6e6a;
+  --accent: var(--text);   /* neutral: "accent" is ink, not a hue */
+  --accent-hover: #ffffff;
+  --on-accent: #161616;    /* text on an ink-filled control */
+  --danger: var(--text);   /* destructive actions stay neutral; the confirm dialog carries the weight */
+  --danger-hover: #ffffff;
+  --done: #6f6e6a;
+  --row-hover: #1d1d1d;
 
-  /* Staleness check-in tiers: mild -> medium -> strong, shades of the same teal as the
-     Plan quadrant (--h: 173) — an undated task quietly aging is exactly the "important,
-     not urgent, don't forget it" case Plan exists for. Light theme deepens and saturates
-     with severity; wording never escalates, only these colors do. */
-  --staleness-low-text: #5b8c86;
-  --staleness-medium-text: #1f7a6c;
-  --staleness-high-text: #0e5c50;
+  /* Fire / Ice: the only two saturated colors. Fire's red end marks Do and overdue; its
+     amber end marks Clear and "due today". Ice marks Plan and the calm, not-urgent side. */
+  --fire: #ff5a2c;
+  --fire-amber: #ffab35;
+  --ice: #5bc4fb;
+  --fire-soft: rgba(255, 90, 44, 0.13);
+  --fire-amber-soft: rgba(255, 171, 53, 0.13);
 
-  --overlay: rgba(20, 20, 18, 0.35);
-  /* Focus mode dims harder than a plain modal backdrop — it's meant to shut everything else
-     out, not just dim it — and its panel carries a soft red glow (--focus-glow, same hue as
-     --danger) as an "eyes on this" cue. */
-  --focus-overlay: rgba(15, 15, 13, 0.6);
-  --focus-glow: rgba(181, 81, 74, 0.4);
+  /* Escalating tag (Do Today < Due Today < Overdue), one slot, most severe wins: neutral
+     outline -> amber -> solid fire, so severity reads from saturation as well as wording. */
+  --tag-do-today-bg: transparent;
+  --tag-do-today-text: var(--text);
+  --tag-due-today-bg: var(--fire-amber-soft);
+  --tag-due-today-text: var(--fire-amber);
+  --tag-overdue-bg: var(--fire);
+  --tag-overdue-text: #161616;
+  --badge-high-bg: transparent;
+  --badge-high-text: var(--text-muted);
+  --badge-critical-bg: transparent;
+  --badge-critical-text: var(--text);
+  --badge-recurring-bg: transparent;
+  --badge-recurring-text: var(--text-muted);
+
+  /* Calendar pace fills, in Fire/Ice terms: red (High/Critical overdue) is fire; green
+     (everything planned got done) is full ice; blue (only some of it) is pale ice; gray
+     ("nothing was due", not a low score) stays neutral. Dedicated tokens, tuned to read
+     at full-cell size. */
+  --day-red-bg: #5b2415;
+  --day-red-text: #ffb8a1;
+  --day-green-bg: #12506f;
+  --day-green-text: #c9ecff;
+  --day-blue-bg: #1b2e39;
+  --day-blue-text: #93cdea;
+  --day-gray-bg: #212120;
+  --day-gray-text: #8f8e8a;
+  /* Overlays on any base fill: the minor-overdue ring borrows fire (it's an overdue signal
+     without the red fill); the big-win mark is plain ink, a shape rather than a hue. */
+  --day-ring: var(--fire);
+  --day-win: var(--text);
+
+  /* Capacity view: a neutral lightness ramp — volume, not judgment, so no hue at all. */
+  --capacity-l0: 13%;  --capacity-l1: 40%;
+  --capacity-overload: var(--text);
+
+  /* Staleness check-in tiers: ice (Plan's hue — an undated task quietly aging is exactly
+     the "important, not urgent" case), deepening with severity. Wording never escalates. */
+  --staleness-low-text: #7fa9bf;
+  --staleness-medium-text: #5bc4fb;
+  --staleness-high-text: #a9e2ff;
+
+  --overlay: rgba(0, 0, 0, 0.62);
+  /* Focus mode dims much harder than a plain modal backdrop — real isolation. */
+  --focus-overlay: rgba(0, 0, 0, 0.84);
 
   /* Heat-map ramp: each quadrant has a fixed hue (see .quadrant-* below); a row's --p
      (0 = pale, 1 = vivid, from priority_score) slides saturation and lightness between
-     these endpoints. Backlog uses the same ramp with chroma 0, so lightness alone. */
-  --tint-s0: 30%;  --tint-s1: 90%;   /* row background saturation */
-  --tint-l0: 96%;  --tint-l1: 80%;   /* row background lightness */
-  --acc-s0: 35%;   --acc-s1: 82%;    /* accent bar / label saturation */
-  --acc-l0: 80%;   --acc-l1: 46%;    /* accent bar / label lightness */
-  --gray-l1: 82%;  --gray-acc-l1: 50%;
-
-  /* Recurring habit boxes: a completely separate hue pair (violet/sky) from the four
-     quadrant hues above, since these boxes are deliberately outside the Eisenhower
-     system — the color signals "different system," not a priority level. Reused app-wide
-     for anything else that's specifically daily- or weekly-scoped: the Calendar view's day
-     repository (sky, like the Daily habit box) and Weekly Accomplishments panel (violet,
-     like the Weekly habit box), so the same hue always means "daily" or "weekly" no matter
-     which screen it's on. The tint/body/acc percentages below are the hue-agnostic
-     "washed card" levels shared by all of them. */
-  --weekly-h: 256;
-  --daily-h: 199;
-  --monthly-h: 330;
-  --recurring-body-s: 40%; --recurring-body-l: 97%;  /* whole-card wash, incl. nested sections */
-  --recurring-tint-s: 55%;  --recurring-tint-l: 93%;  /* header strip: a bit richer than the card */
-  --recurring-acc-s: 62%;   --recurring-acc-l: 40%;   /* border / title / fraction */
-
-  /* Daily Plate (fire) / Fridge (ice): the two windows' own accent hues, used on the header
-     icon, the pile-size particle effect and a light panel wash — separate from the four
-     quadrant hues, since a window is a container, not a priority level. */
-  --fire-core: #fff3d6;
-  --fire-mid: #ffb339;
-  --fire-outer: #e2481c;
-  --fire-glow: rgba(226, 72, 28, 0.35);
-  --ice-core: #ffffff;
-  --ice-mid: #bdeaff;
-  --ice-outer: #3f9fd6;
-  --ice-glow: rgba(63, 159, 214, 0.35);
-
-  color-scheme: light;
-}
-
-:root[data-theme="dark"] {
-  --bg: #1a1b1e;
-  --surface: #232428;
-  --border: #35363b;
-  --text: #e7e6e2;
-  --text-muted: #9b9a95;
-  --accent: #7ea6de;
-  --accent-hover: #93b6e6;
-  --danger: #e2948d;
-  --danger-hover: #e8a8a2;
-  --done: #6c6c67;
-  --row-hover: #2a2b30;
-
-  --tag-do-today-bg: #1e3d2e;
-  --tag-do-today-text: #8fe0b4;
-  --tag-due-today-bg: #4a3a1a;
-  --tag-due-today-text: #e8bd6f;
-  --tag-overdue-bg: #4a2320;
-  --tag-overdue-text: #f0958b;
-  --badge-high-bg: #26374d;
-  --badge-high-text: #9cc0f2;
-  --badge-critical-bg: #4a3a1a;
-  --badge-critical-text: #e8bd6f;
-  --badge-recurring-bg: #34353a;
-  --badge-recurring-text: #b0afaa;
-
-  --day-green-bg: #1c4a2c;
-  --day-green-text: #8ff0a4;
-  --day-blue-bg: #1f3a5c;
-  --day-blue-text: #9cc4f5;
-  --day-red-bg: #5c231e;
-  --day-red-text: #ff9086;
-  --day-gray-bg: #3a3b40;
-  --day-gray-text: #c7c6c0;
-  --day-gold: #f0c14b;
-  --day-gold-soft: rgba(240, 193, 75, 0.5);
-
-  --capacity-h: 300;
-  --capacity-s0: 10%;  --capacity-s1: 55%;
-  --capacity-l0: 16%;  --capacity-l1: 34%;
-  --capacity-overload: #e07ad0;
-
-  --staleness-low-text: #7fb3ac;
-  --staleness-medium-text: #52c4b0;
-  --staleness-high-text: #3ee2c4;
-
-  --overlay: rgba(0, 0, 0, 0.55);
-  --focus-overlay: rgba(0, 0, 0, 0.78);
-  --focus-glow: rgba(226, 148, 141, 0.45);
-
-  --tint-s0: 12%;  --tint-s1: 60%;
-  --tint-l0: 17%;  --tint-l1: 30%;
-  --acc-s0: 25%;   --acc-s1: 75%;
-  --acc-l0: 34%;   --acc-l1: 66%;
-  --gray-l1: 31%;  --gray-acc-l1: 62%;
-
-  --recurring-body-s: 35%; --recurring-body-l: 16%;
-  --recurring-tint-s: 55%; --recurring-tint-l: 28%;
-  --recurring-acc-s: 68%;  --recurring-acc-l: 76%;
-
-  --fire-core: #ffe9b8;
-  --fire-mid: #ff9d3d;
-  --fire-outer: #d43f1d;
-  --fire-glow: rgba(255, 138, 61, 0.4);
-  --ice-core: #eafbff;
-  --ice-mid: #8fd8f5;
-  --ice-outer: #4fa9d9;
-  --ice-glow: rgba(143, 216, 245, 0.4);
+     these endpoints. Backlog uses the same ramp with chroma 0, so lightness alone. On
+     charcoal the pale end sits just above the page, so low-priority rows barely tint, and
+     the vivid end stays deep (dark fire/amber turns muddy brown if pushed lighter) — the
+     accent bar and the hue-colored numerals carry the loud end of the signal. */
+  --tint-s0: 14%;  --tint-s1: 52%;   /* row background saturation */
+  --tint-l0: 11.5%; --tint-l1: 19%;  /* row background lightness */
+  --acc-s0: 28%;   --acc-s1: 100%;   /* accent bar / label saturation */
+  --acc-l0: 34%;   --acc-l1: 60%;    /* accent bar / label lightness */
+  --gray-l1: 24%;  --gray-acc-l1: 64%;
 
   color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  --bg: #f2f1ed;
+  --surface: #fbfaf7;
+  --border: #dddbd4;
+  --border-strong: #a6a49d;
+  --text: #151515;
+  --text-muted: #5d5c58;
+  --text-faint: #8e8c86;
+  --accent-hover: #000000;
+  --on-accent: #f2f1ed;
+  --danger-hover: #000000;
+  --done: #9a9892;
+  --row-hover: #eae9e4;
+
+  --fire: #d6400e;
+  --fire-amber: #b36a00;
+  --ice: #0c84c6;
+  --fire-soft: rgba(214, 64, 14, 0.1);
+  --fire-amber-soft: rgba(179, 106, 0, 0.11);
+
+  --tag-overdue-text: #ffffff;
+
+  --day-red-bg: #f5c6b5;
+  --day-red-text: #862808;
+  --day-green-bg: #9dd5f4;
+  --day-green-text: #094a70;
+  --day-blue-bg: #dbebf5;
+  --day-blue-text: #2b6585;
+  --day-gray-bg: #e4e2db;
+  --day-gray-text: #6b6a64;
+
+  --capacity-l0: 96%;  --capacity-l1: 70%;
+
+  --staleness-low-text: #5e879d;
+  --staleness-medium-text: #0c84c6;
+  --staleness-high-text: #07527d;
+
+  --overlay: rgba(20, 20, 18, 0.4);
+  --focus-overlay: rgba(15, 15, 13, 0.7);
+
+  --tint-s0: 30%;  --tint-s1: 72%;
+  --tint-l0: 95.5%; --tint-l1: 84%;
+  --acc-s0: 35%;   --acc-s1: 90%;
+  --acc-l0: 74%;   --acc-l1: 45%;
+  --gray-l1: 80%;  --gray-acc-l1: 42%;
+
+  color-scheme: light;
 }
 
 * {
@@ -188,16 +163,137 @@
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--font);
+  font-optical-sizing: auto;
+  font-size: 15px;
+  line-height: 1.4;
   background: var(--bg);
   color: var(--text);
-  padding-bottom: 3rem;
+  padding-bottom: 4rem;
+  -webkit-font-smoothing: antialiased;
 }
 
+button, input, select, textarea {
+  font-family: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: var(--text);
+  color: var(--on-accent);
+}
+
+/* ---- Completion checkbox ----
+   One treatment for every completion checkbox in the app (Plate/Fridge cards, list rows,
+   subtasks, habits, the Overdue strip, Completed Today). Bigger than the native box, square,
+   ink-outlined. Checking one plays the app's single deliberate flourish (.check-anim, added
+   by wireCheckAnimation in app.js): the box fills from the center with a slight overshoot,
+   then the tick draws left to right. Nothing else in the UI animates this much. */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  border: 1.5px solid var(--text-muted);
+  border-radius: var(--radius);
+  background: transparent;
+  cursor: pointer;
+  display: inline-grid;
+  place-content: center;
+  vertical-align: middle;
+}
+
+input[type="checkbox"]:hover {
+  border-color: var(--text);
+}
+
+/* Fill: a square that grows from the center (scale 0 -> 1) rather than a color swap. */
+input[type="checkbox"]::before {
+  content: "";
+  position: absolute;
+  inset: -1.5px;
+  border-radius: var(--radius);
+  background: var(--text);
+  transform: scale(0);
+}
+
+/* Tick: an SVG mask, revealed left to right by clip-path. */
+input[type="checkbox"]::after {
+  content: "";
+  position: relative;
+  width: 14px;
+  height: 14px;
+  background: var(--on-accent);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M2.5 7.4 5.6 10.4 11.6 3.8' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='square'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M2.5 7.4 5.6 10.4 11.6 3.8' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='square'/%3E%3C/svg%3E") center / contain no-repeat;
+  clip-path: inset(0 100% 0 0);
+}
+
+input[type="checkbox"]:checked {
+  border-color: var(--text);
+}
+
+input[type="checkbox"]:checked::before {
+  transform: scale(1);
+}
+
+input[type="checkbox"]:checked::after {
+  clip-path: inset(0 0 0 0);
+}
+
+input[type="checkbox"]:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+input[type="checkbox"].check-anim {
+  animation: check-pop 380ms var(--ease);
+}
+
+input[type="checkbox"].check-anim::before {
+  animation: check-fill 220ms var(--ease);
+}
+
+input[type="checkbox"].check-anim::after {
+  animation: check-draw 240ms 120ms var(--ease) backwards;
+}
+
+@keyframes check-pop {
+  0% { transform: scale(0.82); }
+  45% { transform: scale(1.14); }
+  100% { transform: scale(1); }
+}
+
+@keyframes check-fill {
+  from { transform: scale(0); }
+  to { transform: scale(1); }
+}
+
+@keyframes check-draw {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  input[type="checkbox"].check-anim,
+  input[type="checkbox"].check-anim::before,
+  input[type="checkbox"].check-anim::after {
+    animation: none;
+  }
+}
+
+/* ---- Header ---- */
 .app-header {
-  background: var(--surface);
+  background: var(--bg);
   border-bottom: 1px solid var(--border);
-  padding: 1rem 1.5rem 0;
+  padding: 1.1rem 2rem 0;
   position: sticky;
   top: 0;
   z-index: 10;
@@ -208,49 +304,55 @@ body {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
+  gap: 0.5rem 1.5rem;
+  margin-bottom: 0.6rem;
 }
 
 .app-header h1 {
   margin: 0;
-  font-size: 1.4rem;
+  font-size: 1.45rem;
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
   white-space: nowrap;
 }
 
 .header-actions {
   display: flex;
-  gap: 0.4rem;
+  gap: 0.15rem;
 }
 
+/* Header icon buttons (shortcuts, settings, theme): bare icons with a square hit area. */
 .theme-toggle {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  border-radius: 999px;
-  width: 2.1rem;
-  height: 2.1rem;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: var(--radius);
+  width: 2.2rem;
+  height: 2.2rem;
+  font-size: 0.95rem;
+  font-weight: 700;
   cursor: pointer;
   flex-shrink: 0;
 }
 
 .theme-toggle:hover {
-  border-color: var(--text-muted);
+  color: var(--text);
+  background: var(--row-hover);
 }
 
 /* Keyboard shortcuts cheat-sheet */
 .shortcuts-list {
-  margin: 0 0 0.9rem;
+  margin: 0 0 1.25rem;
 }
 
 .shortcuts-row {
   display: flex;
   align-items: baseline;
-  gap: 0.7rem;
-  padding: 0.35rem 0;
+  gap: 0.9rem;
+  padding: 0.6rem 0;
   border-bottom: 1px solid var(--border);
 }
 
@@ -260,7 +362,7 @@ body {
 
 .shortcuts-row dt {
   flex-shrink: 0;
-  min-width: 4.5rem;
+  min-width: 5rem;
   display: flex;
   gap: 0.25rem;
 }
@@ -268,18 +370,17 @@ body {
 .shortcuts-row dd {
   margin: 0;
   color: var(--text-muted);
-  font-size: 0.85rem;
+  font-size: 0.88rem;
 }
 
 kbd {
   display: inline-block;
-  font-family: inherit;
-  font-size: 0.78rem;
-  border: 1px solid var(--border);
-  border-bottom-width: 2px;
-  border-radius: 5px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
   padding: 0.05rem 0.4rem;
-  background: var(--bg);
+  background: transparent;
   color: var(--text);
 }
 
@@ -288,26 +389,25 @@ kbd {
   align-items: center;
   flex-wrap: wrap;
   gap: 0.6rem;
-  font-size: 0.78rem;
-  color: var(--text-muted);
-  margin-bottom: 0.5rem;
+  font-size: var(--fs-meta);
+  color: var(--text-faint);
+  margin-bottom: 0.6rem;
   min-height: 1.2rem;
 }
 
-.storage-status {
-  font-style: italic;
+.storage-bar .link-btn {
+  font-size: var(--fs-meta);
 }
 
 .storage-status-error {
-  color: var(--danger);
-  font-style: normal;
-  font-weight: 600;
+  color: var(--text);
+  font-weight: 700;
 }
 
 .gate-text {
-  font-size: 0.9rem;
+  font-size: 0.92rem;
   color: var(--text-muted);
-  margin: 0 0 1rem;
+  margin: 0 0 1.25rem;
 }
 
 .gate-actions {
@@ -318,50 +418,37 @@ kbd {
 
 /* Overdue callout: sticky in the header (via .app-header), in the slot the old Top banner
    held. Independent of the category tabs and of the List display mode. Membership only —
-   deadline < today — so it's a single quiet line until something is actually overdue, and
-   only then grows into a strip of cards. */
+   deadline < today — so it doesn't render at all until something is actually overdue. It
+   is an urgency signal, so it's one of the few places Fire appears outside the heat-map. */
 .overdue-callout {
   border-top: 1px solid var(--border);
-  padding: 0.4rem 0 0.45rem;
+  padding: 0.55rem 0 0.6rem;
 }
 
-.overdue-callout.has-items {
-  padding-bottom: 0.6rem;
+.overdue-callout:empty {
+  display: none;
 }
 
 .overdue-callout-header {
   display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  font-size: 0.68rem;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: var(--fs-meta);
   color: var(--text-muted);
 }
 
 .overdue-callout-label {
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.overdue-callout.has-items .overdue-callout-label {
-  color: var(--tag-overdue-text);
+  font-weight: 800;
+  font-size: 0.85rem;
+  letter-spacing: -0.01em;
+  color: var(--fire);
 }
 
 .overdue-callout-count {
-  font-weight: 700;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 0 0.45rem;
-  min-width: 1.4rem;
-  text-align: center;
-  line-height: 1.3;
-}
-
-.overdue-callout.has-items .overdue-callout-count {
-  background: var(--tag-overdue-bg);
-  border-color: var(--tag-overdue-text);
-  color: var(--tag-overdue-text);
+  font-weight: 800;
+  font-size: 0.85rem;
+  color: var(--fire);
+  font-variant-numeric: tabular-nums;
 }
 
 .overdue-callout-hint {
@@ -374,32 +461,33 @@ kbd {
   display: flex;
   gap: 0.5rem;
   overflow-x: auto;
-  margin-top: 0.4rem;
+  margin-top: 0.45rem;
   padding-bottom: 0.2rem;
 }
 
-/* One card per overdue task: the overdue tag's red for the fill (this strip means one
-   thing), the quadrant accent on the left edge so it still ties back to the heat-map. */
+/* One card per overdue task: a soft fire wash (this strip means one thing), the quadrant
+   accent on the left edge so it still ties back to the heat-map. */
 .overdue-card {
   --p: 1;
   display: flex;
   align-items: flex-start;
-  gap: 0.4rem;
+  gap: 0.55rem;
   flex: 1 1 0;
-  min-width: 170px;
-  max-width: 260px;
-  border: 1px solid color-mix(in srgb, var(--tag-overdue-text) 45%, transparent);
-  border-left: 3px solid var(--row-accent, var(--tag-overdue-text));
-  border-radius: 8px;
-  padding: 0.35rem 0.55rem 0.35rem 0.5rem;
-  background: var(--tag-overdue-bg);
+  min-width: 190px;
+  max-width: 280px;
+  border-left: 3px solid var(--row-accent, var(--fire));
+  padding: 0.5rem 0.7rem 0.5rem 0.6rem;
+  background: var(--fire-soft);
   color: var(--text);
 }
 
-.overdue-card-check {
-  margin-top: 0.2rem;
-  cursor: pointer;
-  flex-shrink: 0;
+.overdue-card.done-pending {
+  opacity: 0.6;
+}
+
+.overdue-card.done-pending .overdue-card-title {
+  text-decoration: line-through;
+  color: var(--done);
 }
 
 .overdue-card-body {
@@ -420,11 +508,12 @@ kbd {
 
 .overdue-card-body:hover .overdue-card-title {
   text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .overdue-card-title {
-  font-size: 0.84rem;
-  font-weight: 600;
+  font-size: 0.88rem;
+  font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -432,19 +521,24 @@ kbd {
 }
 
 .overdue-card-meta {
-  font-size: 0.7rem;
-  color: var(--tag-overdue-text);
+  font-size: 0.72rem;
+  color: var(--fire);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
 }
 
+/* Category tabs: section labels, so bold and larger than UI text; active = ink + underline. */
 .folder-tabs {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.25rem 1.6rem;
   overflow-x: auto;
+}
+
+.folder-tabs:empty {
+  display: none;
 }
 
 /* The category "+ Category" add button borrows .window-bucket-add's bucket-list styling, whose
@@ -457,9 +551,11 @@ kbd {
 .folder-tab {
   border: none;
   background: transparent;
-  padding: 0.6rem 1rem;
-  font-size: 0.9rem;
-  color: var(--text-muted);
+  padding: 0.55rem 0 0.6rem;
+  font-size: var(--fs-group);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-faint);
   cursor: pointer;
   border-bottom: 2px solid transparent;
   white-space: nowrap;
@@ -470,15 +566,56 @@ kbd {
 }
 
 .folder-tab.active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
-  font-weight: 600;
+  color: var(--text);
+  border-bottom-color: var(--text);
 }
 
 .app-main {
-  max-width: 1080px;
+  max-width: 1180px;
   margin: 0 auto;
-  padding: 1.25rem 1.5rem;
+  padding: 2rem 2rem;
+}
+
+/* Phones: 1rem gutters, the wordmark on its own line with the view tabs and icon buttons
+   sharing the row beneath it, and the display size stepped down a notch. */
+@media (max-width: 600px) {
+  :root {
+    --fs-display: 1.9rem;
+    --fs-section: 1.4rem;
+  }
+
+  .app-header {
+    padding: 0.9rem 1rem 0;
+  }
+
+  .app-main {
+    padding: 1.5rem 1rem;
+  }
+
+  .header-top {
+    gap: 0.4rem 1rem;
+  }
+
+  .app-header h1 {
+    flex-basis: 100%;
+  }
+
+  #view-switch {
+    margin-left: 0;
+    gap: 0.9rem;
+  }
+
+  #view-switch .view-switch-btn {
+    font-size: 0.88rem;
+  }
+
+  .header-actions {
+    margin-left: auto;
+  }
+
+  .theme-toggle {
+    width: 1.9rem;
+  }
 }
 
 .toolbar {
@@ -486,17 +623,18 @@ kbd {
   align-items: center;
   justify-content: flex-end;
   flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1.5rem;
 }
 
+/* Heat-map key: a swatch per quadrant drawn as its pale -> vivid ramp, label in plain text. */
 .heatmap-legend {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.4rem 1rem;
   margin-right: auto;
-  font-size: 0.72rem;
+  font-size: var(--fs-meta);
   color: var(--text-muted);
 }
 
@@ -504,17 +642,21 @@ kbd {
   --p: 1;
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.1rem 0.5rem;
-  border-radius: 999px;
-  border-left: 3px solid var(--row-accent);
+  gap: 0.4rem;
   color: var(--text);
-  /* pale end → vivid end of this hue's ramp */
+  font-weight: 600;
+}
+
+.legend-chip::before {
+  content: "";
+  width: 1.6rem;
+  height: 0.6rem;
+  border-left: 3px solid var(--row-accent);
   background: linear-gradient(90deg, var(--row-bg-pale), var(--row-bg-vivid));
 }
 
 .legend-note {
-  font-style: italic;
+  color: var(--text-faint);
 }
 
 /* List display-mode toggle (windows / full): pushed to the far right of the toolbar, same
@@ -524,17 +666,13 @@ kbd {
   margin-right: 0;
 }
 
-.list-mode .view-switch-btn {
-  font-size: 0.76rem;
-  padding: 0.25rem 0.75rem;
-}
-
 /* ---- Heat-map colour maths ----
-   Hue per quadrant is fixed; --chroma 0 turns Backlog into a pure lightness ramp.
-   Do keeps the coral family, Plan the teal, Clear the amber. */
-.quadrant-q1 { --h: 8;   --chroma: 1; }
-.quadrant-q2 { --h: 173; --chroma: 1; }
-.quadrant-q3 { --h: 39;  --chroma: 1; }
+   Hue per quadrant is fixed; --chroma 0 turns Backlog into a pure lightness ramp. The two
+   urgent quadrants take Fire's two ends (Do the red, Clear the amber), Plan takes Ice, so
+   hue alone answers "is this urgent?" and intensity answers "how much does it matter?". */
+.quadrant-q1 { --h: 13;  --chroma: 1; }
+.quadrant-q2 { --h: 201; --chroma: 1; }
+.quadrant-q3 { --h: 36;  --chroma: 1; }
 .quadrant-q4 { --h: 40;  --chroma: 0; }
 
 .quadrant-q1, .quadrant-q2, .quadrant-q3, .quadrant-q4 {
@@ -552,6 +690,8 @@ kbd {
   );
   --row-bg-pale: hsl(var(--h) calc(var(--chroma) * var(--tint-s0)) var(--tint-l0));
   --row-bg-vivid: hsl(var(--h) calc(var(--chroma) * var(--tint-s1)) var(--tint-l1-eff));
+  /* Full-strength hue for labels (quadrant names, scores) regardless of the row's --p. */
+  --row-hue: hsl(var(--h) calc(var(--chroma) * var(--acc-s1)) var(--acc-l1-eff));
 }
 
 /* Gray has no saturation to lean on, so give its lightness ramp its own endpoints. */
@@ -562,7 +702,7 @@ kbd {
 
 .main-layout {
   display: flex;
-  gap: 1.5rem;
+  gap: 3rem;
   align-items: flex-start;
 }
 
@@ -576,7 +716,7 @@ kbd {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 2.25rem;
 }
 
 @media (max-width: 860px) {
@@ -589,119 +729,72 @@ kbd {
   }
 }
 
+/* Recurring habit boxes (Daily / Weekly / Monthly): outside the Eisenhower system, so no
+   hue at all — a habit's cadence is carried by the box's heading, not a color. Same open
+   section treatment as everything else: a rule, a bold label, the fraction as a numeral. */
 .recurring-box {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-top: 4px solid transparent;
-  border-radius: 8px;
-  overflow: hidden;
+  border-top: 1px solid var(--border-strong);
 }
 
 .recurring-box-header {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid var(--border);
+  padding: 0.85rem 0 0.5rem;
 }
 
 .recurring-box-title {
-  font-weight: 600;
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
 }
 
 .recurring-box-fraction {
-  font-size: 0.82rem;
-  font-weight: 600;
+  font-size: 0.9rem;
+  font-weight: 700;
   color: var(--text-muted);
-}
-
-/* Weekly/Daily each get their own hue (see :root --weekly-h / --daily-h) so the two
-   boxes read as distinct at a glance, while staying visually separate from the
-   quadrant heat-map hues used in the main list — these tasks are outside that system.
-   The tint now washes the whole card (and the folder sections nested inside it), not just
-   the header strip, so the color reads as the box's identity rather than a thin accent. */
-#recurring-weekly {
-  border-top-color: hsl(var(--weekly-h) var(--recurring-acc-s) var(--recurring-acc-l));
-  background: hsl(var(--weekly-h) var(--recurring-body-s) var(--recurring-body-l));
-}
-
-#recurring-daily {
-  border-top-color: hsl(var(--daily-h) var(--recurring-acc-s) var(--recurring-acc-l));
-  background: hsl(var(--daily-h) var(--recurring-body-s) var(--recurring-body-l));
-}
-
-#recurring-weekly .recurring-box-header {
-  background: hsl(var(--weekly-h) var(--recurring-tint-s) var(--recurring-tint-l));
-}
-
-#recurring-daily .recurring-box-header {
-  background: hsl(var(--daily-h) var(--recurring-tint-s) var(--recurring-tint-l));
-}
-
-#recurring-weekly .recurring-folder-section {
-  background: hsl(var(--weekly-h) var(--recurring-body-s) var(--recurring-body-l));
-}
-
-#recurring-daily .recurring-folder-section {
-  background: hsl(var(--daily-h) var(--recurring-body-s) var(--recurring-body-l));
-}
-
-#recurring-weekly .recurring-box-title,
-#recurring-weekly .recurring-box-fraction {
-  color: hsl(var(--weekly-h) var(--recurring-acc-s) var(--recurring-acc-l));
-}
-
-#recurring-daily .recurring-box-title,
-#recurring-daily .recurring-box-fraction {
-  color: hsl(var(--daily-h) var(--recurring-acc-s) var(--recurring-acc-l));
-}
-
-/* Monthly: the third box, same treatment with its own hue (--monthly-h). */
-#recurring-monthly {
-  border-top-color: hsl(var(--monthly-h) var(--recurring-acc-s) var(--recurring-acc-l));
-  background: hsl(var(--monthly-h) var(--recurring-body-s) var(--recurring-body-l));
-}
-
-#recurring-monthly .recurring-box-header {
-  background: hsl(var(--monthly-h) var(--recurring-tint-s) var(--recurring-tint-l));
-}
-
-#recurring-monthly .recurring-folder-section {
-  background: hsl(var(--monthly-h) var(--recurring-body-s) var(--recurring-body-l));
-}
-
-#recurring-monthly .recurring-box-title,
-#recurring-monthly .recurring-box-fraction {
-  color: hsl(var(--monthly-h) var(--recurring-acc-s) var(--recurring-acc-l));
+  font-variant-numeric: tabular-nums;
 }
 
 .recurring-box-body {
-  padding: 0.6rem 0.75rem 0.75rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.75rem;
+}
+
+/* Folders nested inside a habit box sit a level below the box heading: hairline, not the
+   section rule the top-level folder list uses. */
+.recurring-box .recurring-folder-section {
+  border-top-color: var(--border);
 }
 
 .recurring-folder-section .folder-header {
-  padding: 0.5rem 0.6rem;
+  padding: 0.35rem 0;
+}
+
+.recurring-folder-section .folder-name {
+  font-size: 0.9rem;
 }
 
 .recurring-folder-section .folder-body {
-  padding: 0.35rem 0.6rem 0.6rem;
+  padding: 0.1rem 0 0.2rem;
+  border-top: none;
 }
 
+/* ---- Buttons: rectangular, flat. Primary is an ink block; secondary a hairline outline. ---- */
 .btn {
-  border: none;
-  border-radius: 6px;
-  padding: 0.5rem 0.9rem;
-  font-size: 0.88rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 0.6rem 1.1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
   cursor: pointer;
 }
 
 .btn-primary {
   background: var(--accent);
-  color: white;
+  color: var(--on-accent);
 }
 
 .btn-primary:hover {
@@ -709,13 +802,13 @@ kbd {
 }
 
 .btn-secondary {
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: transparent;
+  border-color: var(--border-strong);
   color: var(--text);
 }
 
 .btn-secondary:hover {
-  border-color: var(--text-muted);
+  border-color: var(--text);
 }
 
 .btn-danger {
@@ -733,9 +826,10 @@ kbd {
   justify-content: center;
   background: transparent;
   border: none;
+  border-radius: var(--radius);
   cursor: pointer;
   color: var(--text-muted);
-  padding: 0.2rem 0.4rem;
+  padding: 0.25rem 0.4rem;
 }
 
 .btn-icon:hover {
@@ -743,17 +837,27 @@ kbd {
 }
 
 /* Skip action: always visible next to the checkbox (unlike the hover-only edit/delete pair in
-   .task-actions), so it reads as an equally-primary alternative to checking off — but a
-   distinct shape/color keeps the two from ever being confused. Pressed (aria-pressed) shows
-   the skip is currently in effect, the same on/off-through-appearance language as .size-toggle. */
+   .task-actions), so it reads as an equally-primary alternative to checking off — a round
+   outline where the checkbox is a square, so the two can't be confused. Pressed
+   (aria-pressed) fills it with ink: the skip is currently in effect. */
 .btn-skip {
-  border-radius: 999px;
-  border: 1px solid var(--border);
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  flex-shrink: 0;
+}
+
+.btn-skip svg {
+  width: 11px;
+  height: 11px;
 }
 
 .btn-skip[aria-pressed="true"] {
-  color: var(--accent);
-  border-color: var(--accent);
+  color: var(--on-accent);
+  background: var(--text);
+  border-color: var(--text);
 }
 
 .btn-skip:disabled {
@@ -765,36 +869,31 @@ kbd {
   flex-shrink: 0;
 }
 
+/* ---- Folder list (List mode) ----
+   Open sections, not boxes: a rule, the folder name set as a section label, the rows. */
 .folder-list {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 2.25rem;
 }
 
 .folder-section {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
+  border-top: 1px solid var(--border-strong);
 }
 
 .folder-header {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
+  gap: 0.6rem;
+  padding: 0.85rem 0 0.6rem;
   cursor: pointer;
   user-select: none;
 }
 
-.folder-header:hover {
-  background: var(--row-hover);
-}
-
 .folder-caret {
-  transition: transform 0.15s ease;
-  color: var(--text-muted);
-  font-size: 0.75rem;
+  transition: transform 0.2s var(--ease);
+  color: var(--text-faint);
+  font-size: 0.7rem;
   width: 0.9rem;
   flex-shrink: 0;
 }
@@ -804,29 +903,37 @@ kbd {
 }
 
 .folder-name {
-  font-weight: 600;
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
   flex: 1;
+}
+
+.folder-header:hover .folder-name {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
 }
 
 .folder-count {
   background: transparent;
   border: none;
   color: var(--text-muted);
-  font-size: 0.82rem;
+  font-size: var(--fs-meta);
+  font-weight: 600;
   font-family: inherit;
+  font-variant-numeric: tabular-nums;
   cursor: pointer;
   padding: 0.1rem 0.3rem;
-  border-radius: 4px;
+  border-radius: var(--radius);
 }
 
 .folder-count:hover {
-  background: var(--row-hover);
   color: var(--text);
 }
 
 .folder-body {
-  border-top: 1px solid var(--border);
-  padding: 0.5rem 1rem 0.9rem;
+  padding: 0.1rem 0 0.4rem;
 }
 
 .folder-section.collapsed .folder-body {
@@ -834,9 +941,9 @@ kbd {
 }
 
 .empty-hint {
-  color: var(--text-muted);
+  color: var(--text-faint);
   font-size: 0.85rem;
-  padding: 0.5rem 0.25rem;
+  padding: 0.5rem 0;
 }
 
 .task-list, .subtask-list {
@@ -846,7 +953,7 @@ kbd {
 }
 
 .subtask-list {
-  margin-left: 1.6rem;
+  margin-left: 1.9rem;
   border-left: 1px solid var(--border);
   padding-left: 0.75rem;
 }
@@ -854,9 +961,8 @@ kbd {
 .task-row {
   display: flex;
   align-items: flex-start;
-  gap: 0.4rem;
-  padding: 0.45rem 0.25rem 0.45rem 0.4rem;
-  border-radius: 6px;
+  gap: 0.6rem;
+  padding: 0.6rem 0.5rem 0.6rem 0.55rem;
   border-left: 3px solid transparent;
   margin-bottom: 2px;
 }
@@ -872,20 +978,19 @@ kbd {
 }
 
 .task-row[class*="quadrant-"]:hover {
-  box-shadow: inset 0 0 0 100vmax rgba(0, 0, 0, 0.04);
+  box-shadow: inset 0 0 0 100vmax rgba(255, 255, 255, 0.035);
 }
 
-:root[data-theme="dark"] .task-row[class*="quadrant-"]:hover {
-  box-shadow: inset 0 0 0 100vmax rgba(255, 255, 255, 0.04);
+:root[data-theme="light"] .task-row[class*="quadrant-"]:hover {
+  box-shadow: inset 0 0 0 100vmax rgba(0, 0, 0, 0.035);
 }
 
 .task-row input[type="checkbox"] {
-  margin-top: 0.25rem;
-  cursor: pointer;
+  margin-top: 0.05rem;
 }
 
 .task-row .btn-skip {
-  margin-top: 0.1rem;
+  margin-top: 0;
 }
 
 .task-caret {
@@ -895,10 +1000,14 @@ kbd {
   margin-top: 0.3rem;
   width: 0.85rem;
   flex-shrink: 0;
-  color: var(--text-muted);
-  font-size: 0.68rem;
+  color: var(--text-faint);
+  font-size: 0.66rem;
   cursor: pointer;
-  transition: transform 0.15s ease;
+  transition: transform 0.2s var(--ease);
+}
+
+.task-caret:hover {
+  color: var(--text);
 }
 
 .task-caret.collapsed {
@@ -922,12 +1031,13 @@ kbd {
 .task-title-line {
   display: flex;
   align-items: baseline;
-  gap: 0.4rem;
+  gap: 0.45rem;
   flex-wrap: wrap;
 }
 
 .task-title {
-  font-size: 0.94rem;
+  font-size: var(--fs-body);
+  font-weight: 500;
 }
 
 .task-row.done .task-title {
@@ -935,13 +1045,17 @@ kbd {
   color: var(--done);
 }
 
+/* Tags and badges: small uppercase labels on a 2px corner, never pills. */
 .task-badge {
-  font-size: 0.68rem;
-  padding: 0.05rem 0.4rem;
-  border-radius: 999px;
-  font-weight: 600;
+  font-size: var(--fs-micro);
+  line-height: 1.5;
+  padding: 0 0.4rem;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
 }
 
 /* Escalating tag: the same badge wherever a task appears (list rows, Now/Later cards, the
@@ -954,6 +1068,7 @@ kbd {
 .tag-do-today {
   background: var(--tag-do-today-bg);
   color: var(--tag-do-today-text);
+  border-color: var(--border-strong);
 }
 
 .tag-due-today {
@@ -970,119 +1085,133 @@ kbd {
    priority panel and the quadrant list truncate long titles with white-space: nowrap), so a
    long task name can never clip the tag off. See .priority-card-score-col / .matrix-item-score-col. */
 
+/* Importance badges: neutral outlines (importance isn't urgency), Critical a step bolder than
+   High via an ink rule — never louder than the fire Overdue tag beside them. */
 .badge-high {
   background: var(--badge-high-bg);
   color: var(--badge-high-text);
+  border-color: var(--border-strong);
 }
 
 .badge-critical {
   background: var(--badge-critical-bg);
   color: var(--badge-critical-text);
+  border-color: var(--text);
 }
 
 .badge-recurring {
   background: var(--badge-recurring-bg);
   color: var(--badge-recurring-text);
+  border-color: var(--border);
 }
 
 .task-urgency-meta {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.25rem;
+  gap: 0.3rem;
 }
 
-/* Label takes the row's accent colour, so it intensifies with the row. */
+/* Label takes the quadrant's full-strength hue — it names the state, so it can carry it. */
 .quadrant-label {
-  font-weight: 600;
-  color: var(--row-accent, var(--text-muted));
+  font-weight: 700;
+  color: var(--row-hue, var(--text-muted));
 }
 
 .subtask-progress {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  margin-top: 0.25rem;
+  margin-top: 0.35rem;
 }
 
 .subtask-progress-bar {
-  width: 70px;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--border);
+  width: 72px;
+  height: 3px;
+  background: var(--border-strong);
   overflow: hidden;
   flex-shrink: 0;
 }
 
 .subtask-progress-fill {
   height: 100%;
-  background: var(--accent);
-  border-radius: 2px;
+  background: var(--text);
+  transition: width 0.3s var(--ease);
 }
 
 .task-meta {
-  font-size: 0.78rem;
+  font-size: var(--fs-meta);
   color: var(--text-muted);
-  margin-top: 0.1rem;
+  margin-top: 0.15rem;
 }
 
 .task-notes {
   font-size: 0.82rem;
   color: var(--text-muted);
-  margin-top: 0.15rem;
+  margin-top: 0.2rem;
   white-space: pre-wrap;
 }
 
+/* Hover-only actions appear instantly — no fade on every hover. */
 .task-actions {
   display: flex;
   gap: 0.15rem;
   opacity: 0;
-  transition: opacity 0.1s ease;
 }
 
-.task-row:hover .task-actions {
+/* Child combinator: subtask rows nest inside their parent's row, so a descendant selector
+   would reveal every nested row's actions at once. */
+.task-row:hover > .task-actions,
+.task-row:focus-within > .task-actions {
   opacity: 1;
 }
 
 /* Bare "+" add-subtask, same affordance the Daily Plate/Fridge cards use (.window-card-add-subtask):
-   hidden until the row is hovered, so a compact task doesn't carry a text link by default. */
+   the first icon in the hover-revealed actions cluster, so a compact task doesn't carry a
+   text link — or an empty line reserved for one — by default. */
 .add-subtask-row {
-  margin-left: 1.6rem;
-  padding-left: 0.75rem;
-  font-size: 0.9rem;
-  font-weight: 700;
-  opacity: 0;
-  transition: opacity 0.1s ease;
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0.1rem 0.35rem;
+  text-decoration: none;
+  color: var(--text-muted);
 }
 
-.task-row:hover .add-subtask-row {
-  opacity: 1;
+.add-subtask-row:hover {
+  color: var(--text);
 }
 
 .link-btn {
   background: none;
   border: none;
-  color: var(--accent);
-  font-size: 0.8rem;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 600;
   cursor: pointer;
   padding: 0.25rem 0;
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
 }
 
 .link-btn:hover {
-  text-decoration: underline;
+  text-decoration-color: var(--text);
 }
 
-/* ---- Now / Later windows ----
-   Two panels side by side above the folder list, equal width by default; "Expand" on either
-   one gives it two thirds. Cards inside carry the same quadrant-hue heat-map as list rows
-   (a Now task is Do or Clear thanks to the do_date floor; a Later task is Plan or Backlog),
-   so the windows don't invent any colour of their own. */
+/* ---- Daily Plate / Fridge windows ----
+   Two open columns side by side above the folder list, equal width by default; "Expand" on
+   either one gives it two thirds (the column change animates — it answers the click). Cards
+   inside carry the same quadrant-hue heat-map as list rows (a Plate task is Do or Clear
+   thanks to the do_date floor; a Fridge task is Plan or Backlog), so the windows don't
+   invent any colour of their own. */
 .windows-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 1rem;
+  gap: 2.75rem;
   align-items: start;
-  margin-bottom: 1.25rem;
+  margin-bottom: 2.5rem;
+  transition: grid-template-columns 0.28s var(--ease);
 }
 
 .windows-row.focus-now { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
@@ -1096,73 +1225,63 @@ kbd {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .windows-row {
+    transition: none;
+  }
+}
+
 /* Non-interactive space anywhere in the panel doubles as a big expand/shrink hit target (see
    wireWindowExpandClick in windows.js) — cursor:pointer signals that everywhere, and cards,
-   buttons, inputs and selects all set their own cursor anyway so this never fights them. */
+   buttons, inputs and selects all set their own cursor anyway so this never fights them.
+   No box: a heavy rule on top, the title set large beneath it. */
 .window-panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.7rem 0.8rem 0.6rem;
+  border-top: 2px solid var(--text);
+  padding: 1rem 0 0;
   min-width: 0;
   cursor: pointer;
-  transition: box-shadow 0.1s ease;
-}
-
-.window-panel.window-focused {
-  box-shadow: 0 2px 10px -4px rgba(0, 0, 0, 0.2);
-}
-
-/* A thin warm/cool top edge ties each panel back to its fire/ice identity without tinting
-   the whole surface (the cards still carry the real quadrant heat-map). */
-.window-now {
-  border-top: 2px solid var(--fire-outer);
-}
-
-.window-later {
-  border-top: 2px solid var(--ice-outer);
 }
 
 /* Drop-zone highlight while a task is being dragged over it (also used on .folder-list). */
 .drop-target {
-  outline: 2px dashed var(--accent);
-  outline-offset: 2px;
-  border-radius: 8px;
+  outline: 1.5px dashed var(--text-muted);
+  outline-offset: 4px;
 }
 
 .dragging {
-  opacity: 0.45;
+  opacity: 0.4;
 }
 
 .window-header {
   display: flex;
-  align-items: baseline;
-  gap: 0.45rem;
+  align-items: center;
+  gap: 0.35rem 0.6rem;
   flex-wrap: wrap;
-  margin-bottom: 0.45rem;
+  margin-bottom: 0.9rem;
 }
 
 .window-title {
   margin: 0;
-  font-size: 1rem;
+  font-size: var(--fs-display);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1;
 }
 
+/* A plain count numeral (focus mode and anywhere without a pile indicator). */
 .window-count {
-  font-size: 0.75rem;
-  font-weight: 700;
+  font-size: 1rem;
+  font-weight: 800;
   color: var(--text-muted);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 0 0.5rem;
-  min-width: 1.5rem;
-  text-align: center;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
 .window-hint {
-  font-size: 0.72rem;
-  color: var(--text-muted);
-  flex: 1;
+  font-size: var(--fs-meta);
+  color: var(--text-faint);
+  flex: 1 1 8rem;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1170,122 +1289,92 @@ kbd {
 
 .window-focus-btn {
   padding: 0.1rem;
+  margin-left: -0.2rem;
 }
 
-/* Plate / Fridge icon doubling as the expand/shrink control: outline by default, filled with
-   the window's own hue once expanded — same on/off language as the Bite-size toggle, no
-   icon-swap. */
-.window-focus-icon-now {
-  color: var(--fire-outer);
-}
-
+/* Plate / Fridge icon doubling as the expand/shrink control: a neutral line icon, its own
+   content (food on the plate, the door open) shows the state; once expanded it inverts to
+   an ink block — the same on/off-through-appearance language as the Bite-size toggle. */
+.window-focus-icon-now,
 .window-focus-icon-later {
-  color: var(--ice-outer);
+  color: var(--text);
 }
 
-.window-focus-icon-now.active {
-  color: #fff;
-  background: var(--fire-outer);
-  border-radius: 999px;
-}
-
+.window-focus-icon-now.active,
 .window-focus-icon-later.active {
-  color: #fff;
-  background: var(--ice-outer);
-  border-radius: 999px;
+  color: var(--on-accent);
+  background: var(--text);
 }
 
-/* ---- Pile-size indicator: fire (Daily Plate) / ice (Fridge) particles around the count ----
-   --fullness (0..1, set inline per render) drives particle count/size/speed upstream in JS;
-   here it only drives the glow behind the number, so an empty window shows a bare badge. */
+/* ---- Pile-size indicator: fire (Daily Plate) / ice (Fridge) ----
+   The count numeral in the window's element color, with a small pile of flat marks beside
+   it — 2 to 7 of them, scaling with how full the window is (--fullness, 0..1, drives the
+   count upstream in JS). Fire marks are upward flames, ice marks are shards; the marks are
+   static, and only animate in (fire rising, ice dropping) when the count actually changes. */
 .pile-indicator {
-  position: relative;
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  align-items: flex-end;
+  gap: 0.4rem;
+  align-self: center;
 }
 
 .pile-indicator .window-count {
-  position: relative;
-  z-index: 1;
+  font-size: 1.35rem;
+  line-height: 0.9;
 }
 
-.pile-indicator::before {
-  content: "";
-  position: absolute;
-  inset: -3px;
-  border-radius: 999px;
-  opacity: calc(0.15 + var(--fullness, 0) * 0.55);
-  filter: blur(3px);
-  pointer-events: none;
-}
+.pile-fire .window-count { color: var(--fire); }
+.pile-ice .window-count { color: var(--ice); }
 
-.pile-fire::before {
-  background: radial-gradient(circle, var(--fire-mid), var(--fire-outer) 70%, transparent 100%);
-}
-
-.pile-ice::before {
-  background: radial-gradient(circle, var(--ice-mid), var(--ice-outer) 70%, transparent 100%);
+.pile-indicator.pile-empty .window-count {
+  color: var(--text-faint);
 }
 
 .pile-particles {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 100%;
-  margin-bottom: 1px;
-  height: 20px;
-  overflow: visible;
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
   pointer-events: none;
 }
 
 .pile-particle {
-  position: absolute;
-  bottom: 0;
+  display: block;
+  flex: none;
 }
 
-/* Fire: an organic flame silhouette (clip-path, not a circle) that flickers — a small
-   rotate/scale wobble layered on top of a straight rise — echoing real flame movement rather
-   than a generic floating dot. */
 .pile-fire .pile-particle {
-  background: radial-gradient(circle at 45% 30%, var(--fire-core), var(--fire-mid) 45%, var(--fire-outer) 90%);
-  box-shadow: 0 0 4px var(--fire-glow);
-  clip-path: polygon(50% 0%, 78% 22%, 66% 42%, 88% 58%, 58% 100%, 42% 100%, 12% 58%, 34% 42%, 22% 22%);
-  animation-name: pile-flame-rise;
-  animation-timing-function: ease-out;
-  animation-iteration-count: infinite;
+  background: var(--fire);
+  clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
 }
 
-/* Ice: a crisp geometric shard (diamond clip-path, sharp not organic) that tumbles downward —
-   the opposite motion from fire's rise, angular instead of soft, falling instead of floating
-   up — distinct in silhouette and motion, not just hue. */
 .pile-ice .pile-particle {
-  background: radial-gradient(circle at 40% 35%, var(--ice-core), var(--ice-mid) 55%, var(--ice-outer) 100%);
-  box-shadow: 0 0 4px var(--ice-glow);
+  background: var(--ice);
   clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
-  animation-name: pile-ice-fall;
-  animation-timing-function: ease-in;
-  animation-iteration-count: infinite;
 }
+
+.pile-particles.pile-changed .pile-particle {
+  animation-duration: 0.42s;
+  animation-timing-function: var(--ease);
+  animation-fill-mode: backwards;
+}
+
+.pile-fire .pile-particles.pile-changed .pile-particle { animation-name: pile-flame-rise; }
+.pile-ice .pile-particles.pile-changed .pile-particle { animation-name: pile-ice-fall; }
 
 @keyframes pile-flame-rise {
-  0% { transform: translateY(3px) scale(0.5) rotate(-6deg); opacity: 0; }
-  15% { opacity: 1; }
-  45% { transform: translateY(-9px) scale(1.05) rotate(5deg); }
-  70% { transform: translateY(-14px) scale(0.7) rotate(-6deg); }
-  100% { transform: translateY(-21px) scale(0.2) rotate(4deg); opacity: 0; }
+  from { transform: translateY(6px) scaleY(0.3); opacity: 0; }
+  to { transform: none; opacity: 1; }
 }
 
 @keyframes pile-ice-fall {
-  0% { transform: translate(0, -4px) rotate(0deg) scale(0.55); opacity: 0; }
-  20% { opacity: 1; }
-  100% { transform: translate(var(--dx, 6px), 18px) rotate(var(--spin, 220deg)) scale(0.85); opacity: 0; }
+  from { transform: translateY(-8px) rotate(-60deg); opacity: 0; }
+  to { transform: none; opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pile-particle {
+  .pile-particles.pile-changed .pile-particle {
     animation: none;
-    display: none;
   }
 }
 
@@ -1302,76 +1391,87 @@ kbd {
   row-gap: 2px;
 }
 
-.window-switch .view-switch-btn {
-  font-size: 0.7rem;
-  padding: 0.2rem 0.55rem;
-  white-space: nowrap;
-}
-
-/* Sort dropdown: five options is too many for a segmented switch. Sized to sit level with
-   the grouping switch beside it. */
+/* Sort dropdown: five options is too many for a segmented switch. Underlined text select,
+   level with the grouping switch beside it. */
 .window-sort-select {
   font: inherit;
-  font-size: 0.7rem;
-  font-weight: 600;
+  font-size: 0.82rem;
+  font-weight: 700;
   color: var(--text);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 0.2rem 0.6rem;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-strong);
+  border-radius: 0;
+  padding: 0.25rem 0.1rem;
   cursor: pointer;
 }
 
-.window-sort-select:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+.window-sort-select:hover {
+  border-bottom-color: var(--text);
 }
 
-/* Bucket divider: thin rule + tiny label, just the count — the bucket's own add control sits
-   at the bottom instead (.window-bucket-add below). */
+.window-sort-select option {
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* Bucket / folder group label inside a window: a section label in its own right (a folder
+   name, or Do/Plan/Clear/Backlog in the quadrant sort), set bold at group size with the
+   count as a quiet numeral beside it, generous space above. */
 .window-bucket-header {
   display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.66rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: var(--fs-group);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text);
   border-top: 1px solid var(--border);
-  padding-top: 0.35rem;
-  margin-top: 0.35rem;
+  padding-top: 0.8rem;
+  margin-top: 1.1rem;
+  margin-bottom: 0.15rem;
 }
 
 .window-bucket-header-first {
   border-top: none;
   padding-top: 0;
-  margin-top: 0;
+  margin-top: 0.1rem;
 }
 
 .window-bucket-label {
-  flex: 1;
   min-width: 0;
 }
 
-/* Bottom-left "+", below the last card (or the empty hint) in the bucket — where the old
-   bottom-of-window add link used to sit, now one per bucket. Same pill treatment as the
-   global add icon up in the controls row, so the two read as the same kind of control. */
+.window-bucket-count {
+  font-size: var(--fs-meta);
+  font-weight: 700;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Bottom-left "+", below the last card (or the empty hint) in the bucket. Same square
+   hairline treatment as the global add icon up in the controls row, so the two read as the
+   same kind of control. */
 .window-bucket-add {
   align-self: flex-start;
-  padding: 0.15rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--bg);
+  padding: 0.2rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: transparent;
+}
+
+.window-bucket-add:hover {
+  border-color: var(--text);
 }
 
 /* Category/folder add: same "+" icon, but with a word after it naming what it adds, so it
    doesn't get lost among the several other plain "+" icons on the same page. */
 .window-bucket-add-labeled {
   gap: 0.3rem;
-  padding: 0.2rem 0.65rem 0.2rem 0.25rem;
-  font-size: 0.72rem;
-  font-weight: 600;
+  padding: 0.3rem 0.7rem 0.3rem 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text);
 }
 
 /* Buckets: each a drop target that makes a dropped card belong there, kept droppable even
@@ -1379,24 +1479,23 @@ kbd {
 .window-bucket {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 3px;
   min-height: 2.4rem;
-  border-radius: 8px;
 }
 
 .window-zone-empty {
-  padding: 0.35rem 0.25rem;
-  font-size: 0.75rem;
+  padding: 0.35rem 0;
+  font-size: 0.8rem;
 }
 
 .window-body {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  max-height: max(420px, 62vh); /* the windows are the whole page in "windows" mode */
+  gap: 3px;
+  max-height: max(440px, 64vh); /* the windows are the whole page in "windows" mode */
   overflow-y: auto;
   overflow-x: hidden;
-  padding-right: 2px;
+  padding-right: 4px;
 }
 
 /* Buckets, cards and folder headers are flex items of the scrolling column above; without
@@ -1408,19 +1507,17 @@ kbd {
 }
 
 .window-empty {
-  padding: 0.6rem 0.25rem;
+  padding: 0.6rem 0;
 }
 
-/* Task card: the priority-card look (accent stripe, tinted background), draggable. The
-   actions wrap onto their own line when the panel is too narrow for them (the shrunk
-   window), instead of squeezing the title into nothing. */
+/* Task card: a flat heat-map row — accent stripe, tinted ground, square corners — draggable.
+   One line of flex items (caret, checkbox, body); the body takes all remaining width, since
+   the hover actions overlay the card rather than sitting beside the title. */
 .window-card {
   display: flex;
-  flex-wrap: wrap;
   align-items: flex-start;
-  gap: 0.3rem 0.45rem;
-  padding: 0.45rem 0.55rem;
-  border-radius: 6px;
+  gap: 0.6rem;
+  padding: 0.65rem 0.7rem 0.65rem 0.6rem;
   border-left: 3px solid var(--row-accent);
   background: var(--row-bg);
   cursor: grab;
@@ -1430,30 +1527,25 @@ kbd {
   cursor: grabbing;
 }
 
-.window-card-check {
-  margin-top: 0.2rem;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
 .window-card-body {
-  flex: 1 1 140px;
+  flex: 1 1 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
+  gap: 0.2rem;
 }
 
 .window-card-title-line {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.2rem 0.4rem;
+  gap: 0.25rem 0.45rem;
 }
 
 .window-card-title {
-  font-size: 0.9rem;
-  font-weight: 600;
+  font-size: var(--fs-body);
+  font-weight: 500;
+  line-height: 1.3;
   overflow-wrap: anywhere;
 }
 
@@ -1461,90 +1553,126 @@ kbd {
 .window-card-dates {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 0.75rem;
-  margin-top: 0.2rem;
+  gap: 0.25rem 0.9rem;
+  margin-top: 0.25rem;
 }
 
 .window-card-date {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  font-size: 0.68rem;
-  font-weight: 600;
+  gap: 0.35rem;
+  font-size: var(--fs-micro);
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.05em;
   color: var(--text-muted);
 }
 
 .window-card-date input[type="date"] {
   font: inherit;
-  font-size: 0.72rem;
+  font-size: 0.74rem;
+  font-weight: 500;
   text-transform: none;
   letter-spacing: 0;
   color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 0.1rem 0.3rem;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-strong);
+  border-radius: 0;
+  padding: 0.05rem 0.1rem;
   cursor: text;
 }
 
 .window-card-meta {
-  font-size: 0.72rem;
+  font-size: var(--fs-meta);
   color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.window-card-actions {
+/* Hover-only actions ("+", edit, delete): an overlay pinned to the card's top-right on the
+   card's own ground color, shown on hover/focus, so they never reserve width beside the title
+   or a row of their own. (The Bite-size chip, always visible, lives with the tags instead.) */
+.window-card {
+  position: relative;
+}
+
+.window-card-actions,
+.window-subtask-actions {
+  position: absolute;
   display: flex;
   align-items: center;
-  gap: 0.3rem;
-  flex-shrink: 0;
-  margin-left: auto; /* stays right-aligned when it wraps under the title */
-}
-
-.window-card-actions .btn-icon {
+  gap: 0.1rem;
   opacity: 0;
-  transition: opacity 0.1s ease;
+  pointer-events: none;
 }
 
-.window-card:hover .window-card-actions .btn-icon {
+.window-card-actions {
+  top: 0.45rem;
+  right: 0.4rem;
+  padding-left: 0.4rem;
+  background: var(--row-bg, var(--bg));
+  box-shadow: -10px 0 8px -4px var(--row-bg, var(--bg));
+}
+
+.window-card:hover > .window-card-actions,
+.window-card:focus-within > .window-card-actions,
+.window-subtask:hover > .window-subtask-head > .window-subtask-actions,
+.window-subtask-head:focus-within > .window-subtask-actions {
   opacity: 1;
+  pointer-events: auto;
 }
 
-/* Sizing chip: always reads "Bite-size" — on (filled) vs. off (outlined) shows through
-   .active, never through the text. */
+.window-subtask-head {
+  position: relative;
+}
+
+.window-subtask-actions {
+  top: -0.1rem;
+  right: 0;
+  padding-left: 0.3rem;
+  background: var(--row-bg, var(--bg));
+}
+
+/* Sizing chip: always reads "Bite-size" — on (ink-filled) vs. off (outlined) shows through
+   .active, never through the text. A toggle, not a state signal, so it stays neutral. */
 .window-chip {
   font: inherit;
-  font-size: 0.66rem;
-  font-weight: 600;
+  font-size: var(--fs-micro);
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
-  padding: 0.1rem 0.5rem;
-  border-radius: 999px;
-  border: 1px solid var(--row-accent, var(--border));
+  letter-spacing: 0.05em;
+  line-height: 1.5;
+  padding: 0 0.45rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
   background: transparent;
-  color: var(--row-accent, var(--text-muted));
+  color: var(--text-muted);
   cursor: pointer;
   white-space: nowrap;
 }
 
+.window-chip:hover {
+  border-color: var(--text);
+  color: var(--text);
+}
+
 .window-chip.active {
-  background: var(--row-accent);
-  color: #fff;
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--on-accent);
 }
 
 /* Quick wins are the "knock it out" pile: a slimmer card, no meta line, lighter title. */
 .window-card-quick {
-  padding: 0.25rem 0.5rem;
-  gap: 0.35rem;
+  padding: 0.45rem 0.7rem 0.45rem 0.6rem;
+  gap: 0.6rem;
 }
 
 .window-card-quick .window-card-title {
-  font-size: 0.82rem;
-  font-weight: 500;
+  font-size: 0.88rem;
+  font-weight: 400;
 }
 
 /* Bite-size cards never show the meta line, expanded or not — small by definition. */
@@ -1552,47 +1680,30 @@ kbd {
   display: none;
 }
 
-/* No meta line to protect, so the body doesn't need the full 140px reserved for normal
-   cards — that reservation was forcing the (wider) sizing chip to wrap onto its own line,
-   making bite-size cards the taller card at narrow widths, backwards from the intent. */
-.window-card-quick .window-card-body {
-  flex-basis: 60px;
-}
-
-.window-card-quick .window-card-check {
-  margin-top: 0.1rem;
-}
-
 /* ---- Nested subtasks on cards ----
    Same caret and collapsed set as the folder list. Rows sit inside the card body, each with
    its own quadrant accent (active) or struck through (done), further children indented. */
 .window-card-caret {
-  margin-top: 0.25rem;
-  margin-right: -0.15rem;
-}
-
-.window-card-quick .window-card-caret {
-  margin-top: 0.15rem;
+  margin-top: 0.3rem;
+  margin-right: -0.2rem;
 }
 
 .window-card-subtasks {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  margin-top: 0.3rem;
-  padding-left: 0.2rem;
-  border-left: 1px solid color-mix(in srgb, var(--row-accent, var(--border)) 45%, transparent);
+  gap: 2px;
+  margin-top: 0.45rem;
+  padding-left: 0.1rem;
 }
 
 .window-subtask {
-  border-radius: 4px;
-  border-left: 2px solid var(--border);
-  padding: 0.1rem 0.2rem 0.1rem 0.35rem;
+  border-left: 2px solid var(--border-strong);
+  padding: 0.3rem 0.3rem 0.3rem 0.5rem;
 }
 
 .window-subtask[class*="quadrant-"] {
   border-left-color: var(--row-accent);
-  background: color-mix(in srgb, var(--row-bg) 55%, transparent);
+  background: color-mix(in srgb, var(--row-bg) 60%, transparent);
 }
 
 .window-subtask.done {
@@ -1602,17 +1713,11 @@ kbd {
 .window-subtask-head {
   display: flex;
   align-items: flex-start;
-  gap: 0.3rem;
+  gap: 0.5rem;
 }
 
 .window-subtask-head > .task-caret {
-  margin-top: 0.2rem;
-}
-
-.window-subtask-head input[type="checkbox"] {
-  margin-top: 0.15rem;
-  cursor: pointer;
-  flex-shrink: 0;
+  margin-top: 0.3rem;
 }
 
 .window-subtask-title-line {
@@ -1621,7 +1726,8 @@ kbd {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.15rem 0.35rem;
+  gap: 0.15rem 0.4rem;
+  min-height: 20px;
 }
 
 .window-subtask-title-line .subtask-progress {
@@ -1629,7 +1735,8 @@ kbd {
 }
 
 .window-subtask-title {
-  font-size: 0.8rem;
+  font-size: 0.86rem;
+  font-weight: 500;
   overflow-wrap: anywhere;
 }
 
@@ -1639,100 +1746,84 @@ kbd {
 }
 
 .window-subtask-edit {
-  opacity: 0;
   padding: 0.1rem;
-  transition: opacity 0.1s ease;
-}
-
-.window-subtask:hover > .window-subtask-head > .window-subtask-edit {
-  opacity: 1;
 }
 
 .window-subtask .window-card-subtasks {
-  margin-left: 1.1rem;
+  margin-left: 1.3rem;
 }
 
-/* "+" add-subtask: same inline affordance the folder list has always had, now on cards too —
-   a bare symbol, not a text label, so it sits inline instead of claiming its own line. Hidden
-   until hover, like the edit/delete icons, so a compact card doesn't carry it by default. */
+/* "+" add-subtask: same affordance the folder list has always had, now on cards too — a bare
+   symbol in the hover-revealed actions overlay beside the pencil (the card's, or the subtask
+   row's own), so it never reserves a line of its own. The overlays' child-combinator hover
+   rules above mean hovering a card reveals its own "+", not every nested subtask's too. */
 .window-card-add-subtask {
-  align-self: flex-start;
-  font-size: 0.9rem;
-  font-weight: 700;
+  font-size: 1.05rem;
+  font-weight: 600;
   line-height: 1;
-  padding: 0.05rem 0.3rem;
-  opacity: 0;
-  transition: opacity 0.1s ease;
+  padding: 0.1rem 0.3rem;
+  text-decoration: none;
+  color: var(--text-muted);
 }
 
-.window-card:hover .window-card-add-subtask,
-.window-subtask:hover > .window-card-add-subtask {
-  opacity: 1;
+.window-card-add-subtask:hover {
+  color: var(--text);
 }
 
-/* ---- Habits in Now ----
-   Schedule-filtered view of the Weekly/Daily boxes, under the task cards. Uses the boxes'
-   own violet/sky hues per row so it reads as "different system", never a priority level. */
+/* ---- Habits in Daily Plate ----
+   Schedule-filtered view of the Daily/Weekly/Monthly boxes, under the task cards. Outside the
+   Eisenhower system, so no heat-map and no hue: a hairline row, the cadence spelled out in
+   the meta. */
 .window-habits {
-  margin-top: 0.6rem;
+  margin-top: 1.4rem;
   border-top: 1px solid var(--border);
-  padding-top: 0.5rem;
+  padding-top: 0.8rem;
 }
 
 .window-habits-header {
   display: flex;
   align-items: baseline;
-  gap: 0.45rem;
-  margin-bottom: 0.3rem;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
 }
 
 .window-habits-title {
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
+  font-size: var(--fs-group);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text);
 }
 
 .window-habits-fraction {
-  font-size: 0.72rem;
+  font-size: var(--fs-meta);
   font-weight: 700;
-  color: var(--text-muted);
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 0 0.45rem;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
 }
 
 .window-habits-list {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
 }
 
 .window-habit {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 6px;
-  border-left: 3px solid hsl(var(--habit-h) var(--recurring-acc-s) var(--recurring-acc-l));
-  background: hsl(var(--habit-h) var(--recurring-body-s) var(--recurring-body-l));
+  gap: 0.3rem 0.6rem;
+  padding: 0.5rem 0.1rem;
+  border-bottom: 1px solid var(--border);
   cursor: pointer;
 }
 
-.habit-daily { --habit-h: var(--daily-h); }
-.habit-weekly { --habit-h: var(--weekly-h); }
-.habit-monthly { --habit-h: var(--monthly-h); }
-
-.window-habit input[type="checkbox"] {
-  cursor: pointer;
-  flex-shrink: 0;
+.window-habit:last-child {
+  border-bottom: none;
 }
 
 .window-habit-title {
-  font-size: 0.82rem;
-  flex: 1;
+  font-size: 0.9rem;
+  font-weight: 500;
+  flex: 1 1 7rem;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1745,21 +1836,20 @@ kbd {
 }
 
 .window-habit-meta {
-  font-size: 0.68rem;
-  color: hsl(var(--habit-h) var(--recurring-acc-s) var(--recurring-acc-l));
+  font-size: 0.72rem;
+  color: var(--text-faint);
   font-weight: 600;
   white-space: nowrap;
+  margin-left: auto; /* drops under the title, right-aligned, when the column is narrow */
 }
 
-/* Empty-Now suggestion: a live-checked highlight (never a stored/dismissible flag) around
-   the top 3 Later tasks by priority, shown whenever Now has nothing planned. Disappears the
-   instant anything lands in Now. */
+/* Empty-Plate suggestion: a live-checked highlight (never a stored/dismissible flag) around
+   the top 3 Fridge tasks by priority, shown whenever the Plate has nothing planned.
+   Disappears the instant anything lands in the Plate. */
 .window-suggestion {
-  border: 1px dashed var(--accent);
-  border-radius: 8px;
-  padding: 0.5rem 0.55rem 0.45rem;
-  margin-bottom: 0.5rem;
-  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  border: 1px dashed var(--border-strong);
+  padding: 0.75rem 0.75rem 0.7rem;
+  margin-bottom: 1rem;
 }
 
 .window-suggestion-header {
@@ -1767,18 +1857,18 @@ kbd {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
-  margin-bottom: 0.4rem;
+  margin-bottom: 0.55rem;
 }
 
 .window-suggestion-label {
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
 }
 
 .window-suggestion-add-all {
-  padding: 0.25rem 0.6rem;
-  font-size: 0.74rem;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.78rem;
   flex-shrink: 0;
   white-space: nowrap;
 }
@@ -1786,22 +1876,22 @@ kbd {
 .window-suggestion-cards {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  gap: 3px;
 }
 
 /* "Became Do Today" sub-list inside the digest. */
 .digest-subheading {
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-  margin: 0.9rem 0 0.35rem;
+  font-size: var(--fs-group);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  margin: 1.4rem 0 0.4rem;
 }
 
 /* ---- Focus mode ----
-   On-demand overlay over the page: only Now's do_date == today subset, expanded cards. The
-   dimmed backdrop (the overlay itself) is the deprioritize drop target; the panel isn't. */
+   On-demand overlay over the page: only the Plate's do_date == today subset, expanded cards.
+   The heavily dimmed backdrop (the overlay itself) is the deprioritize drop target; the panel
+   isn't. Isolation comes from the dim alone — the panel is flat, no glow. */
 .focus-overlay {
   position: fixed;
   inset: 0;
@@ -1820,28 +1910,26 @@ kbd {
 
 .focus-overlay.drop-target {
   outline: none;
-  box-shadow: inset 0 0 0 3px var(--accent);
+  box-shadow: inset 0 0 0 2px var(--text-muted);
 }
 
 .focus-panel {
   width: 100%;
-  max-width: 560px;
+  max-width: 600px;
   max-height: 85vh;
   display: flex;
   flex-direction: column;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 0.8rem 0.9rem 0.9rem;
-  box-shadow: 0 12px 40px -12px rgba(0, 0, 0, 0.45), 0 0 32px 6px var(--focus-glow);
+  background: var(--bg);
+  border-top: 2px solid var(--text);
+  padding: 1.25rem 1.5rem 1.5rem;
 }
 
 .focus-header {
   display: flex;
   align-items: baseline;
-  gap: 0.45rem;
+  gap: 0.6rem;
   flex-wrap: wrap;
-  margin-bottom: 0.6rem;
+  margin-bottom: 1rem;
 }
 
 .focus-body {
@@ -1854,18 +1942,17 @@ kbd {
 .backfill-list {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  margin-bottom: 0.75rem;
+  margin-bottom: 1rem;
+  border-top: 1px solid var(--border);
 }
 
 .modal-content form .backfill-row {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.9rem;
   margin: 0;
-  padding: 0.45rem 0.6rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--border);
   color: var(--text);
 }
 
@@ -1878,12 +1965,12 @@ kbd {
 }
 
 .backfill-title {
-  font-size: 0.9rem;
-  font-weight: 600;
+  font-size: var(--fs-body);
+  font-weight: 500;
 }
 
 .backfill-meta {
-  font-size: 0.72rem;
+  font-size: var(--fs-meta);
   color: var(--text-muted);
 }
 
@@ -1892,7 +1979,9 @@ kbd {
   margin-top: 0;
 }
 
-/* Modal */
+/* ---- Modal ----
+   A flat raised sheet: square corners, hairline edge, a heavy ink rule on top like every
+   other section, the title set large. */
 .modal {
   position: fixed;
   inset: 0;
@@ -1910,24 +1999,31 @@ kbd {
 
 .modal-content {
   background: var(--surface);
-  border-radius: 10px;
-  padding: 1.25rem 1.5rem 1.5rem;
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--text);
+  padding: 1.6rem 1.9rem 1.9rem;
   width: 100%;
-  max-width: 440px;
+  max-width: 480px;
   max-height: 90vh;
   overflow-y: auto;
 }
 
 .modal-content h2 {
-  margin-top: 0;
-  font-size: 1.1rem;
+  margin: 0 0 1.25rem;
+  font-size: var(--fs-section);
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.1;
 }
 
 .modal-content form label {
   display: block;
-  font-size: 0.82rem;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--text-muted);
-  margin-bottom: 0.75rem;
+  margin-bottom: 1.1rem;
 }
 
 .modal-content form label[hidden] {
@@ -1935,82 +2031,150 @@ kbd {
 }
 
 .modal-content-wide {
-  max-width: 560px;
+  max-width: 600px;
 }
 
 .settings-help {
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   color: var(--text-muted);
-  margin: 0 0 1rem;
+  margin: 0 0 1.5rem;
 }
 
 .settings-group {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.6rem 0.9rem 0.2rem;
-  margin: 0 0 0.9rem;
+  border: none;
+  border-top: 1px solid var(--border);
+  padding: 1rem 0 0.2rem;
+  margin: 0 0 0.6rem;
 }
 
 .settings-group legend {
-  font-size: 0.82rem;
-  font-weight: 600;
-  padding: 0 0.3rem;
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  padding: 0 0.6rem 0 0;
 }
 
 .settings-hint {
-  font-size: 0.76rem;
-  color: var(--text-muted);
-  margin: -0.25rem 0 0.6rem;
+  font-size: 0.78rem;
+  color: var(--text-faint);
+  margin: -0.4rem 0 0.9rem;
 }
 
+/* Validation errors: neutral ink, bold, a rule on the left — not an urgency signal, so no
+   fire. */
 .settings-error {
-  color: var(--danger);
-  font-size: 0.82rem;
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 700;
   min-height: 1.2rem;
   margin: 0 0 0.25rem;
+}
+
+.settings-error:not(:empty) {
+  border-left: 2px solid var(--text);
+  padding-left: 0.6rem;
 }
 
 .settings-reset {
   margin-right: auto;
 }
 
-.settings-hint code {
+.settings-hint code,
+.bulk-import-rule code {
+  font-family: var(--font-mono);
+  color: var(--text);
   background: var(--row-hover);
-  border-radius: 4px;
+  border-radius: var(--radius);
   padding: 0.05rem 0.3rem;
   font-size: 0.85em;
 }
 
+/* Bulk Import tag rules: genuinely an ordered set (#folder must come first), so they get
+   the indexed treatment — a numbered list with the index as a quiet numeral. */
+.bulk-import-rules {
+  list-style: none;
+  counter-reset: rule;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  border-top: 1px solid var(--border);
+}
+
+.bulk-import-rule {
+  counter-increment: rule;
+  display: grid;
+  grid-template-columns: 2.2rem minmax(0, 1fr);
+  align-items: baseline;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.86rem;
+  color: var(--text-muted);
+}
+
+.bulk-import-rule::before {
+  content: counter(rule, decimal-leading-zero);
+  font-size: var(--fs-meta);
+  font-weight: 800;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.bulk-import-note {
+  font-size: 0.8rem;
+  color: var(--text-faint);
+  margin: -0.5rem 0 1.1rem;
+}
+
 .bulk-import-text {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   resize: vertical;
 }
 
 .bulk-import-summary {
-  font-size: 0.85rem;
-  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.75rem;
 }
 
 .bulk-import-list {
   list-style: none;
-  margin: 0 0 0.75rem;
+  margin: 0 0 1.25rem;
   padding: 0;
-  max-height: 260px;
+  max-height: 280px;
   overflow-y: auto;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border-top: 1px solid var(--border);
 }
 
+/* Each imported row slides in once, staggered by its index (--i, set in JS, capped) — the
+   confirmation answers the Import click. */
 .bulk-import-list li {
-  padding: 0.35rem 0.6rem;
-  font-size: 0.85rem;
+  padding: 0.5rem 0;
+  font-size: 0.88rem;
   border-bottom: 1px solid var(--border);
+  animation: import-row-in 0.32s var(--ease) backwards;
+  animation-delay: calc(min(var(--i, 0), 12) * 35ms);
 }
 
 .bulk-import-list li:last-child {
   border-bottom: none;
 }
 
+/* Slides in from the left, not from below: a downward offset on the last row overflows the
+   scrolling list and flashes a scrollbar mid-animation; negative overflow never does. */
+@keyframes import-row-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bulk-import-list li {
+    animation: none;
+  }
+}
+
+/* Inputs: hairline box, square, ink border on focus. Labels above them are the small
+   uppercase field names; the value itself reads at body size in normal case. */
 .modal-content input[type="text"],
 .modal-content input[type="date"],
 .modal-content input[type="number"],
@@ -2018,19 +2182,34 @@ kbd {
 .modal-content select {
   display: block;
   width: 100%;
-  margin-top: 0.25rem;
-  padding: 0.45rem 0.55rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-size: 0.9rem;
+  margin-top: 0.4rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  font-size: 0.95rem;
+  font-weight: 400;
   font-family: inherit;
+  text-transform: none;
+  letter-spacing: 0;
   color: var(--text);
-  background: var(--surface);
+  background: var(--bg);
+}
+
+.modal-content input:focus,
+.modal-content textarea:focus,
+.modal-content select:focus {
+  outline: none;
+  border-color: var(--text);
+}
+
+.modal-content textarea.bulk-import-text {
+  font-family: var(--font-mono);
+  font-size: 0.86rem;
 }
 
 .form-row {
   display: flex;
-  gap: 0.75rem;
+  gap: 1rem;
 }
 
 .form-row > label {
@@ -2047,7 +2226,7 @@ kbd {
 .checkbox-label {
   display: flex !important;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.5rem;
   margin-top: 1.4rem;
 }
 
@@ -2059,34 +2238,35 @@ kbd {
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
-  margin-top: 0.5rem;
+  margin-top: 1rem;
 }
 
-/* ---- View switch (Matrix / List) ---- */
+/* ---- View switch (Overview / Checklist / Calendar, and every in-page mode toggle) ----
+   Text tabs, not a pill track: inactive labels are quiet, the active one is ink with a
+   rule underneath. */
 [hidden] {
   display: none !important;
 }
 
 .view-switch {
   display: inline-flex;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 2px;
-  background: var(--bg);
+  gap: 1.25rem;
   margin-left: auto;
   margin-right: 0.5rem;
 }
 
 .view-switch-btn {
   border: none;
+  border-bottom: 2px solid transparent;
   background: transparent;
-  color: var(--text-muted);
+  color: var(--text-faint);
   font: inherit;
-  font-size: 0.82rem;
-  font-weight: 600;
-  padding: 0.3rem 0.9rem;
-  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  padding: 0.3rem 0 0.25rem;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .view-switch-btn:hover {
@@ -2094,25 +2274,40 @@ kbd {
 }
 
 .view-switch-btn.active {
-  background: var(--surface);
-  color: var(--accent);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  color: var(--text);
+  border-bottom-color: var(--text);
+}
+
+/* Secondary mode toggles (Plate/List, Scatter/Quadrants, Pace/Capacity, Flat/Folder) sit a
+   size down from the main view switch. */
+.list-mode .view-switch-btn,
+.overview-mode .view-switch-btn,
+.calendar-mode .view-switch-btn,
+.windows-toolbar .view-switch-btn,
+.window-switch .view-switch-btn {
+  font-size: 0.82rem;
+}
+
+.windows-toolbar .view-switch,
+.window-switch {
+  gap: 0.9rem;
 }
 
 /* ---- Overview (scatter / quadrant list, priority panel, digest) ---- */
 .overview-toolbar {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.75rem 1.5rem;
   flex-wrap: wrap;
-  margin-bottom: 1rem;
+  margin-bottom: 1.75rem;
 }
 
 .matrix-help {
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   color: var(--text-muted);
   margin: 0;
   flex: 1 1 320px;
+  max-width: 60ch;
 }
 
 .overview-mode {
@@ -2121,7 +2316,7 @@ kbd {
 
 .overview-layout {
   display: flex;
-  gap: 1.25rem;
+  gap: 3rem;
   align-items: flex-start;
 }
 
@@ -2131,18 +2326,16 @@ kbd {
 }
 
 .overview-sidebar {
-  width: 300px;
+  width: 320px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 2.5rem;
 }
 
 .overview-panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.8rem 0.9rem 0.9rem;
+  border-top: 2px solid var(--text);
+  padding-top: 0.9rem;
 }
 
 @media (max-width: 900px) {
@@ -2162,17 +2355,20 @@ kbd {
   justify-content: space-between;
   gap: 0.5rem;
   flex-wrap: wrap;
-  margin-bottom: 0.6rem;
+  margin-bottom: 1rem;
 }
 
 .overview-panel-title {
   margin: 0;
-  font-size: 1rem;
+  font-size: var(--fs-section);
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.05;
 }
 
 .overview-panel-rule {
-  font-size: 0.72rem;
-  color: var(--text-muted);
+  font-size: var(--fs-meta);
+  color: var(--text-faint);
   cursor: help;
 }
 
@@ -2182,37 +2378,31 @@ kbd {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 3px;
 }
 
-/* Same heat-map as everything else: hue from the quadrant, intensity from priority. A
-   soft accent-colored ring + glow echoes the halo drawn around this task's dot in the
-   scatter plot, so the two representations of "this one matters" visually match. */
+/* Same heat-map as everything else: hue from the quadrant, intensity from priority. The
+   rank is genuinely sequential (1st, 2nd, 3rd priority today), so it gets the indexed
+   treatment — a large numeral in the quadrant's hue, matching the numbered dot in the
+   scatter plot. */
 .priority-card {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
-  padding: 0.45rem 0.6rem;
-  border-radius: 6px;
+  gap: 0.75rem;
+  padding: 0.6rem 0.7rem 0.6rem 0.6rem;
   border-left: 3px solid var(--row-accent);
   background: var(--row-bg);
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--row-accent) 40%, transparent),
-    0 3px 10px -3px color-mix(in srgb, var(--row-accent) 65%, transparent);
 }
 
 .priority-card-rank {
   flex-shrink: 0;
-  width: 1.5rem;
-  height: 1.5rem;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.75rem;
-  font-weight: 700;
-  color: #fff;
-  background: var(--row-accent);
+  min-width: 1.6rem;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--row-hue);
 }
 
 .priority-card-body {
@@ -2220,12 +2410,12 @@ kbd {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
+  gap: 0.15rem;
 }
 
 .priority-card-title {
-  font-size: 0.9rem;
-  font-weight: 600;
+  font-size: 0.92rem;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2244,26 +2434,26 @@ kbd {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 0.2rem;
+  gap: 0.25rem;
 }
 
 .priority-card-score {
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--row-accent);
+  font-size: 0.9rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--row-hue);
 }
 
 .overview-panel-rest {
-  margin: 0.6rem 0 0;
-  font-size: 0.74rem;
-  color: var(--text-muted);
+  margin: 0.8rem 0 0;
+  font-size: var(--fs-meta);
+  color: var(--text-faint);
 }
 
-/* Expanded panel: every active task, scrollable, with an inline edit row per card. Non-summary
-   cards drop the accent ring/glow so the day's picks still stand out inside the full list. */
+/* Expanded panel: every active task, scrollable, with an inline edit row per card. The
+   day's summary picks keep their full tint; the rest sit quieter (.priority-card-plain). */
 .overview-panel-toggle {
-  font-size: 0.74rem;
-  font-weight: 600;
+  font-size: var(--fs-meta);
   padding: 0;
   margin-left: auto;
 }
@@ -2271,60 +2461,64 @@ kbd {
 .overview-panel-list-full {
   max-height: min(70vh, 640px);
   overflow-y: auto;
-  padding-right: 3px;
+  padding-right: 4px;
 }
 
 .priority-card-plain {
-  box-shadow: none;
+  background: transparent;
+  border-bottom: 1px solid var(--border);
 }
 
 .priority-card-edit-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem 0.6rem;
-  margin-top: 0.25rem;
+  gap: 0.3rem 0.8rem;
+  margin-top: 0.35rem;
 }
 
 .priority-card-field {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  font-size: 0.66rem;
-  font-weight: 600;
+  gap: 0.3rem;
+  font-size: var(--fs-micro);
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.05em;
   color: var(--text-muted);
 }
 
 .priority-card-field input[type="date"],
 .priority-card-field select {
   font: inherit;
-  font-size: 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 500;
   text-transform: none;
   letter-spacing: 0;
   color: var(--text);
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-strong);
+  border-radius: 0;
+  padding: 0.05rem 0.1rem;
+}
+
+.priority-card-field select option {
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 0.05rem 0.25rem;
 }
 
 .priority-card-edit {
   padding: 0.1rem;
   opacity: 0;
-  transition: opacity 0.1s ease;
 }
 
 .priority-card:hover .priority-card-edit {
   opacity: 1;
 }
 
-/* Scatter plot */
+/* Scatter plot: no box, just the plot on the page, hairline axes. */
 .scatter {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.6rem 0.6rem 0.4rem;
+  border-top: 1px solid var(--border);
+  padding: 0.6rem 0 0;
   overflow-x: auto; /* on a phone the plot keeps a readable size and scrolls inside its box */
 }
 
@@ -2341,39 +2535,38 @@ kbd {
 }
 
 .scatter-region-label {
-  fill: var(--row-accent);
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  fill: var(--row-hue);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
   pointer-events: none;
-  /* halo in the surface colour keeps the word legible if a dot drifts close */
+  /* halo in the page colour keeps the word legible if a dot drifts close */
   paint-order: stroke;
-  stroke: var(--surface);
+  stroke: var(--bg);
   stroke-width: 3px;
   stroke-linejoin: round;
 }
 
 .scatter-split {
-  stroke: var(--text-muted);
+  stroke: var(--text-faint);
   stroke-width: 1;
-  stroke-dasharray: 4 4;
-  opacity: 0.55;
+  stroke-dasharray: 3 4;
 }
 
 .scatter-split-label {
-  fill: var(--text-muted);
+  fill: var(--text-faint);
   font-size: 10px;
-  font-style: italic;
 }
 
 .scatter-axis {
-  stroke: var(--border);
+  stroke: var(--border-strong);
   stroke-width: 1;
 }
 
 .scatter-tick {
-  fill: var(--text-muted);
+  fill: var(--text-faint);
   font-size: 10px;
+  font-variant-numeric: tabular-nums;
 }
 
 .scatter-axis-title {
@@ -2391,18 +2584,18 @@ kbd {
 
 .scatter-dot {
   fill: var(--row-accent);
-  stroke: var(--surface);
+  stroke: var(--bg);
   stroke-width: 1.5;
-  transition: r 0.1s ease;
+  transition: r 0.12s var(--ease);
 }
 
-/* Soft accent-colored ring around priority-panel dots, so they read as distinct from a
-   plain size bump alone, even inside a dense cluster. Purely decorative, no interaction. */
+/* Thin ring around priority-panel dots, so they read as distinct from a plain size bump
+   alone, even inside a dense cluster. */
 .scatter-dot-halo {
   fill: none;
   stroke: var(--row-accent);
-  stroke-width: 2;
-  opacity: 0.5;
+  stroke-width: 1.5;
+  opacity: 0.6;
   pointer-events: none;
 }
 
@@ -2413,31 +2606,31 @@ kbd {
 }
 
 /* Escalating tag on a dot: a distinct stroke in the tag's colour, and the same colour on the
-   tag suffix of its label. */
-.scatter-dot-group.tag-do-today .scatter-dot { stroke: var(--tag-do-today-text); stroke-width: 2.5; }
-.scatter-dot-group.tag-due-today .scatter-dot { stroke: var(--tag-due-today-text); stroke-width: 2.5; }
-.scatter-dot-group.tag-overdue .scatter-dot { stroke: var(--tag-overdue-text); stroke-width: 2.5; }
-.scatter-label-tagged.tag-do-today { fill: var(--tag-do-today-text); }
-.scatter-label-tagged.tag-due-today { fill: var(--tag-due-today-text); }
-.scatter-label-tagged.tag-overdue { fill: var(--tag-overdue-text); }
+   tag suffix of its label. Do Today is neutral, so its stroke is ink. */
+.scatter-dot-group.tag-do-today .scatter-dot { stroke: var(--text); stroke-width: 2; }
+.scatter-dot-group.tag-due-today .scatter-dot { stroke: var(--fire-amber); stroke-width: 2.5; }
+.scatter-dot-group.tag-overdue .scatter-dot { stroke: var(--fire); stroke-width: 2.5; }
+.scatter-label-tagged.tag-do-today { fill: var(--text); }
+.scatter-label-tagged.tag-due-today { fill: var(--fire-amber); }
+.scatter-label-tagged.tag-overdue { fill: var(--fire); }
 
 .scatter-dot-rank {
-  fill: #fff;
+  fill: var(--on-accent);
   font-size: 10px;
-  font-weight: 700;
+  font-weight: 800;
   text-anchor: middle;
   dominant-baseline: central;
   pointer-events: none;
 }
 
-/* Always-on title labels: text colour with a surface-coloured halo so they read over any
+/* Always-on title labels: text colour with a page-coloured halo so they read over any
    quadrant tint; panel tasks are bold to match their bigger, numbered dots. */
 .scatter-label {
   fill: var(--text);
   font-size: 11px;
   pointer-events: none;
   paint-order: stroke;
-  stroke: var(--surface);
+  stroke: var(--bg);
   stroke-width: 3px;
   stroke-linejoin: round;
 }
@@ -2460,7 +2653,7 @@ kbd {
      would end up as tall as Clear/Backlog even with far fewer cards. auto rows size to their
      own content; align-items: stretch below still matches heights WITHIN each row. */
   grid-template-rows: auto auto auto;
-  gap: 0.75rem;
+  gap: 2.25rem 2rem;
   align-items: stretch;
 }
 
@@ -2468,15 +2661,17 @@ kbd {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.7rem;
+  font-size: var(--fs-micro);
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
 }
 
 .matrix-axis-col {
-  padding-bottom: 0.1rem;
+  justify-content: flex-start;
+  padding-bottom: 0;
+  margin-bottom: -1.25rem;
 }
 
 .matrix-axis-row {
@@ -2502,36 +2697,35 @@ kbd {
   white-space: nowrap;
 }
 
+/* A quadrant is an open section: a rule in its hue, its name set large in ink, the count
+   as a numeral in the hue. */
 .matrix-cell {
   --p: 1;
   display: flex;
   flex-direction: column;
   min-height: 180px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-top: 3px solid var(--row-accent);
-  border-radius: 8px;
-  overflow: hidden;
+  border-top: 3px solid var(--row-hue);
 }
 
 .matrix-cell-header {
   display: flex;
   align-items: baseline;
-  gap: 0.5rem;
-  padding: 0.6rem 0.9rem;
-  background: var(--row-bg-pale);
-  border-bottom: 1px solid var(--border);
+  gap: 0.65rem;
+  padding: 0.75rem 0 0.8rem;
 }
 
 .matrix-cell-label {
   margin: 0;
-  font-size: 1rem;
-  color: var(--row-accent);
+  font-size: var(--fs-section);
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+  line-height: 1;
+  color: var(--text);
 }
 
 .matrix-cell-hint {
-  font-size: 0.72rem;
-  color: var(--text-muted);
+  font-size: var(--fs-meta);
+  color: var(--text-faint);
   flex: 1;
   white-space: nowrap;
   overflow: hidden;
@@ -2539,25 +2733,20 @@ kbd {
 }
 
 .matrix-cell-count {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--row-accent);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 0 0.5rem;
-  min-width: 1.6rem;
-  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--row-hue);
 }
 
 .matrix-cell .empty-hint {
-  padding: 0.75rem 0.9rem;
+  padding: 0.25rem 0;
 }
 
 .matrix-list {
   list-style: none;
   margin: 0;
-  padding: 0.5rem 0.6rem 0.6rem;
+  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -2568,45 +2757,36 @@ kbd {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas: "title score" "meta score";
-  column-gap: 0.5rem;
+  column-gap: 0.6rem;
   align-items: center;
-  padding: 0.35rem 0.55rem;
-  border-radius: 6px;
+  padding: 0.5rem 0.65rem 0.5rem 0.6rem;
   border-left: 3px solid var(--row-accent);
   background: var(--row-bg);
   cursor: default;
 }
 
-/* Priority-panel tasks get a rank badge column plus the same accent ring + glow as their
-   scatter-plot halo and priority-card, so all three representations read as the same
-   highlighted task. */
+/* Priority-panel tasks get a rank numeral column, the same indexed treatment as their
+   priority-card and numbered scatter dot, so all three read as the same highlighted task. */
 .matrix-item-priority {
   grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-areas: "rank title score" "rank meta score";
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--row-accent) 40%, transparent),
-    0 3px 10px -3px color-mix(in srgb, var(--row-accent) 65%, transparent);
 }
 
 .matrix-item-rank {
   grid-area: rank;
   align-self: center;
-  width: 1.3rem;
-  height: 1.3rem;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: #fff;
-  background: var(--row-accent);
-  flex-shrink: 0;
+  min-width: 1.3rem;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--row-hue);
 }
 
 .matrix-item-title {
   grid-area: title;
   font-size: 0.9rem;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2631,13 +2811,14 @@ kbd {
   flex-direction: column;
   align-items: flex-end;
   justify-content: center;
-  gap: 0.2rem;
+  gap: 0.25rem;
 }
 
 .matrix-item-score {
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--row-accent);
+  font-size: 0.76rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--row-hue);
 }
 
 @media (max-width: 640px) {
@@ -2662,68 +2843,72 @@ kbd {
 
 /* What changed since yesterday */
 .digest {
-  margin-top: 1.5rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.9rem 1.1rem 1rem;
+  margin-top: 3rem;
+  border-top: 2px solid var(--text);
+  padding-top: 0.9rem;
 }
 
 .digest-heading {
-  margin: 0 0 0.2rem;
-  font-size: 1rem;
+  margin: 0 0 0.3rem;
+  font-size: var(--fs-section);
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.05;
 }
 
 .digest-sub {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   color: var(--text-muted);
 }
 
 .digest-list {
   list-style: none;
-  margin: 0.75rem 0 0;
+  margin: 1rem 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  border-top: 1px solid var(--border);
 }
 
 .digest-line {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  font-size: 0.88rem;
-  padding: 0.3rem 0.4rem;
-  border-radius: 6px;
+  gap: 0.6rem;
+  font-size: 0.9rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid var(--border);
 }
 
-.digest-line:hover {
-  background: var(--row-hover);
-}
-
+/* Quadrant chip: the quadrant's name in its hue, a small tinted block. */
 .digest-chip {
   --p: 1;
   flex-shrink: 0;
-  font-size: 0.68rem;
-  font-weight: 700;
+  font-size: var(--fs-micro);
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
-  padding: 0.1rem 0.5rem;
-  border-radius: 999px;
-  min-width: 4.6rem;
+  letter-spacing: 0.05em;
+  line-height: 1.6;
+  padding: 0 0.5rem;
+  border-radius: var(--radius);
+  min-width: 4.8rem;
   text-align: center;
   background: var(--row-bg-vivid);
-  color: var(--row-accent);
+  color: var(--row-hue);
+}
+
+:root[data-theme="light"] .digest-chip {
+  color: var(--text);
 }
 
 .digest-chip-neutral {
-  background: var(--badge-recurring-bg);
-  color: var(--badge-recurring-text);
+  background: transparent;
+  color: var(--text-muted);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 
 .digest-arrow {
-  color: var(--text-muted);
+  color: var(--text-faint);
   flex-shrink: 0;
 }
 
@@ -2731,16 +2916,16 @@ kbd {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 0.35rem;
+  gap: 0.4rem;
   min-width: 0;
 }
 
 .digest-title {
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .digest-context {
-  font-size: 0.74rem;
+  font-size: var(--fs-meta);
   color: var(--text-muted);
 }
 
@@ -2758,21 +2943,21 @@ kbd {
 }
 
 .digest-note {
-  margin: 0.75rem 0 0;
-  font-size: 0.82rem;
-  font-style: italic;
-  color: var(--text-muted);
+  margin: 1rem 0 0;
+  font-size: 0.84rem;
+  color: var(--text-faint);
 }
 
 /* Secondary tier (a manual edit caused or contributed to the quadrant shift): collapsed by
    default and, once opened, visibly quieter than the primary list above — smaller text and
    reduced opacity — since you were already aware of the edit when you made it. */
 .digest-secondary {
-  margin-top: 0.75rem;
+  margin-top: 1rem;
 }
 
 .digest-secondary summary {
-  font-size: 0.78rem;
+  font-size: 0.82rem;
+  font-weight: 600;
   color: var(--text-muted);
   cursor: pointer;
   user-select: none;
@@ -2783,12 +2968,12 @@ kbd {
 }
 
 .digest-list-secondary {
-  margin-top: 0.5rem;
+  margin-top: 0.6rem;
   opacity: 0.8;
 }
 
 .digest-list-secondary .digest-line {
-  font-size: 0.8rem;
+  font-size: 0.82rem;
 }
 
 .digest-list-secondary .digest-reason {
@@ -2805,22 +2990,22 @@ kbd {
   }
 }
 
-/* Staleness check-ins: its own card under the Priority Today panel, not part of the "what
+/* Staleness check-ins: its own section under the Priority Today panel, not part of the "what
    changed" digest above — a different kind of signal (undated tasks aging in place, not a
-   quadrant shift). Teal throughout, the same hue as the Plan quadrant, since staleness on
-   an undated task is exactly the "important but not urgent, don't forget it" case Plan
-   exists for. Severity is carried by color alone (border stripe + message tint), the wording
-   never escalates. */
+   quadrant shift). Ice throughout, Plan's hue, since staleness on an undated task is exactly
+   the "important but not urgent, don't forget it" case Plan exists for. Severity is carried
+   by color alone (the message tint), the wording never escalates. */
 .digest-staleness {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 0.8rem 0.9rem 0.9rem;
+  border-top: 2px solid var(--text);
+  padding-top: 0.9rem;
 }
 
 .digest-staleness-heading {
-  margin: 0 0 0.6rem;
-  font-size: 1rem;
+  margin: 0 0 0.8rem;
+  font-size: var(--fs-section);
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+  line-height: 1.05;
 }
 
 .digest-staleness-list {
@@ -2829,52 +3014,50 @@ kbd {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
 }
 
 /* Left edge is the task's own quadrant color (same --row-accent formula as the digest chips
    and priority cards), so a stale task still reads as Do/Plan/Clear/Backlog at a glance.
-   The teal tier ramp below is reserved for the message text alone — the two colors answer
+   The ice tier ramp below is reserved for the message text alone — the two colors answer
    different questions (why this task is prioritized vs. how overdue this reminder is) and
    can disagree, e.g. a Backlog task deep into a "strong" staleness tier. */
 .digest-staleness-item {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
-  padding: 0.45rem 0.6rem;
-  border-radius: 6px;
+  padding: 0.55rem 0 0.55rem 0.7rem;
   border-left: 3px solid var(--row-accent);
-  background: var(--row-hover);
+  border-bottom: 1px solid var(--border);
 }
 
 .digest-staleness-title {
-  font-size: 0.85rem;
-  font-weight: 600;
+  font-size: 0.9rem;
+  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .digest-staleness-context {
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   color: var(--text-muted);
 }
 
 .digest-staleness-message {
-  font-size: 0.78rem;
+  font-size: 0.8rem;
   color: var(--staleness-low-text);
 }
 
 .staleness-tier-medium .digest-staleness-message { color: var(--staleness-medium-text); }
-.staleness-tier-high .digest-staleness-message { color: var(--staleness-high-text); font-weight: 600; }
+.staleness-tier-high .digest-staleness-message { color: var(--staleness-high-text); font-weight: 700; }
 
 /* ---- Calendar (monthly grid, day repository, Weekly Accomplishments panel) ---- */
 .calendar-toolbar {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.75rem 1.25rem;
   flex-wrap: wrap;
-  margin-bottom: 1rem;
+  margin-bottom: 1.75rem;
 }
 
 /* Pace/Capacity toggle: pushed to the far right of the toolbar, same top-right corner the
@@ -2890,10 +3073,23 @@ kbd {
   gap: 0.25rem;
 }
 
+/* Month / week arrows: line chevrons, sized up to sit beside the large month label. */
+.calendar-nav .btn-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.calendar-weekly-header .btn-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
 .calendar-month-label {
   margin: 0;
-  font-size: 1rem;
-  min-width: 9rem;
+  font-size: var(--fs-section);
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+  min-width: 12rem;
   text-align: center;
 }
 
@@ -2901,25 +3097,26 @@ kbd {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.35rem 0.4rem;
   font-size: 0.72rem;
   color: var(--text-muted);
 }
 
 .calendar-legend-chip {
-  position: relative; /* the ring/glow overlay pseudo-elements below anchor to this */
+  position: relative; /* the ring/win-mark overlay pseudo-elements below anchor to this */
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
-  padding: 0.1rem 0.5rem;
+  gap: 0.3rem;
+  padding: 0.15rem 0.5rem;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--radius);
+  font-weight: 600;
   cursor: help;
 }
 
 .calendar-layout {
   display: flex;
-  gap: 1.25rem;
+  gap: 3rem;
   align-items: flex-start;
 }
 
@@ -2931,53 +3128,53 @@ kbd {
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 4px;
+  gap: 3px;
 }
 
 .calendar-weekday-head {
-  text-align: center;
-  font-size: 0.7rem;
+  text-align: left;
+  font-size: var(--fs-micro);
   font-weight: 700;
-  color: var(--text-muted);
+  color: var(--text-faint);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding-bottom: 0.3rem;
+  letter-spacing: 0.08em;
+  padding: 0 0 0.45rem 0.1rem;
 }
 
+/* Day cells: flat squares, the fill is the whole signal. */
 .calendar-cell {
   position: relative;
-  min-height: 52px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
+  min-height: 64px;
+  border: none;
+  border-radius: 0;
+  background: var(--row-hover);
   color: var(--text);
   font: inherit;
   cursor: pointer;
   display: flex;
   align-items: flex-start;
   justify-content: flex-start;
-  padding: 0.3rem;
+  padding: 0.35rem 0.45rem;
 }
 
 .calendar-cell-blank {
-  border-color: transparent;
   background: transparent;
   cursor: default;
 }
 
 .calendar-cell:hover:not(.calendar-cell-blank) {
-  box-shadow: inset 0 0 0 100vmax rgba(0, 0, 0, 0.05);
-}
-
-:root[data-theme="dark"] .calendar-cell:hover:not(.calendar-cell-blank) {
   box-shadow: inset 0 0 0 100vmax rgba(255, 255, 255, 0.05);
 }
 
+:root[data-theme="light"] .calendar-cell:hover:not(.calendar-cell-blank) {
+  box-shadow: inset 0 0 0 100vmax rgba(0, 0, 0, 0.05);
+}
+
 /* Day-color buckets: solid fills, not the continuous heat-map ramp the quadrant hues use —
-   this is a discrete pace signal (red / green / blue / gray, strict priority order, see
-   computeDayStats), not a priority intensity. Dedicated tokens (see :root) rather than the
-   badge palette, tuned to stay vivid at full-cell size instead of the subtler tone a small
-   text badge wants. Gray stays deliberately muted — "nothing was due", not a low score. */
+   this is a discrete pace signal (strict priority order, see computeDayStats), not a
+   priority intensity. The bucket keys keep their historical names (red/green/blue/gray);
+   the colors are Fire and Ice: red = fire, green = full ice, blue = pale ice, gray stays
+   deliberately muted — "nothing was due", not a low score. */
 .calendar-day-red, .calendar-legend-chip.calendar-day-red {
   background: var(--day-red-bg);
   color: var(--day-red-text);
@@ -2998,87 +3195,91 @@ kbd {
   color: var(--day-gray-text);
 }
 
-/* A day strictly after today has no pace to show — it keeps the plain surface with a
-   dashed edge and muted number, so it can't be confused with any of the four scored
-   fills, and only its due-date markers (below) carry information. */
+/* A day strictly after today has no pace to show — it keeps the bare page with a hairline
+   edge and a muted number, so it can't be confused with any of the four scored fills, and
+   only its due-date markers (below) carry information. */
 .calendar-day-upcoming, .calendar-legend-chip.calendar-day-upcoming {
-  background: var(--surface);
+  background: transparent;
   color: var(--text-muted);
-  border: 1px dashed var(--border);
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 
 /* ---- Capacity view: continuous effort/capacity gradient (--p, 0-1, set per cell in JS),
-   one neutral hue shared by past AND future days alike — deliberately not a discrete
-   red/green/blue/gray bucket like Pace, this is volume, not judgment. ---- */
+   one neutral lightness ramp shared by past AND future days alike — deliberately no hue at
+   all, this is volume, not judgment. ---- */
 .calendar-cell-capacity, .calendar-legend-chip.calendar-cell-capacity {
-  background: hsl(
-    var(--capacity-h)
-    calc(var(--capacity-s0) + (var(--capacity-s1) - var(--capacity-s0)) * var(--p, 0))
-    calc(var(--capacity-l0) + (var(--capacity-l1) - var(--capacity-l0)) * var(--p, 0))
-  );
+  background: hsl(0 0% calc(var(--capacity-l0) + (var(--capacity-l1) - var(--capacity-l0)) * var(--p, 0)));
   color: var(--text);
 }
 
-/* Overload marker: fires once effort crosses 100% of daily capacity. A ring in Capacity's
-   own hue (not red — see --capacity-overload) so it can never be mistaken for Pace's
-   overdue trigger; they're different claims ("busy" vs. "missed something important"). */
+/* Overload marker: fires once effort crosses 100% of daily capacity. An ink ring (not fire —
+   see --capacity-overload) so it can never be mistaken for Pace's overdue trigger; they're
+   different claims ("busy" vs. "missed something important"). */
 .calendar-cell-capacity-overload::after {
   content: "";
   position: absolute;
-  inset: 2px;
+  inset: 3px;
   border: 2px solid var(--capacity-overload);
-  border-radius: 4px;
   pointer-events: none;
 }
 
 .calendar-legend-chip.calendar-cell-capacity-overload::after {
   inset: 1px;
-  border-radius: 999px;
+  border-width: 1.5px;
 }
 
 /* ---- Overlays: independent of the base fill, drawn as pseudo-elements so they never
    compete with the cell's own box-shadow (today / selected week / open / hover rings). ---- */
 
-/* Overdue ring: a Low/Medium-importance task is overdue as of this day. Thin, inset, and
+/* Overdue ring: a Low/Medium-importance task is overdue as of this day. Thin, inset, fire,
    visible on every fill — it flags a minor overdue item without giving it veto power over
-   the day's actual color (only High/Critical overdue turns the fill red). */
+   the day's actual color (only High/Critical overdue turns the fill fire). */
 .calendar-cell-overdue-ring::after {
   content: "";
   position: absolute;
-  inset: 2px;
+  inset: 3px;
   border: 1.5px solid var(--day-ring);
-  border-radius: 4px;
   pointer-events: none;
 }
 
-/* Gold glow: a High/Critical-importance task got completed this day. An inset glow (edge
-   inward) rather than an outer one, so it stays inside the cell instead of bleeding under
-   its neighbours in the grid. Layers on any base color — a red day can still glow if
-   something important also got cleared. */
+/* Big win: a High/Critical-importance task got completed this day. A small ink star in the
+   top-right corner — a shape rather than a hue, so it layers on any base fill (a fire day
+   can still carry a win if something important also got cleared). */
 .calendar-cell-gold::before {
   content: "";
   position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  box-shadow: inset 0 0 0 2px var(--day-gold), inset 0 0 10px 2px var(--day-gold-soft);
+  top: 0.4rem;
+  right: 0.4rem;
+  width: 11px;
+  height: 11px;
+  background: var(--day-win);
+  clip-path: polygon(50% 0%, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0% 50%, 39% 39%);
   pointer-events: none;
 }
 
 .calendar-legend-chip.calendar-cell-overdue-ring::after {
   inset: 1px;
-  border-radius: 999px;
+}
+
+.calendar-legend-chip.calendar-cell-gold {
+  padding-left: 1.3rem;
 }
 
 .calendar-legend-chip.calendar-cell-gold::before {
-  box-shadow: inset 0 0 0 1.5px var(--day-gold), inset 0 0 6px 1px var(--day-gold-soft);
+  top: 50%;
+  left: 0.4rem;
+  right: auto;
+  width: 9px;
+  height: 9px;
+  transform: translateY(-50%);
 }
 
 /* ---- Future due-date markers (days after today only) ---- */
 .calendar-cell-markers {
   position: absolute;
-  bottom: 0.35rem;
-  left: 0.35rem;
-  right: 0.35rem;
+  bottom: 0.4rem;
+  left: 0.45rem;
+  right: 0.45rem;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -3098,15 +3299,14 @@ kbd {
 }
 
 /* Accented marker: the task would be listed in the Overview's priority summary panel
-   (top N or score ≥ flag threshold). Larger, accent-colored, and a diamond rather than a
-   dot so it stays distinct even for colorblind viewers. */
+   (top N or score ≥ flag threshold). Larger, ink, and a diamond rather than a dot so it
+   stays distinct by shape alone. */
 .calendar-cell-marker-top {
   width: 9px;
   height: 9px;
-  border-radius: 2px;
-  background: var(--accent);
+  border-radius: 0;
+  background: var(--text);
   transform: rotate(45deg);
-  box-shadow: 0 0 0 1.5px var(--surface);
 }
 
 .calendar-legend-chip .calendar-cell-marker-top {
@@ -3115,87 +3315,80 @@ kbd {
   margin: 0 1px;
 }
 
-/* Weekly RecurringTask marker: a small square in the same violet used everywhere else in
-   the app for "weekly" (the habit box, the Weekly Accomplishments panel) — reusing that
-   hue rather than inventing a new one. Distinct in shape from both the plain deadline dot
-   and the rotated top-priority diamond. Daily habits deliberately get no marker at all. */
+/* Weekly/monthly RecurringTask marker: a hollow square — distinct in shape from both the
+   plain deadline dot and the filled top-priority diamond, and hueless like every other
+   habit surface. Daily habits deliberately get no marker at all. */
 .calendar-cell-marker-recurring {
-  border-radius: 2px;
-  background: hsl(var(--weekly-h) 55% 55%);
+  width: 7px;
+  height: 7px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--text-muted);
 }
 
 .calendar-legend-chip .calendar-cell-marker-recurring {
   margin: 0 1px;
 }
 
-.calendar-cell-today {
-  box-shadow: 0 0 0 2px var(--accent);
+/* Today: the date numeral inverts to an ink block, a typographic mark rather than a ring,
+   so it never competes with the selection rings below. */
+.calendar-cell-today .calendar-cell-num {
+  background: var(--text);
+  color: var(--on-accent);
+  padding: 0 0.3rem;
+  margin: -0.05rem 0 0 -0.2rem;
 }
 
-/* Selected week: a plain neutral ring, no added hue, so it never competes with the
-   red/green/blue/gray day-bucket fills. Thinner (1px) than the "open day" ring below
-   so the two stay visually distinct when a cell is both — the day you just clicked is
-   always inside its own selected week. */
+/* Selected week: a plain hairline ring, no hue. Thinner than the "open day" ring below so
+   the two stay visually distinct when a cell is both — the day you just clicked is always
+   inside its own selected week. */
 .calendar-cell-selected-week {
-  box-shadow: 0 0 0 1px var(--text);
-}
-
-.calendar-cell-today.calendar-cell-selected-week {
-  box-shadow: 0 0 0 2px var(--accent), 0 0 0 3px var(--text);
+  box-shadow: inset 0 0 0 1px var(--text-muted);
 }
 
 .calendar-cell-open {
-  box-shadow: 0 0 0 2px var(--text);
+  box-shadow: inset 0 0 0 2px var(--text);
 }
 
 .calendar-cell-num {
-  font-size: 0.78rem;
-  font-weight: 600;
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
 }
 
 .calendar-cell-badge {
   position: absolute;
-  bottom: 0.3rem;
-  right: 0.35rem;
-  font-size: 0.68rem;
-  font-weight: 700;
-  background: var(--surface);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  min-width: 1.1rem;
-  height: 1.1rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0 0.25rem;
+  bottom: 0.35rem;
+  right: 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: inherit;
+  opacity: 0.85;
 }
 
-/* A single day's completions, so it takes the sky hue — same one the Daily habit box in
-   the Checklist view uses — and the same washed-card treatment, distinct from the grid's
-   red/green/blue/gray pace colors. The Weekly Accomplishments panel below gets
-   the violet "weekly" hue instead, so the two summaries read as clearly different things. */
+/* A single day's completions: an open section under the grid, ink rule on top. The Weekly
+   Accomplishments panel beside it gets the same treatment — neither carries a hue. */
 .calendar-day-repo {
-  margin-top: 1rem;
-  background: hsl(var(--daily-h) var(--recurring-body-s) var(--recurring-body-l));
-  border: 1px solid var(--border);
-  border-top: 4px solid hsl(var(--daily-h) var(--recurring-acc-s) var(--recurring-acc-l));
-  border-radius: 8px;
-  padding: 0.75rem 1rem;
+  margin-top: 2rem;
+  border-top: 2px solid var(--text);
+  padding: 0.9rem 0 0;
   position: relative;
 }
 
 .calendar-day-repo-heading {
-  margin: 0 0 0.5rem;
-  font-size: 0.95rem;
-  padding-right: 1.5rem;
-  color: hsl(var(--daily-h) var(--recurring-acc-s) var(--recurring-acc-l));
+  margin: 0 0 0.75rem;
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: var(--tracking-tight);
+  padding-right: 2rem;
 }
 
 .calendar-day-repo-close {
   position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
+  top: 0.8rem;
+  right: 0;
   font-size: 1rem;
 }
 
@@ -3205,37 +3398,30 @@ kbd {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
+  border-top: 1px solid var(--border);
 }
 
 .calendar-day-repo-item {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 0.5rem;
-  font-size: 0.85rem;
-  padding: 0.25rem 0;
+  gap: 0.75rem;
+  font-size: 0.9rem;
+  padding: 0.5rem 0;
   border-bottom: 1px solid var(--border);
 }
 
-.calendar-day-repo-item:last-child {
-  border-bottom: none;
-}
-
 .calendar-day-repo-meta {
-  font-size: 0.72rem;
+  font-size: var(--fs-meta);
   color: var(--text-muted);
   white-space: nowrap;
 }
 
 .calendar-weekly-panel {
-  width: 300px;
+  width: 320px;
   flex-shrink: 0;
-  background: hsl(var(--weekly-h) var(--recurring-body-s) var(--recurring-body-l));
-  border: 1px solid var(--border);
-  border-top: 4px solid hsl(var(--weekly-h) var(--recurring-acc-s) var(--recurring-acc-l));
-  border-radius: 8px;
-  padding: 0.8rem 0.9rem 0.9rem;
+  border-top: 2px solid var(--text);
+  padding: 0.9rem 0 0;
 }
 
 @media (max-width: 900px) {
@@ -3254,15 +3440,16 @@ kbd {
   align-items: center;
   flex-wrap: wrap;
   gap: 0.4rem;
-  margin-bottom: 0.4rem;
+  margin-bottom: 1rem;
 }
 
 .calendar-weekly-title {
   margin: 0;
-  font-size: 0.92rem;
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.015em;
   min-width: 8rem;
   text-align: center;
-  color: hsl(var(--weekly-h) var(--recurring-acc-s) var(--recurring-acc-l));
 }
 
 .calendar-weekly-thisweek {
@@ -3270,12 +3457,11 @@ kbd {
 }
 
 .calendar-weekly-subhead {
-  margin: 0.7rem 0 0.3rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
+  margin: 1.4rem 0 0.4rem;
+  font-size: var(--fs-group);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text);
 }
 
 .calendar-weekly-subhead:first-of-type {
@@ -3285,8 +3471,8 @@ kbd {
 /* Categorical tally ("6 Work, 3 Errands, 2 Recruiting") rather than a title-by-title list —
    the day-repository already covers that level of detail. */
 .calendar-weekly-summary {
-  font-size: 0.85rem;
-  color: var(--text);
+  font-size: 0.9rem;
+  color: var(--text-muted);
 }
 
 .calendar-biggest-win {
@@ -3294,30 +3480,31 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
-  padding: 0.5rem 0.65rem;
-  border-radius: 6px;
+  padding: 0.6rem 0.7rem;
   border-left: 3px solid var(--row-accent);
   background: var(--row-bg);
 }
 
 .calendar-biggest-win-title {
-  font-weight: 600;
-  font-size: 0.88rem;
+  font-weight: 500;
+  font-size: 0.92rem;
 }
 
 .calendar-biggest-win-score {
-  font-size: 0.74rem;
-  color: var(--row-accent);
-  font-weight: 700;
+  font-size: var(--fs-meta);
+  color: var(--row-hue);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 480px) {
   .calendar-cell {
-    min-height: 40px;
+    min-height: 44px;
+    padding: 0.25rem 0.3rem;
   }
 
   .calendar-cell-num {
-    font-size: 0.7rem;
+    font-size: 0.72rem;
   }
 }
 
@@ -3328,93 +3515,110 @@ kbd {
   align-items: center;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 0.5rem;
-  margin-bottom: 0.5rem;
+  gap: 0.5rem 1.25rem;
+  margin-bottom: 1.75rem;
 }
 
 /* The plain global "+" at the right end of each window's controls row (where the per-window
    grouping switch used to sit). */
 .window-add-icon {
   margin-left: auto;
-  padding: 0.15rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--bg);
+  padding: 0.2rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: transparent;
+}
+
+.window-add-icon:hover {
+  border-color: var(--text);
 }
 
 /* ---- Cards: countdown, rollover / missed badges, completion grace period ---- */
 
-/* "Due in N": shown while a deadline approaches; at 0 the Due Today / Overdue tag replaces it. */
+/* "Due in N": shown while a deadline approaches; at 0 the Due Today / Overdue tag replaces it.
+   The quietest tag: no fill, no rule, just the words. */
 .tag-countdown {
-  background: var(--bg);
+  background: transparent;
   color: var(--text-muted);
-  border: 1px solid var(--border);
+  border-color: var(--border);
 }
 
 /* "Rolled 3x": plain, no tiers. */
 .badge-rolled {
-  background: var(--bg);
+  background: transparent;
   color: var(--text-muted);
-  border: 1px solid var(--border);
+  border-color: var(--border);
   text-transform: none;
   letter-spacing: 0;
+  font-weight: 600;
 }
 
-/* "Missed yesterday / last week / last month": the habit nudge. */
+/* "Missed yesterday / last week / last month": the habit nudge — an urgency cue, so the
+   same amber as Due Today. */
 .badge-missed {
   background: var(--tag-due-today-bg);
   color: var(--tag-due-today-text);
   text-transform: none;
   letter-spacing: 0;
+  font-weight: 600;
 }
 
-/* "Skipped today / this week / this month": the deliberate-rest-day marker, reusing the
-   neutral recurring-badge palette so it reads as a state, not an alert. */
+/* "Skipped today / this week / this month": the deliberate-rest-day marker, neutral, so it
+   reads as a state, not an alert. */
 .badge-skipped {
   background: var(--badge-recurring-bg);
   color: var(--badge-recurring-text);
+  border-color: var(--border);
   text-transform: none;
   letter-spacing: 0;
+  font-weight: 600;
 }
 
 /* Checked, waiting out the grace period before the toggle actually commits (Plate/Fridge cards
-   move to Completed Today once it does; the main list row and subtasks just complete in place).
-   Same pattern everywhere a completion checkbox appears. */
+   and habit rows move to Completed Today once it does; the main list row and subtasks complete
+   in place; an Overdue strip card leaves the strip). Same pattern everywhere a completion
+   checkbox appears. */
 .window-card.done-pending .window-card-title,
 .window-subtask.done-pending .window-subtask-title,
+.window-habit.done-pending .window-habit-title,
 .task-row.done-pending .task-title {
   text-decoration: line-through;
   color: var(--done);
 }
 
 .window-card.done-pending,
+.window-habit.done-pending,
 .task-row.done-pending {
-  opacity: 0.7;
+  opacity: 0.6;
+  transition: opacity 0.3s var(--ease);
 }
 
-/* ---- Completed Today folder (Now only) ---- */
+/* ---- Completed Today folder (Daily Plate only) ---- */
 .window-completed {
-  margin-top: 0.6rem;
+  margin-top: 1.4rem;
   border-top: 1px solid var(--border);
-  padding-top: 0.4rem;
+  padding-top: 0.6rem;
 }
 
 .window-completed-header {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.5rem;
   width: 100%;
-  padding: 0.2rem 0.1rem;
+  padding: 0.2rem 0;
   border: none;
   background: transparent;
   color: var(--text-muted);
   font: inherit;
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: var(--fs-group);
+  font-weight: 800;
+  letter-spacing: -0.01em;
   cursor: pointer;
   text-align: left;
+}
+
+.window-completed-header:hover {
+  color: var(--text);
 }
 
 .window-completed-header .folder-caret {
@@ -3428,24 +3632,26 @@ kbd {
 .window-completed-list {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
-  margin-top: 0.3rem;
+  margin-top: 0.4rem;
 }
 
 .window-completed-row {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.25rem 0.5rem;
-  border-radius: 6px;
-  background: var(--bg);
+  gap: 0.6rem;
+  padding: 0.45rem 0.1rem;
+  border-bottom: 1px solid var(--border);
   cursor: pointer;
+}
+
+.window-completed-row:last-child {
+  border-bottom: none;
 }
 
 .window-completed-title {
   flex: 1;
   min-width: 0;
-  font-size: 0.82rem;
+  font-size: 0.88rem;
   text-decoration: line-through;
   color: var(--done);
   overflow: hidden;
@@ -3471,15 +3677,18 @@ kbd {
 
 .week-picker-title {
   display: block;
-  font-size: 0.85rem;
-  font-weight: 500;
-  margin-bottom: 0.35rem;
+  font-size: var(--fs-micro);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 0.4rem;
 }
 
 .week-picker {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 0.3rem;
+  gap: 3px;
 }
 
 .week-day {
@@ -3487,17 +3696,17 @@ kbd {
   flex-direction: column;
   align-items: center;
   gap: 0.05rem;
-  padding: 0.3rem 0.1rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
+  padding: 0.4rem 0.1rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: transparent;
   color: var(--text);
   font: inherit;
   cursor: pointer;
 }
 
 .week-day:hover {
-  border-color: var(--accent);
+  border-color: var(--text);
 }
 
 .week-day-today {
@@ -3505,27 +3714,28 @@ kbd {
 }
 
 .week-day.active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--on-accent);
 }
 
 .week-day-letter {
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: 800;
   text-transform: uppercase;
 }
 
 .week-day-num {
-  font-size: 0.68rem;
-  opacity: 0.8;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
 }
 
 .week-picker-extra {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  margin-top: 0.35rem;
+  margin-top: 0.45rem;
 }
 
 .week-picker-extra input[type="date"] {
@@ -3534,26 +3744,30 @@ kbd {
 }
 
 .week-picker-clear {
-  border: 1px solid var(--border);
-  border-radius: 999px;
+  border: 1px solid var(--border-strong);
 }
 
-/* Sizing toggle: text always reads "Bite-size" — on/off is filled vs. outline, via
+/* Sizing toggle: text always reads "Bite-size" — on/off is ink-filled vs. outline, via
    [aria-pressed], never a text swap. The off state has no label of its own. */
 .size-toggle {
   font: inherit;
-  font-size: 0.85rem;
-  font-weight: 600;
-  padding: 0.45rem 0.9rem;
-  border-radius: 999px;
-  border: 1px solid var(--accent);
+  font-size: 0.88rem;
+  font-weight: 700;
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
   background: transparent;
-  color: var(--accent);
+  color: var(--text);
   cursor: pointer;
   white-space: nowrap;
 }
 
+.size-toggle:hover {
+  border-color: var(--text);
+}
+
 .size-toggle[aria-pressed="true"] {
-  background: var(--accent);
-  color: #fff;
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--on-accent);
 }

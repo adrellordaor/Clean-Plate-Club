@@ -286,15 +286,18 @@ function renderNowLaterWindows() {
   renderFocusOverlay(ranked, today);
 }
 
-// ---------- Pile-size indicator (fire / ice particles) ----------
-// Replaces the plain count badge with the same number wrapped in a small particle effect —
-// flame for Daily Plate, ice for Fridge — whose density/speed scale with how full the window
-// is relative to a per-window cap (just a feel threshold, not a real limit on either window).
+// ---------- Pile-size indicator (fire / ice) ----------
+// The window's count as a numeral in its element color (fire for Daily Plate, ice for
+// Fridge), beside a small pile of flat marks — upward flames or ice shards — whose number and
+// size scale with how full the window is relative to a per-window cap (just a feel threshold,
+// not a real limit on either window). The marks are static: they only animate in (flames
+// rising, shards dropping) on the render where the count actually changed, so the motion
+// answers a task being added or cleared rather than running ambiently.
 const PILE_FULLNESS_CAP = { now: 6, later: 14 };
 
-// Particle params persist across renders, keyed by window and regenerated only when `count`
-// itself changes (a task genuinely added/removed) — render() fires on nearly every interaction,
-// and without this cache the particles would reshuffle on any click, not just a real change.
+// Mark sizes persist across renders, keyed by window and regenerated only when `count` itself
+// changes (a task genuinely added/removed) — render() fires on nearly every interaction, and
+// without this cache the pile would reshuffle, and re-animate, on any click.
 const pileParticleCache = {};
 
 function renderPileIndicator(win, count) {
@@ -302,8 +305,13 @@ function renderPileIndicator(win, count) {
   const fullness = Math.max(0, Math.min(1, count / cap));
 
   const wrap = document.createElement("span");
-  wrap.className = "pile-indicator " + (win.key === "now" ? "pile-fire" : "pile-ice");
+  wrap.className = "pile-indicator " + (win.key === "now" ? "pile-fire" : "pile-ice") + (count === 0 ? " pile-empty" : "");
   wrap.style.setProperty("--fullness", fullness.toFixed(3));
+
+  const countEl = document.createElement("span");
+  countEl.className = "window-count";
+  countEl.textContent = count; // every active member, nested ones included; never habits or done tasks
+  wrap.appendChild(countEl);
 
   const particles = document.createElement("span");
   particles.className = "pile-particles";
@@ -317,38 +325,22 @@ function renderPileIndicator(win, count) {
   } else {
     params = [];
     for (let i = 0; i < particleCount; i++) {
-      params.push({
-        size: 3 + Math.random() * 3 * (0.6 + fullness),
-        left: 8 + Math.random() * 84,
-        duration: (1 + Math.random() * 0.9) / (0.4 + fullness),
-        delay: Math.random() * 1.4,
-        dx: Math.random() * 14 - 7,
-        spin: 140 + Math.random() * 160,
-      });
+      params.push({ size: Math.round(5 + Math.random() * 3 + fullness * 4) }); // 5..12px
     }
+    // Animate only on a genuine change, never on the very first render (page load).
+    if (cached) particles.classList.add("pile-changed");
     pileParticleCache[win.key] = { count, params };
   }
 
-  params.forEach(param => {
+  params.forEach((param, i) => {
     const p = document.createElement("span");
     p.className = "pile-particle";
     p.style.width = param.size + "px";
     p.style.height = param.size + "px";
-    p.style.left = param.left + "%";
-    p.style.animationDuration = param.duration.toFixed(2) + "s";
-    p.style.animationDelay = param.delay.toFixed(2) + "s";
-    if (win.key === "later") {
-      p.style.setProperty("--dx", param.dx.toFixed(1) + "px");
-      p.style.setProperty("--spin", param.spin.toFixed(0) + "deg"); // tumble, not a fixed spin
-    }
+    p.style.animationDelay = (i * 0.04).toFixed(2) + "s";
     particles.appendChild(p);
   });
   wrap.appendChild(particles);
-
-  const countEl = document.createElement("span");
-  countEl.className = "window-count";
-  countEl.textContent = count; // every active member, nested ones included; never habits or done tasks
-  wrap.appendChild(countEl);
 
   return wrap;
 }
@@ -534,14 +526,22 @@ function renderWindowHabits(win, today) {
 // draggable — a habit's day is fixed or deliberately left at the default, never rescheduled.
 function renderWindowHabitRow(rt, today) {
   const done = isRecurringDoneNow(rt);
+  const pending = pendingDone.has(rt.id);
   const row = document.createElement("label");
-  row.className = "window-habit habit-" + rt.cadence + (isRecurringResolvedNow(rt) ? " done" : "");
+  row.className = "window-habit habit-" + rt.cadence + (isRecurringResolvedNow(rt) ? " done" : "") + (pending ? " done-pending" : "");
 
+  // Checking a habit here gets the same strikethrough-then-move grace period as a task card
+  // (it would otherwise jump straight into the collapsed Completed Today folder); undoing a
+  // completed one is immediate, same as a card.
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
-  checkbox.checked = done;
+  checkbox.checked = done || pending;
+  checkbox.dataset.checkId = rt.id;
   checkbox.setAttribute("aria-label", (done ? "Undo " : "Complete ") + rt.title);
-  checkbox.addEventListener("change", () => toggleRecurringTask(rt));
+  checkbox.addEventListener("change", () => {
+    if (done) toggleRecurringTask(rt);
+    else scheduleHabitDone(rt, row, checkbox.checked);
+  });
   row.appendChild(checkbox);
 
   // A <button> inside this <label> would otherwise have its click bubble up and re-forward to
@@ -685,16 +685,21 @@ function appendCards(container, entries, win, expanded, addPrefill) {
   }
 }
 
-// Bucket divider: just label · count. The bucket's own add control lives at the bottom of the
-// bucket instead (makeBucketAddIcon), not up here.
+// Bucket divider: just the label and its count (separate spans — the label is set as a
+// section heading, the count as a quiet numeral). The bucket's own add control lives at the
+// bottom of the bucket instead (makeBucketAddIcon), not up here.
 function makeBucketHeader(label, count, first, hint) {
   const div = document.createElement("div");
   div.className = "window-bucket-header" + (first ? " window-bucket-header-first" : "");
   const text = document.createElement("span");
   text.className = "window-bucket-label";
-  text.textContent = label + " · " + count;
+  text.textContent = label;
   if (hint) text.title = hint;
   div.appendChild(text);
+  const num = document.createElement("span");
+  num.className = "window-bucket-count";
+  num.textContent = count;
+  div.appendChild(num);
   return div;
 }
 
@@ -800,6 +805,24 @@ function scheduleCardDone(task, el, checked) {
   }
 }
 
+// The same grace period for a habit row in Daily Plate / Fridge. Shares pendingDone with tasks
+// (ids are UUIDs, so a task and a habit can't collide).
+function scheduleHabitDone(rt, el, checked) {
+  if (checked) {
+    if (pendingDone.has(rt.id)) return;
+    el.classList.add("done-pending");
+    const timer = setTimeout(() => {
+      pendingDone.delete(rt.id);
+      if (!isRecurringDoneNow(rt)) toggleRecurringTask(rt);
+    }, DONE_GRACE_MS);
+    pendingDone.set(rt.id, timer);
+  } else {
+    clearTimeout(pendingDone.get(rt.id));
+    pendingDone.delete(rt.id);
+    el.classList.remove("done-pending");
+  }
+}
+
 // One task card. Same heat-map as everywhere else: hue from the live quadrant, --p from
 // priority intensity. Compact = checkbox, title, tags (and the hover pencil). Expanded adds
 // the meta line (not on Bite-size cards), the sizing chip, Now's countdown, Later's inline
@@ -828,6 +851,7 @@ function renderWindowCard(entry, win, expanded) {
   checkbox.type = "checkbox";
   checkbox.className = "window-card-check";
   checkbox.checked = pending;
+  checkbox.dataset.checkId = task.id;
   checkbox.setAttribute("aria-label", "Mark done");
   checkbox.addEventListener("change", () => scheduleCardDone(task, card, checkbox.checked));
   card.appendChild(checkbox);
@@ -844,6 +868,20 @@ function renderWindowCard(entry, win, expanded) {
   appendTagBadge(titleLine, task, today);
   if (win.key === "now" && expanded) appendDeadlineCountdown(titleLine, task, today);
   appendRolloverBadge(titleLine, task);
+  if (expanded) {
+    // Sizing chip: toggles is_quick_win. Its text never changes — "Bite-size" always — the
+    // on/off state shows through .active (filled vs. outline), same as the task form's toggle.
+    // Not a "touch" — it changes nothing about the task's scheduling, so it must not reset the
+    // staleness clock. It sits with the tags (always visible), not in the hover-only actions.
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "window-chip" + (task.is_quick_win ? " active" : "");
+    chip.textContent = "Bite-size";
+    chip.title = task.is_quick_win ? "Bite-size — click to turn off" : "Click to mark as Bite-size";
+    chip.setAttribute("aria-pressed", task.is_quick_win ? "true" : "false");
+    chip.addEventListener("click", () => toggleQuickWin(task));
+    titleLine.appendChild(chip);
+  }
   body.appendChild(titleLine);
 
   if (children.length > 0) body.appendChild(renderSubtaskProgress(children));
@@ -866,27 +904,15 @@ function renderWindowCard(entry, win, expanded) {
     body.appendChild(renderCardSubtasks(children, win, today));
   }
 
-  body.appendChild(makeAddSubtaskLink(task));
-
   card.appendChild(body);
 
+  // Hover-revealed actions: add-subtask "+", edit, and (expanded) delete. An overlay at the
+  // card's top-right (style.css), so invisible-until-hover controls never reserve width or an
+  // empty row of their own.
   const actions = document.createElement("div");
   actions.className = "window-card-actions";
 
-  if (expanded) {
-    // Sizing chip: toggles is_quick_win. Its text never changes — "Bite-size" always — the
-    // on/off state shows through .active (filled vs. outline), same as the task form's toggle.
-    // Not a "touch" — it changes nothing about the task's scheduling, so it must not reset the
-    // staleness clock.
-    const chip = document.createElement("button");
-    chip.type = "button";
-    chip.className = "window-chip" + (task.is_quick_win ? " active" : "");
-    chip.textContent = "Bite-size";
-    chip.title = task.is_quick_win ? "Bite-size — click to turn off" : "Click to mark as Bite-size";
-    chip.setAttribute("aria-pressed", task.is_quick_win ? "true" : "false");
-    chip.addEventListener("click", () => toggleQuickWin(task));
-    actions.appendChild(chip);
-  }
+  actions.appendChild(makeAddSubtaskLink(task));
 
   const editBtn = document.createElement("button");
   editBtn.type = "button";
@@ -983,6 +1009,7 @@ function renderCardSubtaskRow(task, win, today) {
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
   checkbox.checked = task.status === "done" || pending;
+  checkbox.dataset.checkId = task.id;
   checkbox.setAttribute("aria-label", "Mark done");
   checkbox.addEventListener("change", () => {
     if (task.status === "done") toggleTaskDone(task); // undo is immediate
@@ -1001,6 +1028,11 @@ function renderCardSubtaskRow(task, win, today) {
   if (grandchildren.length > 0) titleLine.appendChild(renderSubtaskProgress(grandchildren));
   head.appendChild(titleLine);
 
+  // Same hover-revealed overlay as the card's actions: "+" and the pencil, taking no width.
+  const subActions = document.createElement("span");
+  subActions.className = "window-subtask-actions";
+  subActions.appendChild(makeAddSubtaskLink(task));
+
   const editBtn = document.createElement("button");
   editBtn.type = "button";
   editBtn.className = "btn-icon window-subtask-edit";
@@ -1008,15 +1040,14 @@ function renderCardSubtaskRow(task, win, today) {
   editBtn.setAttribute("aria-label", "Edit subtask");
   editBtn.title = "Edit";
   editBtn.addEventListener("click", () => openTaskModal(task));
-  head.appendChild(editBtn);
+  subActions.appendChild(editBtn);
+  head.appendChild(subActions);
 
   row.appendChild(head);
 
   if (grandchildren.length > 0 && !collapsedTasks.has(task.id)) {
     row.appendChild(renderCardSubtasks(grandchildren, win, today));
   }
-
-  row.appendChild(makeAddSubtaskLink(task));
 
   return row;
 }
@@ -1580,10 +1611,10 @@ wireWindowExpandClick(document.getElementById("later-window"), WINDOWS.later);
 
 // Clicking anywhere outside the two windows collapses whichever one is expanded back to equal
 // widths — a click-away-to-deselect pattern, same idea as a dropdown closing when you click
-// elsewhere. A click inside an open modal, the Focus mode overlay, or the view-switch tabs
-// doesn't count as "outside": those are their own dialogs or their own navigation, not a
-// dismissal click on the page around the windows (switching into Checklist sets its own
-// expanded default instead, see setActiveView in app.js).
+// elsewhere. A click inside an open modal, the Focus mode overlay, the view-switch tabs or the
+// Overdue callout doesn't count as "outside": those are their own dialogs, their own
+// navigation, or acting on a task, not a dismissal click on the page around the windows
+// (switching into Checklist sets its own expanded default instead, see setActiveView in app.js).
 //
 // Uses composedPath(), not e.target/.closest(): the click that expands a window (the plate/
 // fridge icon, the header, a bucket's own controls) re-renders that window's contents
@@ -1603,7 +1634,10 @@ document.addEventListener("click", e => {
     node === windowsToolbarEl ||
     (node.classList && node.classList.contains("modal")) ||
     node.id === "focus-overlay" ||
-    node.id === "view-switch"
+    node.id === "view-switch" ||
+    // Ticking off an overdue card is acting on a task, not dismissing the window — and the
+    // collapse re-render would otherwise detach the checkbox before its change event fires.
+    node.id === "overdue-callout"
   );
   if (isExempt) return;
   setWindowPref("focus", "none");

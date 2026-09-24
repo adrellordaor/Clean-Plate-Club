@@ -492,7 +492,7 @@ function renderPrioritySummary(ranked, summary) {
   rule.className = "overview-panel-rule";
   if (expanded) {
     rule.textContent = ranked.length + " active · edit inline";
-    rule.title = "Every active task, highest priority first. The glowing ones are the day's summary picks.";
+    rule.title = "Every active task, highest priority first. The tinted ones are the day's summary picks.";
   } else {
     rule.textContent = "top " + settings.overview_top_n + " or score ≥ " + settings.overview_flag_threshold;
     rule.title = "A task is listed if it ranks within the top " + settings.overview_top_n + " by priority, or scores at least " + settings.overview_flag_threshold + " — whichever includes more.";
