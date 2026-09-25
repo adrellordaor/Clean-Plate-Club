@@ -799,18 +799,6 @@ kbd {
   box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--text);
 }
 
-/* In Plate mode the same tabs lead the windows toolbar, a size down to sit with the sort and
-   grouping controls, pushing those to the right. */
-.windows-category-tabs {
-  margin-right: auto;
-  gap: 0.2rem 1.1rem;
-}
-
-.windows-category-tabs .folder-tab {
-  font-size: 0.95rem;
-  padding: 0.3rem 0 0.35rem;
-}
-
 .app-main {
   max-width: 1180px;
   margin: 0 auto;

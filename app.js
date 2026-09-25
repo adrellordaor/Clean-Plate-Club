@@ -633,9 +633,10 @@ function renderViewSwitch() {
   const isList = activeView === "list";
   const listMode = listDisplayMode;
   document.getElementById("list-view").hidden = !isList;
-  // The category tabs and heat-map legend belong to the folder-organized "full" page; the
-  // Overdue callout is a safety signal and stays up in either List mode.
-  document.getElementById("folder-tabs").hidden = !(isList && listMode === "full");
+  // The category tabs filter either List mode, from the same spot in the header; the heat-map
+  // legend belongs to the folder-organized "full" page; the Overdue callout is a safety signal
+  // and stays up in either List mode.
+  document.getElementById("folder-tabs").hidden = !isList;
   document.getElementById("heatmap-legend").hidden = !(isList && listMode === "full");
   document.getElementById("overdue-callout").hidden = !isList;
   document.getElementById("windows-toolbar").hidden = !(isList && listMode === "windows");
@@ -893,11 +894,10 @@ function setCategoryColor(category, key) {
 }
 
 // The category tabs: "All" plus one per category, each with its color dot (click the dot to
-// pick a color). One renderer, drawn in two places — the header in the folder-organized List
-// mode, and the windows toolbar in Plate mode — both reading and setting the same
-// activeCategoryFilter. `withAdd` appends the "+ Category" button (the windows toolbar already
-// has its own).
-function renderCategoryTabs(nav = document.getElementById("folder-tabs"), withAdd = true) {
+// pick a color), then "+ Category". They sit in the header banner and filter both List modes
+// (the folder list and the Plate/Fridge windows) through the one activeCategoryFilter.
+function renderCategoryTabs() {
+  const nav = document.getElementById("folder-tabs");
   nav.innerHTML = "";
 
   const allBtn = document.createElement("button");
@@ -945,7 +945,7 @@ function renderCategoryTabs(nav = document.getElementById("folder-tabs"), withAd
 
   // Wrapped, not passed directly: makeAddIcon wires this as a click handler, which would hand
   // openCategoryModal the click event as its targetSelect argument otherwise.
-  if (withAdd) nav.appendChild(makeAddIcon("Add a category", "Add category", () => openCategoryModal(), "Category"));
+  nav.appendChild(makeAddIcon("Add a category", "Add category", () => openCategoryModal(), "Category"));
 }
 
 function renderCategoryPalette(category, currentKey) {

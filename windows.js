@@ -265,22 +265,16 @@ function renderNowLaterWindows() {
   // side — one shared value each, not something that needs its own copy per window.
   const toolbar = document.getElementById("windows-toolbar");
   toolbar.innerHTML = "";
-  // Category tabs (the same renderer and selection as the folder-organized List mode's header
-  // tabs), left-aligned; the toolbar's own "+ Category" follows, so no second add button here.
-  const tabs = document.createElement("nav");
-  tabs.className = "folder-tabs windows-category-tabs";
-  tabs.setAttribute("aria-label", "Categories");
-  renderCategoryTabs(tabs, false);
-  toolbar.appendChild(tabs);
+  // The category tabs (and their "+ Category") live in the header banner, the same ones the
+  // folder-organized List mode shows (renderCategoryTabs, app.js), filtering both windows here.
   toolbar.appendChild(makeWindowSortSelect(WINDOW_SORT_KEYS, windowPrefs.sort, key => setWindowPref("sort", key), "Sort (both windows)"));
   toolbar.appendChild(makeWindowSwitch(WINDOW_GROUP_MODES, windowPrefs.group, key => setWindowPref("group", key), "Window grouping"));
-  // Category/folder management otherwise only surfaces in "full" List mode (category tabs,
-  // folder-list "+"); Plate mode needs its own reach to them too, or there'd be no way to add
-  // either without switching modes (the task form's own folder picker also has an inline
-  // "+ New folder…" option, but only once you're already adding/editing a task).
-  // Wrapped, not passed directly: makeAddIcon wires each as a click handler, which would hand
-  // openCategoryModal/openFolderModal the click event as their targetSelect argument otherwise.
-  toolbar.appendChild(makeAddIcon("Add a category", "Add category", () => openCategoryModal(), "Category"));
+  // Folder management otherwise only surfaces in "full" List mode (the folder-list "+"); Plate
+  // mode needs its own reach to it too, or there'd be no way to add one without switching modes
+  // (the task form's own folder picker also has an inline "+ New folder…" option, but only once
+  // you're already adding/editing a task). Wrapped, not passed directly: makeAddIcon wires it
+  // as a click handler, which would hand openFolderModal the click event as its targetSelect
+  // argument otherwise.
   toolbar.appendChild(makeAddIcon("Add a folder", "Add folder", () => openFolderModal(), "Folder"));
 
   const row = document.getElementById("windows-row");
@@ -1731,6 +1725,8 @@ document.addEventListener("click", e => {
     (node.classList && node.classList.contains("modal")) ||
     node.id === "focus-overlay" ||
     node.id === "view-switch" ||
+    node.id === "folder-tabs" || // switching category filters the windows, not a click away
+    (node.classList && node.classList.contains("cat-palette")) ||
     // Ticking off an overdue card is acting on a task, not dismissing the window — and the
     // collapse re-render would otherwise detach the checkbox before its change event fires.
     node.id === "overdue-callout"
