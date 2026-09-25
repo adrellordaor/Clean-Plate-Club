@@ -29,3 +29,13 @@ All motion/animation work defaults to plain CSS: transitions, transforms, keyfra
 animation library. If something genuinely can't be done cleanly in CSS, treat that as a
 deliberate exception and flag it directly in chat first, never quietly pull in GSAP or
 similar.
+
+## 7. No snap transitions
+Every view, filter, or screen change animates; nothing cuts over instantly. Exception:
+persistent/shared chrome (e.g. the Daily Plate/Fridge window frames themselves) stays static
+while only the content inside animates out and in. Don't animate the frame itself away and
+back for a content-only change.
+
+## 8. Reciprocal animations
+Any entrance animation needs a matching exit in reverse; don't build one-directional motion.
+E.g. Focus mode's scope-in entry needs a scope-out exit, not a plain fade or an instant close.
