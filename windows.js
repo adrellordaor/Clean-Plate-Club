@@ -1345,8 +1345,7 @@ function addToNow(task, opts) {
     task.do_date = today;
     task.do_date_rollover_count = 0;
     if (manual) task.last_touched_at = new Date().toISOString();
-    persist();
-    render();
+    settleMove(task, "#later-window .window-card"); // out of Fridge, if that's where it was
   };
 
   if (manual && !task.deadline) {
@@ -1388,18 +1387,33 @@ function deprioritize(task) {
       task.do_date = date;
       task.do_date_rollover_count = 0;
       task.last_touched_at = new Date().toISOString();
-      persist();
-      render();
+      settleMove(task, NOW_CARD_ROWS);
     });
   }
 
   task.do_date = task.deadline || null;
   task.do_date_rollover_count = 0;
   task.last_touched_at = new Date().toISOString();
-  persist();
-  render();
-  showBackfillIfNeeded(); // an undated High/Critical task that just settled into Plan needs a deadline
+  settleMove(task, NOW_CARD_ROWS, showBackfillIfNeeded); // an undated High/Critical task that just settled into Plan needs a deadline
   return Promise.resolve();
+}
+
+const NOW_CARD_ROWS = "#now-window .window-card, #focus-body .window-card";
+
+// After a drag moves a task between windows, its card folds out of the window it left (the
+// `from` rows) before the re-render, then rises into the one it joined (leaveThen and the row
+// motion in app.js). If the change didn't actually take it out — a deadline-driven task given a
+// date still close enough stays in Daily Plate — it just re-renders.
+function settleMove(task, from, after) {
+  const done = () => {
+    persist();
+    render();
+    if (after) after();
+  };
+  const today = todayISODate();
+  const stillInNow = isNowMember(task, assessTask(task, settings, today), today);
+  if (from === NOW_CARD_ROWS && stillInNow) done();
+  else leaveThen([task.id], done, from); // app.js
 }
 
 function setQuickWin(task, value) {
