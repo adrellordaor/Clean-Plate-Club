@@ -56,6 +56,16 @@
   --ice: #5bc4fb;
   --fire-soft: rgba(255, 90, 44, 0.13);
   --fire-amber-soft: rgba(255, 171, 53, 0.13);
+  /* The Daily Plate flame's shades, deepest (rear, tallest) to lightest (front, shortest);
+     depth is carried by these distinct shades, never opacity. */
+  --flame-0: #a3241a;
+  --flame-1: #cf3a1d;
+  --flame-2: #ff5a2c;
+  --flame-3: #ff8030;
+  --flame-4: #ffa63a;
+  --flame-5: #ffcb70;
+  --flame-6: #ffe2a8;
+  --flame-glow: rgba(255, 120, 40, 0.75);
 
   /* Escalating tag (Do Today < Due Today < Overdue), one slot, most severe wins: neutral
      outline -> amber -> solid fire, so severity reads from saturation as well as wording. */
@@ -169,6 +179,14 @@
   --ice: #0c84c6;
   --fire-soft: rgba(214, 64, 14, 0.1);
   --fire-amber-soft: rgba(179, 106, 0, 0.11);
+  --flame-0: #8e1f12;
+  --flame-1: #b8311a;
+  --flame-2: #d6400e;
+  --flame-3: #e8641a;
+  --flame-4: #ef8420;
+  --flame-5: #f2a338;
+  --flame-6: #f5bd55;
+  --flame-glow: rgba(230, 90, 20, 0.55);
 
   --tag-overdue-text: #ffffff;
 
@@ -1503,10 +1521,11 @@ kbd {
 }
 
 /* ---- Pile-size indicator: fire (Daily Plate) / ice (Fridge) ----
-   The count numeral in the window's element color, with a small pile of flat marks beside
-   it — 2 to 7 of them, scaling with how full the window is (--fullness, 0..1, drives the
-   count upstream in JS). Fire marks are upward flames, ice marks are shards; the marks are
-   static, and only animate in (fire rising, ice dropping) when the count actually changes. */
+   The count numeral in the window's element color with a pile icon beside it. Daily Plate's
+   is the staged flame (renderPileFlame in windows.js): static at rest, and "stoked" when a
+   task is added — the roll box swaps in its brighter, larger, glowing twin for about a
+   second. Fridge's is a row of flat ice shards (2 to 7, scaling with --fullness) that only
+   animate in when the count actually changes. */
 .pile-indicator {
   display: inline-flex;
   align-items: flex-end;
@@ -1526,6 +1545,21 @@ kbd {
   color: var(--text-faint);
 }
 
+/* The flame sits on the count's baseline: its box has a little headroom below the base line
+   (see FLAME_BOX), pulled back with a negative margin so the triangles' base lines up. */
+.pile-flame-holder {
+  display: inline-flex;
+  margin: -6px 0 -2px -4px;
+}
+
+.pile-flame {
+  display: block;
+}
+
+.pile-flame-stoked {
+  filter: drop-shadow(0 0 4px var(--flame-glow));
+}
+
 .pile-particles {
   display: inline-flex;
   align-items: flex-end;
@@ -1539,11 +1573,6 @@ kbd {
   flex: none;
 }
 
-.pile-fire .pile-particle {
-  background: var(--fire);
-  clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
-}
-
 .pile-ice .pile-particle {
   background: var(--ice);
   clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
@@ -1555,13 +1584,7 @@ kbd {
   animation-fill-mode: backwards;
 }
 
-.pile-fire .pile-particles.pile-changed .pile-particle { animation-name: pile-flame-rise; }
 .pile-ice .pile-particles.pile-changed .pile-particle { animation-name: pile-ice-fall; }
-
-@keyframes pile-flame-rise {
-  from { transform: translateY(6px) scaleY(0.3); opacity: 0; }
-  to { transform: none; opacity: 1; }
-}
 
 @keyframes pile-ice-fall {
   from { transform: translateY(-8px) rotate(-60deg); opacity: 0; }

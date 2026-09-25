@@ -288,11 +288,8 @@ function renderNowLaterWindows() {
 
 // ---------- Pile-size indicator (fire / ice) ----------
 // The window's count as a numeral in its element color (fire for Daily Plate, ice for
-// Fridge), beside a small pile of flat marks — upward flames or ice shards — whose number and
-// size scale with how full the window is relative to a per-window cap (just a feel threshold,
-// not a real limit on either window). The marks are static: they only animate in (flames
-// rising, shards dropping) on the render where the count actually changed, so the motion
-// answers a task being added or cleared rather than running ambiently.
+// Fridge), beside a pile icon that shows how full the window is. Daily Plate's is a flame
+// (renderPileFlame below); Fridge's is still the row of flat ice shards.
 const PILE_FULLNESS_CAP = { now: 6, later: 14 };
 
 // Mark sizes persist across renders, keyed by window and regenerated only when `count` itself
@@ -300,7 +297,87 @@ const PILE_FULLNESS_CAP = { now: 6, later: 14 };
 // without this cache the pile would reshuffle, and re-animate, on any click.
 const pileParticleCache = {};
 
+// ---- Daily Plate flame ----
+// A threshold-staged "ridge": upright triangles of different heights overlapping on one shared
+// base, like a mountain range read as a fire. Depth comes from distinct shades, not opacity —
+// the tallest, rearmost pieces deepest red, the short front ones light amber (--flame-0..6 in
+// style.css, darkest first). Each stage grows taller faster than it grows wider.
+// Stage thresholds by task count; below the first, no flame at all.
+const FLAME_STAGE_MIN_COUNTS = [1, 3, 5, 8, 12];
+// Per stage, back to front: [x offset from centre, base width, height, shade index].
+const FLAME_STAGES = [
+  [[0, 10, 9, 3]],
+  [[-2, 13, 14, 1], [4, 10, 8, 4]],
+  [[0, 16, 19, 0], [-6, 12, 11, 2], [6, 11, 8, 4]],
+  [[1, 20, 24, 0], [-7, 15, 15, 1], [8, 13, 12, 3], [-2, 11, 7, 5]],
+  [[-2, 23, 29, 0], [6, 18, 22, 1], [-9, 15, 15, 2], [9, 13, 10, 4], [0, 12, 7, 5]],
+];
+// A little headroom around the flame (box 44 x 36, base at y 34) so the stoked version — 8%
+// larger, with a glow — isn't clipped by the roll box.
+const FLAME_BOX = { w: 44, h: 36, base: 34 };
+const STOKE_MS = 1000;
+let flameStokeUntil = 0; // Date.now() until which the flame stays stoked (survives re-renders)
+
+function flameStage(count) {
+  let stage = -1;
+  FLAME_STAGE_MIN_COUNTS.forEach((min, i) => { if (count >= min) stage = i; });
+  return stage;
+}
+
+function flameSvg(stage, stoked) {
+  const k = stoked ? 1.08 : 1;
+  const cx = FLAME_BOX.w / 2;
+  const polys = FLAME_STAGES[stage].map(([dx, w, h, shade]) => {
+    const W = w * k, H = h * k, x = cx + dx * k;
+    const s = Math.min(shade + (stoked ? 1 : 0), 6); // stoked: every piece one shade brighter
+    return `<polygon points="${(x - W / 2).toFixed(1)},${FLAME_BOX.base} ${x.toFixed(1)},${(FLAME_BOX.base - H).toFixed(1)} ${(x + W / 2).toFixed(1)},${FLAME_BOX.base}" style="fill:var(--flame-${s})"/>`;
+  }).join("");
+  return `<svg class="pile-flame${stoked ? " pile-flame-stoked" : ""}" viewBox="0 0 ${FLAME_BOX.w} ${FLAME_BOX.h}" width="${FLAME_BOX.w}" height="${FLAME_BOX.h}">${polys}</svg>`;
+}
+
+// The resting flame and its stoked twin share one roll box (rollIcon, app.js). Adding a task
+// "stokes" it: the box rolls to the brighter, larger, glowing twin, then rolls back after
+// about a second. The stoke deadline lives outside the DOM, so a re-render mid-stoke rebuilds
+// the box already rolled and still settles on time.
+function renderPileFlame(count, grew) {
+  const stage = flameStage(count);
+  const holder = document.createElement("span");
+  holder.className = "pile-flame-holder";
+  holder.setAttribute("aria-hidden", "true");
+  if (stage < 0) return holder;
+
+  holder.innerHTML = rollIcon(flameSvg(stage, false), flameSvg(stage, true));
+  const roll = holder.firstElementChild;
+  const now = Date.now();
+  if (grew) {
+    flameStokeUntil = now + STOKE_MS;
+    requestAnimationFrame(() => requestAnimationFrame(() => roll.classList.add("rolled")));
+  } else if (flameStokeUntil > now) {
+    roll.classList.add("rolled");
+  }
+  if (flameStokeUntil > now) {
+    setTimeout(() => roll.classList.remove("rolled"), flameStokeUntil - now);
+  }
+  return holder;
+}
+
 function renderPileIndicator(win, count) {
+  if (win.key === "now") {
+    const cached = pileParticleCache.now;
+    // Stoke only on a genuine increase — never on the first render (page load) or a decrease.
+    const grew = !!cached && count > cached.count;
+    pileParticleCache.now = { count };
+
+    const wrap = document.createElement("span");
+    wrap.className = "pile-indicator pile-fire" + (count === 0 ? " pile-empty" : "");
+    const countEl = document.createElement("span");
+    countEl.className = "window-count";
+    countEl.textContent = count; // every active member, nested ones included; never habits or done tasks
+    wrap.appendChild(countEl);
+    wrap.appendChild(renderPileFlame(count, grew));
+    return wrap;
+  }
+
   const cap = PILE_FULLNESS_CAP[win.key] || 10;
   const fullness = Math.max(0, Math.min(1, count / cap));
 
