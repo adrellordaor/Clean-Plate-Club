@@ -23,3 +23,9 @@ with git or developer terms: if one is needed, add a quick explanation alongside
 ## 5. Visual/design work: look before calling it done
 For any visual or design work, take screenshots and self-critique against the given brief
 before considering a section done, rather than moving on right after writing the code.
+
+## 6. Motion is plain CSS
+All motion/animation work defaults to plain CSS: transitions, transforms, keyframes. No
+animation library. If something genuinely can't be done cleanly in CSS, treat that as a
+deliberate exception and flag it directly in chat first, never quietly pull in GSAP or
+similar.
