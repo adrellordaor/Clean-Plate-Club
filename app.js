@@ -2793,8 +2793,13 @@ themeToggleBtn.addEventListener("click", () => {
     localStorage.setItem("theme", next);
     applyThemeIcon();
   };
-  if (document.startViewTransition && !reducedMotion) document.startViewTransition(apply);
-  else apply();
+  if (document.startViewTransition && !reducedMotion) {
+    // A skipped crossfade (hidden page, a rapid second click) still applies the theme; its
+    // "ready" promise just rejects, which isn't an error worth reporting.
+    document.startViewTransition(apply).ready.catch(() => {});
+  } else {
+    apply();
+  }
 });
 
 applyThemeIcon();
