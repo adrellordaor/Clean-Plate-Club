@@ -1403,13 +1403,30 @@ kbd {
    an ink block — the same on/off-through-appearance language as the Bite-size toggle. */
 .window-focus-icon-now,
 .window-focus-icon-later {
-  color: var(--text);
+  color: var(--window-color, var(--text));
 }
 
 .window-focus-icon-now.active,
 .window-focus-icon-later.active {
   color: var(--on-accent);
-  background: var(--text);
+  background: var(--window-color, var(--text));
+}
+
+/* Each window's element color — fire for Daily Plate, ice for Fridge — on its three identity
+   spots: the frame (heavy top rule, hairline tinted toward the hue), the plate/fridge icon,
+   and the title. The cards inside still carry the real quadrant heat-map. */
+.window-now { --window-color: var(--fire); }
+.window-later { --window-color: var(--ice); }
+
+.window-panel.window-now,
+.window-panel.window-later {
+  border-color: color-mix(in srgb, var(--window-color) 30%, var(--border));
+  border-top-color: var(--window-color);
+}
+
+.window-now .window-title,
+.window-later .window-title {
+  color: var(--window-color);
 }
 
 /* ---- Pile-size indicator: fire (Daily Plate) / ice (Fridge) ----
@@ -2494,7 +2511,16 @@ kbd {
 /* Same heat-map as everything else: hue from the quadrant, intensity from priority. The
    rank is genuinely sequential (1st, 2nd, 3rd priority today), so it gets the indexed
    treatment — a large numeral in the quadrant's hue, matching the numbered dot in the
-   scatter plot. */
+   scatter plot. The day's picks also carry a ring + glow in that same hue (--pick-glow,
+   shared with .matrix-item-priority): for the overdue / Do tasks that usually top this list
+   it's a fire glow — an urgency signal, echoing the halo around their scatter dots. */
+.priority-card,
+.matrix-item-priority {
+  --pick-glow:
+    0 0 0 1px color-mix(in srgb, var(--row-accent) 45%, transparent),
+    0 0 18px -3px color-mix(in srgb, var(--row-accent) 60%, transparent);
+}
+
 .priority-card {
   display: flex;
   align-items: center;
@@ -2502,6 +2528,7 @@ kbd {
   padding: 0.6rem 0.7rem 0.6rem 0.6rem;
   border-left: 3px solid var(--row-accent);
   background: var(--row-bg);
+  box-shadow: var(--pick-glow);
 }
 
 .priority-card-rank {
@@ -2577,6 +2604,7 @@ kbd {
 .priority-card-plain {
   background: transparent;
   border-bottom: 1px solid var(--border);
+  box-shadow: none;
 }
 
 .priority-card-edit-row {
@@ -2877,11 +2905,12 @@ kbd {
   cursor: default;
 }
 
-/* Priority-panel tasks get a rank numeral column, the same indexed treatment as their
+/* Priority-panel tasks get a rank numeral column and the same ring + glow as their
    priority-card and numbered scatter dot, so all three read as the same highlighted task. */
 .matrix-item-priority {
   grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-areas: "rank title score" "rank meta score";
+  box-shadow: var(--pick-glow);
 }
 
 .matrix-item-rank {
