@@ -773,6 +773,34 @@ kbd {
   border: 1px solid var(--border-strong);
 }
 
+/* Pops open from its dot (top left) and closes the same way in reverse (openCategoryPaletteFor /
+   closeCategoryPalette in app.js). */
+.cat-palette-opening {
+  transform-origin: top left;
+  animation: palette-in 0.2s var(--ease);
+}
+
+.cat-palette-closing {
+  transform-origin: top left;
+  animation: palette-out 0.2s var(--ease) forwards;
+  pointer-events: none;
+}
+
+@keyframes palette-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.96); }
+}
+
+@keyframes palette-out {
+  to { opacity: 0; transform: translateY(-4px) scale(0.96); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cat-palette-opening,
+  .cat-palette-closing {
+    animation: none;
+  }
+}
+
 .cat-swatch {
   width: 1.5rem;
   height: 1.5rem;

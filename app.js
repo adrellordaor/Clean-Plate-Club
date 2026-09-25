@@ -1084,6 +1084,33 @@ function folderInActiveCategory(folderId) {
 }
 
 let openCategoryPalette = null; // category id whose color picker is open, if any
+let categoryPaletteOpening = false; // true only for the render that first shows it
+const CATEGORY_PALETTE_MS = 200;
+
+// The color picker pops open from its dot (.cat-palette-opening) and closes the same way in
+// reverse (.cat-palette-closing) before it's taken away. `then` runs once it's gone.
+function openCategoryPaletteFor(categoryId) {
+  openCategoryPalette = categoryId;
+  categoryPaletteOpening = true;
+  render();
+  categoryPaletteOpening = false;
+}
+
+function closeCategoryPalette(then) {
+  const finish = () => {
+    openCategoryPalette = null;
+    render();
+    if (then) then();
+  };
+  const pop = document.querySelector(".cat-palette");
+  if (pop && pop.classList.contains("cat-palette-closing")) return; // already on its way out
+  if (!pop || reducedMotion) {
+    finish();
+    return;
+  }
+  pop.classList.add("cat-palette-closing");
+  setTimeout(finish, CATEGORY_PALETTE_MS);
+}
 
 // Picking a color first writes every category's current color down, so the pick changes only
 // the one category — otherwise the others' auto-assigned colors could shuffle, since "next
@@ -1092,9 +1119,9 @@ function setCategoryColor(category, key) {
   const current = categoryColorKeys();
   categories.forEach(c => { c.color = current[c.id]; });
   category.color = key;
-  openCategoryPalette = null;
   persist();
-  render();
+  render(); // the new color shows while the picker is still open, then it closes
+  closeCategoryPalette();
 }
 
 // The category tabs: "All" plus one per category, each with its color dot (click the dot to
@@ -1138,8 +1165,9 @@ function renderCategoryTabs() {
     dot.setAttribute("aria-expanded", openCategoryPalette === category.id ? "true" : "false");
     dot.addEventListener("click", e => {
       e.stopPropagation();
-      openCategoryPalette = openCategoryPalette === category.id ? null : category.id;
-      render();
+      if (openCategoryPalette === category.id) closeCategoryPalette();
+      else if (openCategoryPalette) closeCategoryPalette(() => openCategoryPaletteFor(category.id));
+      else openCategoryPaletteFor(category.id);
     });
     wrap.appendChild(dot);
 
@@ -1169,6 +1197,7 @@ function renderCategoryTabs() {
 function renderCategoryPalette(category, currentKey) {
   const pop = document.createElement("div");
   pop.className = "cat-palette";
+  if (categoryPaletteOpening) pop.classList.add("cat-palette-opening");
   pop.setAttribute("role", "group");
   pop.setAttribute("aria-label", "Color for " + category.name);
   pop.addEventListener("click", e => e.stopPropagation());
@@ -1188,10 +1217,10 @@ function renderCategoryPalette(category, currentKey) {
 
 // Click anywhere else, or Esc, closes an open color picker.
 document.addEventListener("click", () => {
-  if (openCategoryPalette) { openCategoryPalette = null; render(); }
+  if (openCategoryPalette) closeCategoryPalette();
 });
 document.addEventListener("keydown", e => {
-  if (e.key === "Escape" && openCategoryPalette) { openCategoryPalette = null; render(); }
+  if (e.key === "Escape" && openCategoryPalette) closeCategoryPalette();
 });
 
 // A completed task keeps showing (struck through) in its folder for the rest of the day it
