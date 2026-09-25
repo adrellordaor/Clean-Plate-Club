@@ -1184,8 +1184,34 @@ kbd {
   transform: rotate(90deg);
 }
 
+/* Arrows nudge the way they point: previous left, next right, and the bulk-import arrow dips
+   into its tray. */
+.icon-prev,
+.icon-next,
+.icon-import-arrow {
+  transition: transform 0.32s var(--ease);
+}
+
+:hover > .icon-prev,
+:focus-visible > .icon-prev {
+  transform: translateX(-3px);
+}
+
+:hover > .icon-next,
+:focus-visible > .icon-next {
+  transform: translateX(3px);
+}
+
+:hover > .icon-import .icon-import-arrow,
+:focus-visible > .icon-import .icon-import-arrow {
+  transform: translateY(3px);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .icon-plus {
+  .icon-plus,
+  .icon-prev,
+  .icon-next,
+  .icon-import-arrow {
     transition: none;
   }
 }

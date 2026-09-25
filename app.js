@@ -41,10 +41,10 @@ const ICONS = {
   // Bite-size marker: a small apple with a bite out of it, drawn at 12px on cards.
   bite: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6c-1.5-1.5-4.5-1.5-6 1-2 3-1 8 1.5 11 1.2 1.5 3 1.5 4.5.5 1.5 1 3.3 1 4.5-.5a10 10 0 0 0 2.2-4.5c-2.5-.2-4.2-2.3-3.7-4.8-1-.3-2-1.5-3-2.7Z"/><path d="M12 6c0-2 1-3 3-3.5"/></svg>`,
   // Bulk import: an arrow dropping into a tray.
-  import: `<svg ${SVG_ATTRS}><path d="M12 3v11"/><path d="m7 10 5 5 5-5"/><path d="M4 21h16"/></svg>`,
+  import: `<svg class="icon-import" ${SVG_ATTRS}><g class="icon-import-arrow"><path d="M12 3v11"/><path d="m7 10 5 5 5-5"/></g><path d="M4 21h16"/></svg>`,
   // Previous / next (Calendar month and week navigation).
-  prev: `<svg ${SVG_ATTRS}><path d="m15 5-7 7 7 7"/></svg>`,
-  next: `<svg ${SVG_ATTRS}><path d="m9 5 7 7-7 7"/></svg>`,
+  prev: `<svg class="icon-prev" ${SVG_ATTRS}><path d="m15 5-7 7 7 7"/></svg>`,
+  next: `<svg class="icon-next" ${SVG_ATTRS}><path d="m9 5 7 7-7 7"/></svg>`,
 };
 
 // Roll: two icon states stacked in a clipped box (.roll in style.css); hovering the button the
@@ -2342,9 +2342,9 @@ themeToggleBtn.addEventListener("click", () => {
 applyThemeIcon();
 document.getElementById("shortcuts-btn").innerHTML = rollIcon("<span>?</span>");
 document.getElementById("settings-btn").innerHTML = rollIcon(ICONS.gear);
-document.getElementById("calendar-prev-btn").innerHTML = rollIcon(ICONS.prev);
-document.getElementById("calendar-next-btn").innerHTML = rollIcon(ICONS.next);
-document.getElementById("bulk-import-btn").innerHTML = rollIcon(ICONS.import);
+document.getElementById("calendar-prev-btn").innerHTML = ICONS.prev;
+document.getElementById("calendar-next-btn").innerHTML = ICONS.next;
+document.getElementById("bulk-import-btn").innerHTML = ICONS.import;
 
 // ---------- Storage UI ----------
 
