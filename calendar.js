@@ -775,7 +775,7 @@ function renderCalendarWeeklyPanel(data, today) {
   prevBtn.type = "button";
   prevBtn.className = "btn-icon";
   prevBtn.setAttribute("aria-label", "Previous week");
-  prevBtn.innerHTML = ICONS.prev;
+  prevBtn.innerHTML = rollIcon(ICONS.prev);
   prevBtn.addEventListener("click", () => { calendarSelectedWeekStart = addDaysISODate(calendarSelectedWeekStart, -7); render(); });
   header.appendChild(prevBtn);
 
@@ -788,7 +788,7 @@ function renderCalendarWeeklyPanel(data, today) {
   nextBtn.type = "button";
   nextBtn.className = "btn-icon";
   nextBtn.setAttribute("aria-label", "Next week");
-  nextBtn.innerHTML = ICONS.next;
+  nextBtn.innerHTML = rollIcon(ICONS.next);
   nextBtn.addEventListener("click", () => { calendarSelectedWeekStart = addDaysISODate(calendarSelectedWeekStart, 7); render(); });
   header.appendChild(nextBtn);
 

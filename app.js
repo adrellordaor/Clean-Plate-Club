@@ -47,6 +47,16 @@ const ICONS = {
   next: `<svg ${SVG_ATTRS}><path d="m9 5 7 7-7 7"/></svg>`,
 };
 
+// Roll: two icon states stacked in a clipped box (.roll in style.css); hovering the button the
+// roll sits in slides the stack up one step, so the second state rolls into view. `back`
+// defaults to the same icon (a plain roll); pass a different one to preview what a click does
+// (the theme toggle, the Plate/Fridge expand icons). Adding .rolled to the box triggers the
+// same swap from code (the pile flame's "stoke"). Used on prominent standalone icon buttons
+// only, not the small hover-revealed actions on cards and rows, which already appear on hover.
+function rollIcon(front, back = front) {
+  return `<span class="roll" aria-hidden="true">${front}${back}</span>`;
+}
+
 // Daily Plate / Fridge icons: bigger than the rest of the icon set (this pair doubles as each
 // window's expand/focus control, so they need to read as more than a generic small glyph) and
 // state-aware — the plate's lid comes off when Daily Plate is expanded, the fridge door opens
@@ -2144,7 +2154,7 @@ function currentTheme() {
 }
 
 function applyThemeIcon() {
-  themeToggleBtn.innerHTML = currentTheme() === "dark" ? ICONS.sun : ICONS.moon;
+  themeToggleBtn.innerHTML = currentTheme() === "dark" ? rollIcon(ICONS.sun, ICONS.moon) : rollIcon(ICONS.moon, ICONS.sun);
 }
 
 themeToggleBtn.addEventListener("click", () => {
@@ -2155,10 +2165,11 @@ themeToggleBtn.addEventListener("click", () => {
 });
 
 applyThemeIcon();
-document.getElementById("settings-btn").innerHTML = ICONS.gear;
-document.getElementById("calendar-prev-btn").innerHTML = ICONS.prev;
-document.getElementById("calendar-next-btn").innerHTML = ICONS.next;
-document.getElementById("bulk-import-btn").innerHTML = ICONS.import;
+document.getElementById("shortcuts-btn").innerHTML = rollIcon("<span>?</span>");
+document.getElementById("settings-btn").innerHTML = rollIcon(ICONS.gear);
+document.getElementById("calendar-prev-btn").innerHTML = rollIcon(ICONS.prev);
+document.getElementById("calendar-next-btn").innerHTML = rollIcon(ICONS.next);
+document.getElementById("bulk-import-btn").innerHTML = rollIcon(ICONS.import);
 
 // ---------- Storage UI ----------
 

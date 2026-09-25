@@ -935,6 +935,43 @@ kbd {
   color: var(--text);
 }
 
+/* ---- Roll: the hover swap for icons (rollIcon() in app.js) ----
+   Two states stacked in a clipped box the size of one: the first sits in view, the second
+   waits just below. Hovering (or keyboard-focusing) the button the box sits in slides both up
+   one step, so the second state rolls into view; .rolled does the same from code (the pile
+   flame's "stoke"). Same signature curve as the rest of the app's motion. */
+.roll {
+  position: relative;
+  display: inline-flex;
+  overflow: hidden;
+  vertical-align: middle;
+  line-height: 1;
+}
+
+.roll > * {
+  display: block;
+  flex: none;
+  transition: transform 0.32s var(--ease);
+}
+
+.roll > :nth-child(2) {
+  position: absolute;
+  top: 100%;
+  left: 0;
+}
+
+:hover > .roll > *,
+:focus-visible > .roll > *,
+.roll.rolled > * {
+  transform: translateY(-100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .roll > * {
+    transition: none;
+  }
+}
+
 /* Skip action: always visible next to the checkbox (unlike the hover-only edit/delete pair in
    .task-actions), so it reads as an equally-primary alternative to checking off — a round
    outline where the checkbox is a square, so the two can't be confused. Pressed

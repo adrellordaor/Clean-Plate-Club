@@ -374,7 +374,8 @@ function renderWindow(win, ranked, today, nowIsEmpty) {
   const focusBtn = document.createElement("button");
   focusBtn.type = "button";
   focusBtn.className = "btn-icon window-focus-btn window-focus-icon-" + win.key + (expanded ? " active" : "");
-  focusBtn.innerHTML = win.key === "now" ? plateIcon(expanded) : fridgeIcon(expanded);
+  // Rolls on hover to the state a click leads to (lid off / door open, or back), a preview of the toggle.
+  focusBtn.innerHTML = win.key === "now" ? rollIcon(plateIcon(expanded), plateIcon(!expanded)) : rollIcon(fridgeIcon(expanded), fridgeIcon(!expanded));
   focusBtn.title = expanded ? "Shrink: back to equal widths" : "Expand: give this window more room and show details";
   focusBtn.setAttribute("aria-label", expanded ? "Shrink " + win.title : "Expand " + win.title);
   focusBtn.addEventListener("click", toggleExpand);
@@ -399,7 +400,7 @@ function renderWindow(win, ranked, today, nowIsEmpty) {
     const focusModeBtn = document.createElement("button");
     focusModeBtn.type = "button";
     focusModeBtn.className = "btn-icon window-focusmode-btn";
-    focusModeBtn.innerHTML = ICONS.focus;
+    focusModeBtn.innerHTML = rollIcon(ICONS.focus);
     focusModeBtn.title = "Focus: only what's planned for today";
     focusModeBtn.setAttribute("aria-label", "Focus mode");
     focusModeBtn.addEventListener("click", openFocusMode);
@@ -416,7 +417,7 @@ function renderWindow(win, ranked, today, nowIsEmpty) {
   const addIcon = document.createElement("button");
   addIcon.type = "button";
   addIcon.className = "btn-icon window-add-icon";
-  addIcon.innerHTML = ICONS.plus;
+  addIcon.innerHTML = rollIcon(ICONS.plus);
   addIcon.title = win.key === "now" ? "Add a task to Daily Plate (do date today)" : "Add a task";
   addIcon.setAttribute("aria-label", "Add task to " + win.title);
   addIcon.addEventListener("click", win.add);
