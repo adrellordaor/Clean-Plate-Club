@@ -2672,11 +2672,18 @@ function applyThemeIcon() {
   themeToggleBtn.innerHTML = currentTheme() === "dark" ? flipIcon(ICONS.sun, ICONS.moon) : flipIcon(ICONS.moon, ICONS.sun);
 }
 
+// The page crossfades between themes rather than cutting (the browser's own view transition,
+// timed in style.css; no library). Where that isn't supported, or with reduced motion, it
+// switches at once.
 themeToggleBtn.addEventListener("click", () => {
   const next = currentTheme() === "dark" ? "light" : "dark";
-  document.documentElement.setAttribute("data-theme", next);
-  localStorage.setItem("theme", next);
-  applyThemeIcon();
+  const apply = () => {
+    document.documentElement.setAttribute("data-theme", next);
+    localStorage.setItem("theme", next);
+    applyThemeIcon();
+  };
+  if (document.startViewTransition && !reducedMotion) document.startViewTransition(apply);
+  else apply();
 });
 
 applyThemeIcon();

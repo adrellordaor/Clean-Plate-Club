@@ -859,6 +859,14 @@ kbd {
   padding: 2rem 2rem;
 }
 
+/* ---- Theme switch (the theme toggle in app.js) ----
+   Light and dark crossfade over the whole page instead of cutting, on the signature curve. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.4s;
+  animation-timing-function: var(--ease);
+}
+
 /* ---- Opening and closing sections (toggleSection / setShownAnimated in app.js) ----
    A section grows open from zero height and fades in; closing is the same in reverse. Its
    caret turns along with it. interpolate-size lets the height run to and from "auto". */
