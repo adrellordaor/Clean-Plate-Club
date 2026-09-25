@@ -4344,6 +4344,7 @@ html.lenis body {
 /* ---- Task form: week-strip do_date picker and the sizing toggle ---- */
 .form-row-picker {
   align-items: flex-start;
+  margin-bottom: 1.1rem; /* the same gap a form label leaves, which the hint below expects */
 }
 
 .week-picker-field {
