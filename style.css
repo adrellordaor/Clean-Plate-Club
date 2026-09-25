@@ -1171,6 +1171,48 @@ kbd {
   }
 }
 
+/* ---- Text roll: the hover swap for clickable text and tab labels (applyTextRoll() in app.js) ----
+   The label is a clipped track: the text, with a copy of it (::after, from data-text) stacked
+   a small gap below. Hovering or keyboard-focusing the control slides the text up out of the
+   track and the copy into its place. The track reaches a little past the line box top and
+   bottom (padding, cancelled by a matching negative margin) so ascenders, descenders and
+   underlines aren't cut off, and the gap keeps the copy out of sight until it moves. */
+.text-roll {
+  --roll-gap: 0.35em;
+  display: inline-flex; /* unlike inline-block, keeps the text's own baseline despite the clip */
+  overflow: hidden;
+  padding-block: 0.15em;
+  margin-block: -0.15em;
+  text-decoration: inherit;
+}
+
+.text-roll-face {
+  position: relative;
+  display: block;
+  white-space: nowrap;
+  text-decoration: inherit;
+  transition: transform 0.32s var(--ease);
+}
+
+.text-roll-face::after {
+  content: attr(data-text) / ""; /* decorative copy: screen readers skip it */
+  position: absolute;
+  left: 0;
+  top: calc(100% + var(--roll-gap));
+  text-decoration: inherit; /* positioned, so it doesn't pick up the label's underline by itself */
+}
+
+:is(button, a):hover .text-roll-face,
+:is(button, a):focus-visible .text-roll-face {
+  transform: translateY(calc(-100% - var(--roll-gap)));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .text-roll-face {
+    transition: none;
+  }
+}
+
 /* ---- Shape gestures: icons whose shape suggests its own hover motion ----
    Roll is the fallback; where an icon has an obvious, minimal gesture of its own, it gets
    that instead, on hover or keyboard focus of its button, with the same curve and timing.

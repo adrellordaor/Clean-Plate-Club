@@ -59,6 +59,44 @@ function rollIcon(front, back = front) {
   return `<span class="roll" aria-hidden="true">${front}${back}</span>`;
 }
 
+// Text roll: the same roll for clickable text and tab labels. The label becomes a clipped track
+// (.text-roll) holding the text plus a stacked duplicate just below it (.text-roll-face and its
+// ::after in style.css, which copies data-text); hovering or keyboard-focusing the control
+// slides the track up one step, so the duplicate rolls into view. Applied automatically to every
+// matching control — including ones re-rendered later, via the observer — as long as its whole
+// content is one plain text label; single-character controls ("+", "×") are left alone. The
+// duplicate lives in CSS, so the control's text (and what screen readers hear) is unchanged.
+const TEXT_ROLL_SELECTOR = ".view-switch-btn, .folder-tab, .link-btn, .btn, .size-toggle, .window-chip, .window-bucket-add-labeled > span";
+
+function applyTextRoll(el) {
+  if (el.childNodes.length !== 1 || el.firstChild.nodeType !== Node.TEXT_NODE) return;
+  const text = el.textContent;
+  if (text.trim().length < 2) return;
+  const track = document.createElement("span");
+  track.className = "text-roll";
+  const face = document.createElement("span");
+  face.className = "text-roll-face";
+  face.dataset.text = text;
+  face.textContent = text;
+  track.appendChild(face);
+  el.replaceChildren(track);
+}
+
+function applyTextRollWithin(root) {
+  if (root.matches(TEXT_ROLL_SELECTOR)) applyTextRoll(root);
+  root.querySelectorAll(TEXT_ROLL_SELECTOR).forEach(applyTextRoll);
+}
+
+applyTextRollWithin(document.body);
+new MutationObserver(mutations => {
+  for (const m of mutations) {
+    // A control whose label was just replaced (e.g. textContent set again on re-render)...
+    if (m.target.nodeType === Node.ELEMENT_NODE && m.target.matches(TEXT_ROLL_SELECTOR)) applyTextRoll(m.target);
+    // ...and any newly rendered controls.
+    m.addedNodes.forEach(n => { if (n.nodeType === Node.ELEMENT_NODE) applyTextRollWithin(n); });
+  }
+}).observe(document.body, { childList: true, subtree: true });
+
 // Flip: a two-sided icon (.flip in style.css) for an on/off toggle — hovering its button turns
 // it over like a card to show its other side (the theme toggle's sun and moon).
 function flipIcon(front, back) {
