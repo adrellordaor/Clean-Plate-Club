@@ -65,8 +65,9 @@ function rollIcon(front, back = front) {
 // slides the track up one step, so the duplicate rolls into view. Applied automatically to every
 // matching control — including ones re-rendered later, via the observer — as long as its whole
 // content is one plain text label; single-character controls ("+", "×") are left alone. The
-// duplicate lives in CSS, so the control's text (and what screen readers hear) is unchanged.
-const TEXT_ROLL_SELECTOR = ".view-switch-btn, .folder-tab, .link-btn, .btn, .size-toggle, .window-chip, .window-bucket-add-labeled > span";
+// duplicate lives in CSS, so the control's text (and what screen readers hear) is unchanged. A
+// control with data-roll-to rolls to that text instead of a copy of its own (the mode toggles).
+const TEXT_ROLL_SELECTOR = ".view-switch-btn, .mode-toggle, .folder-tab, .link-btn, .btn, .size-toggle, .window-chip, .window-bucket-add-labeled > span";
 
 function applyTextRoll(el) {
   if (el.childNodes.length !== 1 || el.firstChild.nodeType !== Node.TEXT_NODE) return;
@@ -76,7 +77,7 @@ function applyTextRoll(el) {
   track.className = "text-roll";
   const face = document.createElement("span");
   face.className = "text-roll-face";
-  face.dataset.text = text;
+  face.dataset.text = el.dataset.rollTo || text; // a mode toggle rolls to the mode it switches to
   face.textContent = text;
   track.appendChild(face);
   el.replaceChildren(track);
@@ -657,19 +658,29 @@ const LIST_MODES = [
 ];
 
 function renderListModeToggle() {
-  const toggle = document.getElementById("list-mode");
-  toggle.innerHTML = "";
-  LIST_MODES.forEach(mode => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    const active = listDisplayMode === mode.key;
-    btn.className = "view-switch-btn" + (active ? " active" : "");
-    btn.setAttribute("role", "tab");
-    btn.setAttribute("aria-selected", active ? "true" : "false");
-    btn.textContent = mode.label;
-    btn.addEventListener("click", () => setListDisplayMode(mode.key));
-    toggle.appendChild(btn);
-  });
+  document.getElementById("list-mode").replaceChildren(
+    makeModeToggle(LIST_MODES, listDisplayMode, setListDisplayMode, "List display"));
+}
+
+// ---------- Mode toggles ----------
+// Every two-way display switch (Plate/List, Scatter/Quadrants, Pace/Capacity, Flat/Folder) is
+// one button showing the current mode. Hovering it text-rolls the label to the mode a click
+// switches to — the same text roll as every other label (applyTextRoll above, fed the
+// destination through data-roll-to) — and clicking switches to it. Each sits in the same spot
+// whichever of its modes is showing.
+function makeModeToggle(modes, activeKey, onPick, groupLabel) {
+  const index = Math.max(0, modes.findIndex(mode => mode.key === activeKey));
+  const current = modes[index];
+  const next = modes[(index + 1) % modes.length];
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "mode-toggle";
+  btn.dataset.rollTo = next.label;
+  btn.textContent = current.label;
+  btn.title = groupLabel + ": " + current.label + " (click for " + next.label + ")";
+  btn.setAttribute("aria-label", groupLabel + ": " + current.label + ". Switch to " + next.label);
+  btn.addEventListener("click", () => onPick(next.key));
+  return btn;
 }
 
 function setListDisplayMode(mode) {

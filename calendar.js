@@ -407,19 +407,8 @@ function renderCalendar() {
 }
 
 function renderCalendarModeToggle() {
-  const toggle = document.getElementById("calendar-mode");
-  toggle.innerHTML = "";
-  CALENDAR_MODES.forEach(mode => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    const active = calendarDisplayMode === mode.key;
-    btn.className = "view-switch-btn" + (active ? " active" : "");
-    btn.setAttribute("role", "tab");
-    btn.setAttribute("aria-selected", active ? "true" : "false");
-    btn.textContent = mode.label;
-    btn.addEventListener("click", () => setCalendarDisplayMode(mode.key));
-    toggle.appendChild(btn);
-  });
+  document.getElementById("calendar-mode").replaceChildren(
+    makeModeToggle(CALENDAR_MODES, calendarDisplayMode, setCalendarDisplayMode, "Calendar display")); // app.js
 }
 
 function setCalendarDisplayMode(mode) {

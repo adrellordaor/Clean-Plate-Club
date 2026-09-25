@@ -1174,14 +1174,26 @@ html.lenis body {
   position: relative;
   display: block;
   white-space: nowrap;
+  text-align: center;
   text-decoration: inherit;
   transition: transform 0.32s var(--ease);
+}
+
+/* An invisible, zero-height copy of the rolled-in text, so the track is as wide as the wider of
+   the two labels — a mode toggle rolls to a different word (data-roll-to), which mustn't be cut
+   off; for a plain copy it changes nothing. */
+.text-roll-face::before {
+  content: attr(data-text) / "";
+  display: block;
+  height: 0;
+  visibility: hidden; /* not clipped: a clipped box would drag the label's baseline to its top */
 }
 
 .text-roll-face::after {
   content: attr(data-text) / ""; /* decorative copy: screen readers skip it */
   position: absolute;
   left: 0;
+  right: 0;
   top: calc(100% + var(--roll-gap));
   text-decoration: inherit; /* positioned, so it doesn't pick up the label's underline by itself */
 }
@@ -1858,12 +1870,6 @@ html.lenis body {
   flex-wrap: wrap;
   gap: 0.35rem;
   margin-bottom: 0.55rem;
-}
-
-.window-switch {
-  margin: 0;
-  flex-wrap: wrap; /* the narrow (shrunk) panel can't fit four labels on one line */
-  row-gap: 2px;
 }
 
 /* Sort dropdown: five options is too many for a segmented switch. Underlined text select,
@@ -2804,19 +2810,27 @@ html.lenis body {
   border-bottom-color: var(--view-accent, var(--text));
 }
 
-/* Secondary mode toggles (Plate/List, Scatter/Quadrants, Pace/Capacity, Flat/Folder) sit a
-   size down from the main view switch. */
-.list-mode .view-switch-btn,
-.overview-mode .view-switch-btn,
-.calendar-mode .view-switch-btn,
-.windows-toolbar .view-switch-btn,
-.window-switch .view-switch-btn {
+/* Mode toggles (makeModeToggle in app.js: Plate/List, Scatter/Quadrants, Pace/Capacity,
+   Flat/Folder): one hairline-boxed button naming the current mode, a size down from the view
+   tabs. Hover rolls its label to the mode a click switches to, and firms up the box. */
+.mode-toggle {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
   font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  padding: 0.3rem 0.7rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.2s var(--ease);
 }
 
-.windows-toolbar .view-switch,
-.window-switch {
-  gap: 0.9rem;
+.mode-toggle:hover,
+.mode-toggle:focus-visible {
+  border-color: var(--text);
 }
 
 /* ---- Color tabs: the view tabs (Overview / Checklist / Calendar) and the category tabs ----
@@ -2917,7 +2931,7 @@ html.lenis body {
 }
 
 .overview-mode {
-  margin-right: 0;
+  margin-left: auto;
 }
 
 .overview-layout {

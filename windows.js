@@ -268,7 +268,7 @@ function renderNowLaterWindows() {
   // The category tabs (and their "+ Category") live in the header banner, the same ones the
   // folder-organized List mode shows (renderCategoryTabs, app.js), filtering both windows here.
   toolbar.appendChild(makeWindowSortSelect(WINDOW_SORT_KEYS, windowPrefs.sort, key => setWindowPref("sort", key), "Sort (both windows)"));
-  toolbar.appendChild(makeWindowSwitch(WINDOW_GROUP_MODES, windowPrefs.group, key => setWindowPref("group", key), "Window grouping"));
+  toolbar.appendChild(makeModeToggle(WINDOW_GROUP_MODES, windowPrefs.group, key => setWindowPref("group", key), "Grouping")); // app.js
   // Folder management otherwise only surfaces in "full" List mode (the folder-list "+"); Plate
   // mode needs its own reach to it too, or there'd be no way to add one without switching modes
   // (the task form's own folder picker also has an inline "+ New folder…" option, but only once
@@ -798,24 +798,6 @@ function makeWindowSortSelect(options, active, onPick, label) {
   });
   select.addEventListener("change", () => onPick(select.value));
   return select;
-}
-
-function makeWindowSwitch(options, active, onPick, label) {
-  const wrap = document.createElement("div");
-  wrap.className = "view-switch window-switch";
-  wrap.setAttribute("role", "tablist");
-  wrap.setAttribute("aria-label", label);
-  options.forEach(opt => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "view-switch-btn" + (opt.key === active ? " active" : "");
-    btn.setAttribute("role", "tab");
-    btn.setAttribute("aria-selected", opt.key === active ? "true" : "false");
-    btn.textContent = opt.label;
-    btn.addEventListener("click", () => onPick(opt.key));
-    wrap.appendChild(btn);
-  });
-  return wrap;
 }
 
 // Folder order follows the `folders` array (the same order the main list uses); anything

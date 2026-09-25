@@ -71,18 +71,8 @@ function selectPrioritySummary(ranked, settings) {
 // ---------- Display mode toggle ----------
 
 function renderOverviewModeToggle() {
-  const toggle = document.getElementById("overview-mode");
-  toggle.innerHTML = "";
-  OVERVIEW_MODES.forEach(mode => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "view-switch-btn" + (overviewDisplayMode === mode.key ? " active" : "");
-    btn.setAttribute("role", "tab");
-    btn.setAttribute("aria-selected", overviewDisplayMode === mode.key ? "true" : "false");
-    btn.textContent = mode.label;
-    btn.addEventListener("click", () => setOverviewDisplayMode(mode.key));
-    toggle.appendChild(btn);
-  });
+  document.getElementById("overview-mode").replaceChildren(
+    makeModeToggle(OVERVIEW_MODES, overviewDisplayMode, setOverviewDisplayMode, "Overview display")); // app.js
 }
 
 function setOverviewDisplayMode(mode) {
