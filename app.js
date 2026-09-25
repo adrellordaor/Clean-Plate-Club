@@ -2479,6 +2479,16 @@ bulkImportForm.addEventListener("submit", e => {
   }
   const { created, skipped } = runBulkImport(bulkImportText.value, todayISODate());
 
+  // The paste form drops away and the results rise in its place (the same fall and rise as
+  // changeWithRowRise gives a view's rows), their rows then staggering in; the results leave
+  // with the pop-up itself.
+  changeWithRowRise(() => showBulkImportResults(created, skipped), {
+    targets: () => [bulkImportForm, bulkImportResults].filter(el => !el.hidden),
+    scroll: false,
+  });
+});
+
+function showBulkImportResults(created, skipped) {
   bulkImportForm.hidden = true;
   bulkImportResults.hidden = false;
   const skippedNote = skipped ? " (" + pluralCount(skipped, "line") + " skipped — no title once tags were removed)" : "";
@@ -2492,7 +2502,7 @@ bulkImportForm.addEventListener("submit", e => {
     li.textContent = task.title + " — " + folder.name;
     bulkImportList.appendChild(li);
   });
-});
+}
 
 document.getElementById("bulk-import-btn").addEventListener("click", openBulkImportModal);
 document.getElementById("bulk-import-cancel-btn").addEventListener("click", closeBulkImportModal);
