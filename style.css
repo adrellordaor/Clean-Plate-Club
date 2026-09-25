@@ -2424,13 +2424,24 @@ html.lenis body {
 }
 
 /* Opening Focus mode (openFocusMode in windows.js): the panel zooms in from 85% as if through a
-   scope while the backdrop dims in behind it. Transition-only: nothing lingers afterwards. */
+   scope while the backdrop dims in behind it. Closing (.scope-out) plays the same motion in
+   reverse — the panel pulls back out and fades, the dim lifts — then the overlay hides.
+   Transition-only: nothing lingers afterwards. */
 .focus-overlay.scope-in {
   animation: scope-dim 0.52s var(--ease);
 }
 
 .focus-overlay.scope-in .focus-panel {
   animation: scope-zoom 0.52s var(--ease);
+}
+
+.focus-overlay.scope-out {
+  animation: scope-undim 0.52s var(--ease) forwards;
+  pointer-events: none; /* already on its way out */
+}
+
+.focus-overlay.scope-out .focus-panel {
+  animation: scope-zoom-out 0.52s var(--ease) forwards;
 }
 
 @keyframes scope-dim {
@@ -2442,9 +2453,21 @@ html.lenis body {
   40% { opacity: 1; }
 }
 
+/* The exit keyframes mirror the entry ones rather than playing them backwards, so the exit
+   keeps the same fast-start curve and answers the click at once. */
+@keyframes scope-undim {
+  to { background-color: transparent; }
+}
+
+@keyframes scope-zoom-out {
+  to { transform: scale(0.85); opacity: 0; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .focus-overlay.scope-in,
-  .focus-overlay.scope-in .focus-panel {
+  .focus-overlay.scope-in .focus-panel,
+  .focus-overlay.scope-out,
+  .focus-overlay.scope-out .focus-panel {
     animation: none;
   }
 }

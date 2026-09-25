@@ -1271,11 +1271,19 @@ const focusPanel = document.getElementById("focus-panel");
 const focusBody = document.getElementById("focus-body");
 
 // Opening Focus mode zooms in like looking through a scope (.scope-in in style.css): the panel
-// scales up into place while the backdrop dims in behind it. Only
-// on opening, never on the re-renders while it's open; the class comes off once it's played.
-const SCOPE_IN_MS = 520;
+// scales up into place while the backdrop dims in behind it. Closing plays the same motion in
+// reverse (.scope-out) — the panel pulls back out and the dim lifts — and only then hides the
+// overlay. Only on opening and closing, never on the re-renders while it's open; each class
+// comes off once it's played.
+const SCOPE_MS = 520;
+let focusScopeOutTimer = null;
 
 function openFocusMode() {
+  if (focusScopeOutTimer) { // reopened mid-close: stay open, from wherever the zoom-out got to
+    clearTimeout(focusScopeOutTimer);
+    focusScopeOutTimer = null;
+    focusOverlay.classList.remove("scope-out");
+  }
   const wasOpen = focusModeOpen;
   focusModeOpen = true;
   render();
@@ -1283,13 +1291,24 @@ function openFocusMode() {
   focusOverlay.classList.remove("scope-in");
   void focusOverlay.offsetWidth; // restart the animation if it was somehow still on
   focusOverlay.classList.add("scope-in");
-  setTimeout(() => focusOverlay.classList.remove("scope-in"), SCOPE_IN_MS + 50);
+  setTimeout(() => focusOverlay.classList.remove("scope-in"), SCOPE_MS + 50);
 }
 
 function closeFocusMode() {
-  if (!focusModeOpen) return;
-  focusModeOpen = false;
-  render();
+  if (!focusModeOpen || focusScopeOutTimer) return;
+  const finish = () => {
+    focusScopeOutTimer = null;
+    focusOverlay.classList.remove("scope-out");
+    focusModeOpen = false;
+    render();
+  };
+  if (focusOverlay.classList.contains("hidden") || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    finish();
+    return;
+  }
+  focusOverlay.classList.remove("scope-in");
+  focusOverlay.classList.add("scope-out");
+  focusScopeOutTimer = setTimeout(finish, SCOPE_MS);
 }
 
 function renderFocusOverlay(ranked, today) {
