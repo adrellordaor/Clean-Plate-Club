@@ -38,6 +38,11 @@
   --accent: var(--text);   /* neutral: "accent" is ink, not a hue */
   --accent-hover: #ffffff;
   --on-accent: #161616;    /* text on an ink-filled control */
+  /* Tab-style controls (view tabs, mode toggles, category tabs): three distinct levels, so
+     state reads from the label's color as well as the underline. */
+  --tab-idle: var(--text-faint);
+  --tab-hover: var(--text-muted);
+  --tab-active: #ffffff;
   --danger: var(--text);   /* destructive actions stay neutral; the confirm dialog carries the weight */
   --danger-hover: #ffffff;
   --done: #6f6e6a;
@@ -152,6 +157,7 @@
   --text-faint: #8e8c86;
   --accent-hover: #000000;
   --on-accent: #f2f1ed;
+  --tab-active: #000000;
   --danger-hover: #000000;
   --done: #9a9892;
   --row-hover: #eae9e4;
@@ -622,19 +628,21 @@ kbd {
   font-size: var(--fs-group);
   font-weight: 700;
   letter-spacing: -0.01em;
-  color: var(--text-faint);
+  color: var(--tab-idle);
   cursor: pointer;
+  transition: color 0.15s var(--ease);
   border-bottom: 2px solid transparent;
   white-space: nowrap;
 }
 
 .folder-tab:hover {
-  color: var(--text);
+  color: var(--tab-hover);
 }
 
-.folder-tab.active {
-  color: var(--text);
-  border-bottom-color: var(--text);
+.folder-tab.active,
+.folder-tab.active:hover {
+  color: var(--tab-active);
+  border-bottom-color: var(--view-accent, var(--text));
 }
 
 .app-main {
@@ -2352,7 +2360,8 @@ kbd {
   border: none;
   border-bottom: 2px solid transparent;
   background: transparent;
-  color: var(--text-faint);
+  color: var(--tab-idle);
+  transition: color 0.15s var(--ease);
   font: inherit;
   font-size: 0.95rem;
   font-weight: 700;
@@ -2363,11 +2372,12 @@ kbd {
 }
 
 .view-switch-btn:hover {
-  color: var(--text);
+  color: var(--tab-hover);
 }
 
-.view-switch-btn.active {
-  color: var(--text);
+.view-switch-btn.active,
+.view-switch-btn.active:hover {
+  color: var(--tab-active);
   border-bottom-color: var(--view-accent, var(--text));
 }
 
