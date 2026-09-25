@@ -2628,27 +2628,31 @@ settingsModal.addEventListener("click", e => {
 
 // ---------- Completion check animation ----------
 // The one deliberate flourish in the UI (.check-anim in style.css): checking any completion
-// box fills it and draws the tick. Wired once, globally, in the capture phase so it sees the
-// change before the box's own handler runs. Some handlers (habits) re-render synchronously and
-// replace the element, so on the next frame — still before paint — the animation is also
-// applied to whichever box now carries the same data-check-id and isn't already playing it.
-function playCheckAnimation(box) {
-  box.classList.remove("check-anim");
+// box fills it and draws the tick; unchecking plays it in reverse (.uncheck-anim). Wired once,
+// globally, in the capture phase so it sees the change before the box's own handler runs. Some
+// handlers (habits) re-render synchronously and replace the element, so on the next frame —
+// still before paint — the animation is also applied to whichever box now carries the same
+// data-check-id and isn't already playing it.
+function playCheckAnimation(box, checked = true) {
+  const cls = checked ? "check-anim" : "uncheck-anim";
+  box.classList.remove("check-anim", "uncheck-anim");
   void box.offsetWidth; // restart cleanly on a quick uncheck/recheck
-  box.classList.add("check-anim");
-  setTimeout(() => box.classList.remove("check-anim"), 450);
+  box.classList.add(cls);
+  setTimeout(() => box.classList.remove(cls), 450);
 }
 
 function wireCheckAnimation() {
   document.addEventListener("change", e => {
     const box = e.target;
-    if (!(box instanceof HTMLInputElement) || box.type !== "checkbox" || !box.checked) return;
+    if (!(box instanceof HTMLInputElement) || box.type !== "checkbox") return;
     const id = box.dataset.checkId;
     if (!id) return;
-    playCheckAnimation(box);
+    const checked = box.checked;
+    const cls = checked ? "check-anim" : "uncheck-anim";
+    playCheckAnimation(box, checked);
     requestAnimationFrame(() => {
       document.querySelectorAll('input[type="checkbox"][data-check-id="' + CSS.escape(id) + '"]').forEach(b => {
-        if (b.checked && !b.classList.contains("check-anim")) playCheckAnimation(b);
+        if (b.checked === checked && !b.classList.contains(cls)) playCheckAnimation(b, checked);
       });
     });
   }, true);

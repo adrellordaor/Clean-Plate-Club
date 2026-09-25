@@ -318,7 +318,8 @@ button, input, select, textarea {
    subtasks, habits, the Overdue strip, Completed Today). Bigger than the native box, square,
    ink-outlined. Checking one plays the app's single deliberate flourish (.check-anim, added
    by wireCheckAnimation in app.js): the box fills from the center with a slight overshoot,
-   then the tick draws left to right. Nothing else in the UI animates this much. */
+   then the tick draws left to right; unchecking plays it back in reverse (.uncheck-anim).
+   Nothing else in the UI animates this much. */
 input[type="checkbox"] {
   appearance: none;
   -webkit-appearance: none;
@@ -407,10 +408,43 @@ input[type="checkbox"].check-anim::after {
   to { clip-path: inset(0 0 0 0); }
 }
 
+/* Unchecking plays the flourish in reverse (.uncheck-anim): the tick erases right to left, then
+   the fill shrinks back into the center with a slight give. */
+input[type="checkbox"].uncheck-anim {
+  animation: uncheck-pop 380ms var(--ease);
+}
+
+input[type="checkbox"].uncheck-anim::after {
+  animation: uncheck-erase 200ms var(--ease);
+}
+
+input[type="checkbox"].uncheck-anim::before {
+  animation: uncheck-empty 240ms 120ms var(--ease) backwards;
+}
+
+@keyframes uncheck-pop {
+  0% { transform: scale(1); }
+  55% { transform: scale(0.88); }
+  100% { transform: scale(1); }
+}
+
+@keyframes uncheck-erase {
+  from { clip-path: inset(0 0 0 0); }
+  to { clip-path: inset(0 100% 0 0); }
+}
+
+@keyframes uncheck-empty {
+  from { transform: scale(1); }
+  to { transform: scale(0); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   input[type="checkbox"].check-anim,
   input[type="checkbox"].check-anim::before,
-  input[type="checkbox"].check-anim::after {
+  input[type="checkbox"].check-anim::after,
+  input[type="checkbox"].uncheck-anim,
+  input[type="checkbox"].uncheck-anim::before,
+  input[type="checkbox"].uncheck-anim::after {
     animation: none;
   }
 }
