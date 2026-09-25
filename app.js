@@ -50,10 +50,19 @@ const ICONS = {
 // Roll: two icon states stacked in a clipped box (.roll in style.css); hovering the button the
 // roll sits in slides the stack up one step, so the second state rolls into view. `back`
 // defaults to the same icon (a plain roll); pass a different one to preview what a click does
-// (the theme toggle, the Plate/Fridge expand icons). Used on prominent standalone icon buttons
-// only, not the small hover-revealed actions on cards and rows, which already appear on hover.
+// (the Plate/Fridge expand icons). Roll is the fallback hover for prominent standalone icon
+// buttons: an icon whose shape suggests its own minimal gesture gets that instead (the "+"
+// turns, arrows nudge, the gear turns, the theme toggle flips — "Shape gestures" in
+// style.css). Not used on the small hover-revealed actions on cards and rows, which already
+// appear on hover.
 function rollIcon(front, back = front) {
   return `<span class="roll" aria-hidden="true">${front}${back}</span>`;
+}
+
+// Flip: a two-sided icon (.flip in style.css) for an on/off toggle — hovering its button turns
+// it over like a card to show its other side (the theme toggle's sun and moon).
+function flipIcon(front, back) {
+  return `<span class="flip" aria-hidden="true">${front}${back}</span>`;
 }
 
 // Daily Plate / Fridge icons: bigger than the rest of the icon set (this pair doubles as each
@@ -2329,7 +2338,7 @@ function currentTheme() {
 }
 
 function applyThemeIcon() {
-  themeToggleBtn.innerHTML = currentTheme() === "dark" ? rollIcon(ICONS.sun, ICONS.moon) : rollIcon(ICONS.moon, ICONS.sun);
+  themeToggleBtn.innerHTML = currentTheme() === "dark" ? flipIcon(ICONS.sun, ICONS.moon) : flipIcon(ICONS.moon, ICONS.sun);
 }
 
 themeToggleBtn.addEventListener("click", () => {

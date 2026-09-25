@@ -1217,12 +1217,39 @@ kbd {
   transform: rotate(45deg);
 }
 
+/* Flip (flipIcon() in app.js): an on/off toggle turns over like a card to show its other
+   side. Both faces share one grid cell; the back one starts turned away. */
+.flip {
+  display: inline-grid;
+  vertical-align: middle;
+  line-height: 1;
+  transform: perspective(60px) rotateY(0deg);
+  transform-style: preserve-3d;
+  transition: transform 0.45s var(--ease);
+}
+
+.flip > * {
+  grid-area: 1 / 1;
+  display: block;
+  backface-visibility: hidden;
+}
+
+.flip > :nth-child(2) {
+  transform: rotateY(180deg);
+}
+
+:hover > .flip,
+:focus-visible > .flip {
+  transform: perspective(60px) rotateY(180deg);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .icon-plus,
   .icon-prev,
   .icon-next,
   .icon-import-arrow,
-  .icon-gear {
+  .icon-gear,
+  .flip {
     transition: none;
   }
 }
