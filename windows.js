@@ -333,8 +333,7 @@ const PILE_ICONS = {
     ],
   },
 };
-// A little headroom around the icon (box 44 x 36, base at y 34) so the stoked version — 8%
-// larger, with a glow — isn't clipped by the roll box.
+// The icon's box (44 x 36) has its base at y 34; the CSS scales it up from that line.
 const PILE_BOX = { w: 44, h: 36, base: 34 };
 const STOKE_MS = 1000;
 // Date.now() until which each window's pile stays stoked, so it survives re-renders.
@@ -349,28 +348,24 @@ function pileStage(icon, count) {
   return stage;
 }
 
-function pileSvg(icon, stage, stoked) {
-  const k = stoked ? 1.08 : 1;
+function pileSvg(icon, stage) {
   const cx = PILE_BOX.w / 2;
   const base = PILE_BOX.base;
   const shapes = icon.stages[stage].map(([dx, a, b, shade]) => {
-    const s = Math.min(shade + (stoked ? 1 : 0), 6); // stoked: every piece one shade brighter
-    const fill = `style="fill:var(--${icon.shades}-${s})"`;
-    const x = cx + dx * k;
+    const fill = `style="fill:var(--${icon.shades}-${shade})"`;
+    const x = cx + dx;
     if (icon.shape === "cube") {
-      const bottom = a * k, size = b * k;
-      return `<rect x="${(x - size / 2).toFixed(2)}" y="${(base - bottom - size).toFixed(2)}" width="${size.toFixed(2)}" height="${size.toFixed(2)}" ${fill}/>`;
+      return `<rect x="${x - b / 2}" y="${base - a - b}" width="${b}" height="${b}" ${fill}/>`;
     }
-    const W = a * k, H = b * k;
-    return `<polygon points="${(x - W / 2).toFixed(1)},${base} ${x.toFixed(1)},${(base - H).toFixed(1)} ${(x + W / 2).toFixed(1)},${base}" ${fill}/>`;
+    return `<polygon points="${x - a / 2},${base} ${x},${base - b} ${x + a / 2},${base}" ${fill}/>`;
   }).join("");
-  return `<svg class="pile-icon${stoked ? " pile-icon-stoked" : ""}" viewBox="0 0 ${PILE_BOX.w} ${PILE_BOX.h}" width="${PILE_BOX.w}" height="${PILE_BOX.h}">${shapes}</svg>`;
+  return `<svg class="pile-icon" viewBox="0 0 ${PILE_BOX.w} ${PILE_BOX.h}" width="${PILE_BOX.w}" height="${PILE_BOX.h}">${shapes}</svg>`;
 }
 
-// The resting icon and its stoked twin share one roll box (rollIcon, app.js). Adding a task
-// stokes it — the flame flares, the ice frosts: the box rolls to the brighter, larger, glowing
-// twin, then rolls back after about a second. The deadline lives outside the DOM, so a
-// re-render mid-stoke rebuilds the box already rolled and still settles on time.
+// Hovering the indicator scales the pile up from its base (CSS). Adding a task stokes it — the
+// flame flares, the ice frosts: the same scale-up plus a glow, held for about a second
+// (.pile-stoked). The deadline lives outside the DOM, so a re-render mid-stoke rebuilds the
+// icon already stoked and still settles on time.
 function renderPileIcon(key, count, grew) {
   const icon = PILE_ICONS[key];
   const stage = pileStage(icon, count);
@@ -379,17 +374,16 @@ function renderPileIcon(key, count, grew) {
   holder.setAttribute("aria-hidden", "true");
   if (stage < 0) return holder;
 
-  holder.innerHTML = rollIcon(pileSvg(icon, stage, false), pileSvg(icon, stage, true));
-  const roll = holder.firstElementChild;
+  holder.innerHTML = pileSvg(icon, stage);
   const now = Date.now();
   if (grew) {
     pileStokeUntil[key] = now + STOKE_MS;
-    requestAnimationFrame(() => requestAnimationFrame(() => roll.classList.add("rolled")));
+    requestAnimationFrame(() => requestAnimationFrame(() => holder.classList.add("pile-stoked")));
   } else if (pileStokeUntil[key] > now) {
-    roll.classList.add("rolled");
+    holder.classList.add("pile-stoked");
   }
   if (pileStokeUntil[key] > now) {
-    setTimeout(() => roll.classList.remove("rolled"), pileStokeUntil[key] - now);
+    setTimeout(() => holder.classList.remove("pile-stoked"), pileStokeUntil[key] - now);
   }
   return holder;
 }

@@ -1111,8 +1111,8 @@ kbd {
 /* ---- Roll: the hover swap for icons (rollIcon() in app.js) ----
    Two states stacked in a clipped box the size of one: the first sits in view, the second
    waits just below. Hovering (or keyboard-focusing) the button the box sits in slides both up
-   one step, so the second state rolls into view; .rolled does the same from code (the pile
-   flame's "stoke"). Same signature curve as the rest of the app's motion. */
+   one step, so the second state rolls into view. Same signature curve as the rest of the
+   app's motion. */
 .roll {
   position: relative;
   display: inline-flex;
@@ -1134,8 +1134,7 @@ kbd {
 }
 
 :hover > .roll > *,
-:focus-visible > .roll > *,
-.roll.rolled > * {
+:focus-visible > .roll > * {
   transform: translateY(-100%);
 }
 
@@ -1642,8 +1641,8 @@ kbd {
 /* ---- Pile-size indicator: fire (Daily Plate) / ice (Fridge) ----
    The count numeral in the window's element color with a staged pile icon beside it
    (renderPileIcon in windows.js): a flame for Daily Plate, a stack of ice cubes for Fridge.
-   Static at rest; adding a task "stokes" it — the roll box swaps in its brighter, larger,
-   glowing twin for about a second. */
+   Static at rest; hovering swells it up from its base, and adding a task "stokes" it — the
+   same swell plus a glow, for about a second. */
 .pile-indicator {
   display: inline-flex;
   align-items: flex-end;
@@ -1672,10 +1671,27 @@ kbd {
 
 .pile-icon {
   display: block;
+  /* Scale from the shapes' base line (y 34 of the 36-unit box), so the pile grows upward and
+     outward from where it sits rather than from its middle. */
+  transform-origin: 50% 94.4%;
+  transition: transform 0.32s var(--ease), filter 0.32s var(--ease);
 }
 
-.pile-fire .pile-icon-stoked { filter: drop-shadow(0 0 4px var(--flame-glow)); }
-.pile-ice .pile-icon-stoked { filter: drop-shadow(0 0 4px var(--ice-glow)); }
+/* Hover the indicator: the pile swells a little. Adding a task (.pile-stoked, about a second)
+   does the same plus a glow — the flame flares, the ice frosts. */
+.pile-indicator:hover .pile-icon,
+.pile-stoked .pile-icon {
+  transform: scale(1.14);
+}
+
+.pile-fire .pile-stoked .pile-icon { filter: drop-shadow(0 0 4px var(--flame-glow)); }
+.pile-ice .pile-stoked .pile-icon { filter: drop-shadow(0 0 4px var(--ice-glow)); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pile-icon {
+    transition: none;
+  }
+}
 
 .window-controls {
   display: flex;

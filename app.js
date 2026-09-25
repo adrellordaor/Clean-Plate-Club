@@ -50,8 +50,7 @@ const ICONS = {
 // Roll: two icon states stacked in a clipped box (.roll in style.css); hovering the button the
 // roll sits in slides the stack up one step, so the second state rolls into view. `back`
 // defaults to the same icon (a plain roll); pass a different one to preview what a click does
-// (the theme toggle, the Plate/Fridge expand icons). Adding .rolled to the box triggers the
-// same swap from code (the pile flame's "stoke"). Used on prominent standalone icon buttons
+// (the theme toggle, the Plate/Fridge expand icons). Used on prominent standalone icon buttons
 // only, not the small hover-revealed actions on cards and rows, which already appear on hover.
 function rollIcon(front, back = front) {
   return `<span class="roll" aria-hidden="true">${front}${back}</span>`;
