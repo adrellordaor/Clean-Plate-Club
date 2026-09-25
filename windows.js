@@ -477,7 +477,7 @@ function renderWindow(win, ranked, today, nowIsEmpty) {
   const addIcon = document.createElement("button");
   addIcon.type = "button";
   addIcon.className = "btn-icon window-add-icon";
-  addIcon.innerHTML = rollIcon(ICONS.plus);
+  addIcon.innerHTML = ICONS.plus;
   addIcon.title = win.key === "now" ? "Add a task to Daily Plate (do date today)" : "Add a task";
   addIcon.setAttribute("aria-label", "Add task to " + win.title);
   addIcon.addEventListener("click", win.add);

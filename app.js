@@ -35,7 +35,7 @@ const ICONS = {
   bump: `<svg ${SVG_ATTRS}><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>`,
   focus: `<svg ${SVG_ATTRS}><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/></svg>`,
   close: `<svg ${SVG_ATTRS}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`,
-  plus: `<svg ${SVG_ATTRS}><path d="M12 5v14"/><path d="M5 12h14"/></svg>`,
+  plus: `<svg class="icon-plus" ${SVG_ATTRS}><path d="M12 5v14"/><path d="M5 12h14"/></svg>`,
   // Skip: double-chevron "skip forward," distinct from the checkbox and from edit/delete.
   skip: `<svg ${SVG_ATTRS}><path d="m5 4 6 8-6 8"/><path d="m13 4 6 8-6 8"/></svg>`,
   // Bite-size marker: a small apple with a bite out of it, drawn at 12px on cards.

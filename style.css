@@ -1171,6 +1171,25 @@ kbd {
   }
 }
 
+/* ---- Shape gestures: icons whose shape suggests its own hover motion ----
+   Roll is the fallback; where an icon has an obvious, minimal gesture of its own, it gets
+   that instead, on hover or keyboard focus of its button, with the same curve and timing.
+   "+" (every add button): a quarter turn. */
+.icon-plus {
+  transition: transform 0.32s var(--ease);
+}
+
+:hover > .icon-plus,
+:focus-visible > .icon-plus {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .icon-plus {
+    transition: none;
+  }
+}
+
 /* Skip action: always visible next to the checkbox (unlike the hover-only edit/delete pair in
    .task-actions), so it reads as an equally-primary alternative to checking off — a round
    outline where the checkbox is a square, so the two can't be confused. Pressed
