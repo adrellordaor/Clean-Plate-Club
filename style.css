@@ -445,6 +445,33 @@ input[type="checkbox"].check-anim::after {
   flex: none;
   width: 1.3em;
   height: auto;
+  overflow: visible; /* the pieces hop above the drawing's top edge */
+}
+
+/* Hovering the logo: fork, plate, then knife each hop up and wiggle (turn one way, swing past
+   center, settle) in one motion, about 70ms apart. Each piece turns around its own center, so
+   it wiggles in place rather than swinging on an arm. Plays once per hover. */
+.app-logo > g {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.app-logo:hover > g {
+  animation: logo-hop 0.56s var(--ease);
+}
+
+.app-logo:hover > .app-logo-plate { animation-delay: 70ms; }
+.app-logo:hover > .app-logo-knife { animation-delay: 140ms; }
+
+@keyframes logo-hop {
+  35% { transform: translateY(-3px) rotate(-12deg); }
+  65% { transform: translateY(-1px) rotate(7deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-logo:hover > g {
+    animation: none;
+  }
 }
 
 .header-actions {
