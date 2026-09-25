@@ -1,16 +1,16 @@
 // Calendar view: retrospective, replaces the earlier "productivity view" idea. A monthly
 // grid colored by that day's overall pace across ALL tasks (regular deadlines plus recurring
-// habits), two independent overlays (an overdue ring and a gold "big win" glow + star), future
+// habits) — Red / Deep blue / Pale blue / Gray — an independent "big win" overlay, future
 // due-date markers, a secondary badge for regular tasks completed, a click-through day
 // repository, and a Weekly Accomplishments panel. Read-only, like Overview — nothing to tick
 // off here, that happens in the List view.
 //
-// Red, the overdue ring, the big-win glow, the count badge and the future markers are derived
-// live from fields that never move retroactively (deadline, completed_at, created_at,
-// importance, CompletionLog). The Green/Blue/Gray "planned" set is different: it reads
-// do_date, and do_date rolls forward every day a task stays unfinished (see
-// runDailyMaintenance in app.js), so recomputing a past day live would quietly rewrite an
-// honest Blue into Green or Gray. Each past day's planned set is therefore frozen once, in
+// Red, the big-win marker, the count badge and the future markers are derived live from
+// fields that never move retroactively (deadline, completed_at, created_at, importance,
+// was_ever_in_plan, CompletionLog). The Deep blue / Pale blue / Gray "planned" set is
+// different: it reads do_date, and do_date rolls forward every day a task stays unfinished
+// (see runDailyMaintenance in app.js), so recomputing a past day live would quietly rewrite an
+// honest Pale blue into Deep blue or Gray. Each past day's planned set is therefore frozen once, in
 // plannedHistory (a permanent, append-only per-day record in the data file, captured right
 // before that day's rollover), and past days read from it. Today is still computed live.
 // A past day with no record (before this shipped) falls back to a live best-effort read.
@@ -25,12 +25,12 @@
 
 // Strict priority order — the first rule that applies wins (same override pattern as the
 // do_date urgency floor). "upcoming" is for days after today, which haven't happened yet.
-// Keys keep their original color names (they're class names and spec vocabulary); the
-// visible labels name the meaning instead, since the fills are now Fire/Ice, not red/green/blue.
+// Keys are the spec's color names (and the cells' class names); the visible labels name the
+// meaning: red = rectify, deep blue = good, pale blue = average, gray = no obligation.
 const CALENDAR_DAY_BUCKETS = Object.freeze({
   red: Object.freeze({ key: "red", label: "Overdue" }),
-  green: Object.freeze({ key: "green", label: "All done" }),
-  blue: Object.freeze({ key: "blue", label: "Partly done" }),
+  deepBlue: Object.freeze({ key: "deep-blue", label: "All done" }),
+  paleBlue: Object.freeze({ key: "pale-blue", label: "Partly done" }),
   gray: Object.freeze({ key: "gray", label: "Nothing planned" }),
   upcoming: Object.freeze({ key: "upcoming", label: "Upcoming" }),
 });
@@ -67,13 +67,26 @@ function taskExistedOn(task, dateStr) {
   return !task.created_at || toLocalDateString(task.created_at) <= dateStr;
 }
 
-// Overdue as of `dateStr`: deadline strictly before that day and still open past it —
-// completed_at null, or a completion date after `dateStr`. The day it finally gets cleared
-// is not itself an overdue day.
-function isOverdueOn(task, dateStr) {
-  if (!task.deadline || task.deadline >= dateStr || !taskExistedOn(task, dateStr)) return false;
+// The Red rule, any importance: a regular task with a deadline on or before `dateStr` that was
+// still open past it — completed_at null, or a completion date after `dateStr`. A deadline ON a
+// finished day counts once that day ended with the task undone; for today, which isn't over,
+// only a deadline before today counts (a task due today is due, not late, until tomorrow). The
+// day it finally gets cleared is not itself an overdue day.
+function isOverdueOn(task, dateStr, today) {
+  if (!task.deadline || !taskExistedOn(task, dateStr)) return false;
+  if (dateStr === today ? task.deadline >= dateStr : task.deadline > dateStr) return false;
   const done = completedDateOf(task);
   return done === null || done > dateStr;
+}
+
+// The big-win marker for a completed regular task: it was ever in Plan (was_ever_in_plan, set
+// the first time its live quadrant computed to Plan — which already implies High/Critical), or
+// it was a High/Critical task finished after its own deadline had passed (slipped, then
+// recovered; a Low/Medium late finish isn't the same accomplishment).
+function isBigWin(task, settings) {
+  if (task.was_ever_in_plan) return true;
+  const done = completedDateOf(task);
+  return Boolean(task.deadline && done && done > task.deadline && importanceBucket(task.importance, settings) === "high");
 }
 
 // Regular task planned for exactly `dateStr` (do_date, the self-chosen day — not the
@@ -178,17 +191,16 @@ function computeMissedLastPeriod(rt, today, completionLog) {
 }
 
 // Pace bucket for one day, in strict priority order (spec, Calendar view):
-//   red   — a High/Critical-importance regular task is overdue as of that day (deadline only,
-//           do_date plays no part, and this is always computed live)
-//   green — nothing High-importance overdue, and everything planned that day got done
-//   blue  — nothing High-importance overdue, but not everything planned got done
-//   gray  — nothing was planned at all ("no obligation, not a failure")
+//   red       — a regular task, of any importance, was overdue as of that day (isOverdueOn:
+//               deadline only, do_date plays no part, always computed live)
+//   deep blue — nothing overdue, and everything planned that day got done
+//   pale blue — nothing overdue, but only some of what was planned got done
+//   gray      — nothing was planned at all ("no obligation, not a failure")
 // "Planned" = RecurringTasks scheduled that day plus regular Tasks with do_date exactly that
 // day, read from the frozen plannedHistory record for a past day (see plannedRecordFor).
-// "High importance" uses the same bucket boundary as quadrant placement (importanceBucket).
-// A Low/Medium overdue task never forces red; it's surfaced as `lowOverdue` for the ring
-// overlay instead. Days strictly after `today` haven't happened, so they get the
-// "upcoming" bucket plus future due-date markers instead of a pace color.
+// Days strictly after `today` haven't happened, so they get the "upcoming" bucket plus future
+// due-date markers instead of a pace color. The big-win marker (isBigWin) is independent of
+// all four: any day can carry one.
 //
 // `data` is { tasks, folders, recurringTasks, completionLog, plannedHistory, topPriorityIds? }
 // — the same bundle every function below takes, so callers build it once. `topPriorityIds`
@@ -214,14 +226,12 @@ function computeDayStats(dateStr, data, settings, today) {
       .map(task => ({ task, top: false }));
     return {
       date: dateStr, upcoming: true, bucket: CALENDAR_DAY_BUCKETS.upcoming,
-      highOverdue: [], lowOverdue: [], due: [], dueCount: 0, doneCount: 0,
-      goldWins: [], regularCompletedCount, upcomingDeadlines, upcomingWeeklyRecurring,
+      overdue: [], due: [], dueCount: 0, doneCount: 0,
+      bigWins: [], regularCompletedCount, upcomingDeadlines, upcomingWeeklyRecurring,
     };
   }
 
-  const overdue = data.tasks.filter(t => isOverdueOn(t, dateStr));
-  const highOverdue = overdue.filter(t => importanceBucket(t.importance, settings) === "high");
-  const lowOverdue = overdue.filter(t => importanceBucket(t.importance, settings) !== "high");
+  const overdue = data.tasks.filter(t => isOverdueOn(t, dateStr, today));
 
   const planned = plannedRecordFor(dateStr, data, today);
   const due = planned.recurring
@@ -231,28 +241,25 @@ function computeDayStats(dateStr, data, settings, today) {
   const doneCount = due.filter(d => d.done).length;
 
   let bucket;
-  if (highOverdue.length > 0) bucket = CALENDAR_DAY_BUCKETS.red;
+  if (overdue.length > 0) bucket = CALENDAR_DAY_BUCKETS.red;
   else if (dueCount === 0) bucket = CALENDAR_DAY_BUCKETS.gray;
-  else if (doneCount === dueCount) bucket = CALENDAR_DAY_BUCKETS.green;
-  else bucket = CALENDAR_DAY_BUCKETS.blue;
+  else if (doneCount === dueCount) bucket = CALENDAR_DAY_BUCKETS.deepBlue;
+  else bucket = CALENDAR_DAY_BUCKETS.paleBlue;
 
-  // Gold glow (the big win): a regular task completed that day whose importance buckets
-  // High/Critical — the same importanceBucket boundary
-  // (quadrant_split_score) the Red rule above uses, so "important" means the same thing
-  // everywhere on this grid. No new setting. Independent of the base color: a red day can
-  // still glow gold if something important also got cleared.
-  const goldWins = regularCompleted.filter(task => importanceBucket(task.importance, settings) === "high");
+  // Big wins: the tasks completed that day that qualify (isBigWin), whatever the day's color —
+  // a pale-blue or even red day can still show one, and it never promotes the day's tier.
+  const bigWins = regularCompleted.filter(task => isBigWin(task, settings));
 
   return {
     date: dateStr, upcoming: false, bucket,
-    highOverdue, lowOverdue, due, dueCount, doneCount,
-    goldWins, regularCompletedCount, upcomingDeadlines: [], upcomingWeeklyRecurring: [],
+    overdue, due, dueCount, doneCount,
+    bigWins, regularCompletedCount, upcomingDeadlines: [], upcomingWeeklyRecurring: [],
   };
 }
 
 // ---------- Capacity view ----------
-// A day's effort, independent of Pace's red/green/blue/gray judgment — purely "how much
-// volume", so it can render as a continuous gradient rather than a discrete bucket.
+// A day's effort, independent of Pace's red / deep blue / pale blue / gray judgment — purely
+// "how much volume", so it can render as a continuous gradient rather than a discrete bucket.
 // Bite-size = 1 point, Main Course = 2, same weight the List view's sizing already
 // uses. A RecurringTask completion/occurrence is a flat 1, regardless of cadence — they
 // don't carry is_quick_win (they live outside the matrix entirely), so there's no finer
@@ -365,7 +372,7 @@ let calendarOpenDay;
 
 const CALENDAR_WEEKDAY_HEADS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-// calendar_display_mode: "pace" (existing red/green/blue/gray coloring, unchanged) or
+// calendar_display_mode: "pace" (red / deep blue / pale blue / gray) or
 // "capacity" (effort vs. daily_capacity_points, same two-mode pattern as
 // overview_display_mode / list_display_mode). A per-device display preference (localStorage),
 // same category as sort/grouping/theme/folder-count-style — the on-page toggle is its only UI.
@@ -460,9 +467,9 @@ function renderCalendarLegend() {
 
   // Base colors, in the same strict priority order the engine applies them.
   [
-    [CALENDAR_DAY_BUCKETS.red, "A High/Critical-importance task was overdue as of that day"],
-    [CALENDAR_DAY_BUCKETS.green, "Nothing High-importance overdue, and everything planned that day (habits + tasks with that do-date) got done"],
-    [CALENDAR_DAY_BUCKETS.blue, "Nothing High-importance overdue, but not everything planned that day got done"],
+    [CALENDAR_DAY_BUCKETS.red, "A task was past its deadline and still open that day (any importance)"],
+    [CALENDAR_DAY_BUCKETS.deepBlue, "Nothing overdue, and everything planned that day (habits + tasks with that do-date) got done"],
+    [CALENDAR_DAY_BUCKETS.paleBlue, "Nothing overdue, but only some of what was planned that day got done"],
     [CALENDAR_DAY_BUCKETS.gray, "Nothing was planned that day"],
     [CALENDAR_DAY_BUCKETS.upcoming, "Hasn't happened yet — shows upcoming deadlines instead"],
   ].forEach(([bucket, hint]) => {
@@ -471,10 +478,8 @@ function renderCalendarLegend() {
 
   // Overlays and markers, each drawn with the same class the grid cell uses so the legend
   // shows the real visual rather than describing it.
-  legend.appendChild(makeCalendarLegendChip("Ring", "calendar-day-gray calendar-cell-overdue-ring",
-    "A Low/Medium-importance task was overdue as of that day (never forces the Overdue fill)"));
-  legend.appendChild(makeCalendarLegendChip("Big win", "calendar-day-gray calendar-cell-gold",
-    "Big win: a High/Critical-importance task got completed that day"));
+  legend.appendChild(makeCalendarLegendChip("Big win", "calendar-day-gray calendar-cell-big-win",
+    "Big win: a task completed that day that had been in Plan at some point, or a High/Critical task finished after its deadline had passed"));
 
   const markerChip = makeCalendarLegendChip("", "calendar-day-upcoming",
     "Upcoming deadline · accented = top priority (top " + topN + " or score ≥ " + threshold + ") · square = weekly/monthly habit's scheduled day");
@@ -552,10 +557,9 @@ function renderCalendarCell(dateStr, data, today) {
   if (dateStr === today) cell.classList.add("calendar-cell-today");
   if (weekStart === calendarSelectedWeekStart) cell.classList.add("calendar-cell-selected-week");
   if (dateStr === calendarOpenDay) cell.classList.add("calendar-cell-open");
-  // Overlays are independent of the base fill: both can sit on any color, including each
-  // other (a red day with a minor overdue ring that also glows gold is a legitimate day).
-  if (stats.lowOverdue.length > 0) cell.classList.add("calendar-cell-overdue-ring");
-  if (stats.goldWins.length > 0) cell.classList.add("calendar-cell-gold");
+  // The big-win marker is independent of the base fill: it can sit on any color (a red day
+  // that also cleared something important is a legitimate day).
+  if (stats.bigWins.length > 0) cell.classList.add("calendar-cell-big-win");
 
   cell.title = calendarCellTitle(stats);
 
@@ -592,8 +596,8 @@ function renderCalendarCell(dateStr, data, today) {
 // ---------- Capacity view rendering ----------
 // Same grid scaffold and day-click/day-repo/weekly-panel behavior as Pace; only the fill
 // and markers differ — a continuous effort/capacity gradient instead of a discrete bucket,
-// with no overdue ring, big-win glow, or deadline markers, since those all carry the red/green
-// "judgment" this view deliberately avoids.
+// with no big-win marker or deadline markers, since those carry the Pace view's "judgment"
+// this view deliberately avoids.
 
 function renderCalendarCapacityGrid(data, today) {
   renderCalendarGridScaffold(dateStr => renderCalendarCapacityCell(dateStr, data, today));
@@ -671,8 +675,8 @@ function calendarCellTitle(stats) {
     return parts.join(" · ");
   }
 
-  if (stats.highOverdue.length > 0) {
-    parts.push("Overdue (high importance): " + stats.highOverdue.map(t => t.title).join(", "));
+  if (stats.overdue.length > 0) {
+    parts.push("Overdue: " + stats.overdue.map(t => t.title).join(", "));
   }
   if (stats.dueCount === 0) parts.push("Nothing planned");
   else {
@@ -680,11 +684,8 @@ function calendarCellTitle(stats) {
     parts.push(stats.doneCount + "/" + stats.dueCount + " planned items done"
       + (missed.length > 0 ? " (missed: " + missed.join(", ") + ")" : ""));
   }
-  if (stats.lowOverdue.length > 0) {
-    parts.push("Overdue (low/medium): " + stats.lowOverdue.map(t => t.title).join(", "));
-  }
-  if (stats.goldWins.length > 0) {
-    parts.push("Big win: " + stats.goldWins.map(t => t.title + " (" + t.importance + ")").join(", "));
+  if (stats.bigWins.length > 0) {
+    parts.push("Big win: " + stats.bigWins.map(t => t.title).join(", "));
   }
   if (stats.regularCompletedCount > 0) parts.push(pluralCount(stats.regularCompletedCount, "task") + " completed");
   return parts.join(" · ");
@@ -882,7 +883,7 @@ function makeCalendarEmptyHint(text) {
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     CALENDAR_DAY_BUCKETS, addDaysISODate, weekDates, daysInMonthArray,
-    completedDateOf, taskExistedOn, isOverdueOn, isPlannedOn, plannedTaskDone,
+    completedDateOf, taskExistedOn, isOverdueOn, isBigWin, isPlannedOn, plannedTaskDone,
     buildPlannedRecord, plannedRecordFor, recurringScheduledOn, recurringDoneFor,
     periodRangeFor, previousPeriodRangeFor, recurringDoneInRange, recurringSkippedInRange, computeMissedLastPeriod,
     computeDayStats, completionsOnDay, computeWeekSummary,

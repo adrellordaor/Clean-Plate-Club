@@ -12,7 +12,7 @@ function makeId() {
 
 const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-const DATA_VERSION = 8; // v3: settings object; v4: quadrantHistory (daily digest); v5: quadrantHistory
+const DATA_VERSION = 9; // v3: settings object; v4: quadrantHistory (daily digest); v5: quadrantHistory
 // records enriched with deadline/importance/last_touched_at/priority_score, for the primary
 // (automatic drift) vs secondary (manual edit) digest split; v6: manual_urgent_flag removed
 // (migrated to deadline = today / do_date = today), do_date + is_quick_win added to Task,
@@ -22,7 +22,9 @@ const DATA_VERSION = 8; // v3: settings object; v4: quadrantHistory (daily diges
 // under that design are discarded once (resetToV7), not migrated; snapshot records gain a
 // do_date key for the digest's "became Do Today" check; v8: CompletionLog rows gain a title
 // snapshot (so a completion outlives its parent RecurringTask being deleted) — existing rows
-// are backfilled once from their still-existing parent, if any (migrateCompletionLogToV8)
+// are backfilled once from their still-existing parent, if any (migrateCompletionLogToV8); v9: Task
+// gains was_ever_in_plan (the Calendar's big-win marker), backfilled once from quadrantHistory
+// (backfillEverInPlanV9)
 
 // Minimalist outline icons (stroke = currentColor, so they inherit button text color).
 const SVG_ATTRS = 'viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
@@ -218,6 +220,22 @@ function loadState(data) {
   if (version < 8) migrateCompletionLogToV8(completionLog, recurringTasks);
   tasks.forEach(normalizeTaskFields);
   recurringTasks.forEach(normalizeRecurringFields);
+  if (version < 9) backfillEverInPlanV9(tasks, quadrantHistory);
+}
+
+// One-time v9 backfill of was_ever_in_plan (the Calendar's big-win marker): a task that shows as
+// Plan anywhere in the digest's short rolling window of daily snapshots was in Plan, so it gets
+// the flag. That window only reaches back a few days, so older history can't be recovered;
+// from here on the flag is set live (markEverInPlan) the first time a task computes to Plan.
+function backfillEverInPlanV9(taskList, history) {
+  Object.values(history).forEach(day => {
+    if (!day || typeof day !== "object") return;
+    Object.entries(day).forEach(([taskId, record]) => {
+      if (!record || record.quadrant !== QUADRANTS.q2.key) return;
+      const task = taskList.find(t => t.id === taskId);
+      if (task) task.was_ever_in_plan = true;
+    });
+  });
 }
 
 // One-time v8 backfill, gated on the file's version: every CompletionLog row written before
@@ -278,6 +296,7 @@ function normalizeTaskFields(task) {
   if (typeof task.is_quick_win !== "boolean") task.is_quick_win = false;
   if (!Number.isInteger(task.do_date_rollover_count) || task.do_date_rollover_count < 0) task.do_date_rollover_count = 0;
   if ("manual_urgent_flag" in task) delete task.manual_urgent_flag;
+  if (typeof task.was_ever_in_plan !== "boolean") task.was_ever_in_plan = false;
 }
 
 // Same for RecurringTasks: the monthly / missed-flag fields on a habit written before they
@@ -307,7 +326,27 @@ function serializeState() {
 // Refreshes today's quadrant snapshot from the live tasks. Returns true if the history
 // changed (new day, or a task moved/entered/left since the last save).
 function recordTodaySnapshot() {
-  return recordQuadrantSnapshot(quadrantHistory, tasks, settings, todayISODate());
+  const marked = markEverInPlan();
+  return recordQuadrantSnapshot(quadrantHistory, tasks, settings, todayISODate()) || marked;
+}
+
+// was_ever_in_plan: set true the first time a task's live quadrant computes to Plan, and never
+// cleared, even once urgency later pushes it on into Do. It feeds the Calendar's big-win
+// marker (isBigWin, calendar.js). Checked on every save and every load — the moments a
+// quadrant can change (an edit, a settings change, a new day's urgency). Top-level active tasks
+// only: subtasks inherit their parent's quadrant rather than having one of their own. Returns
+// true if any task was newly marked.
+function markEverInPlan() {
+  const today = todayISODate();
+  let marked = false;
+  tasks.forEach(task => {
+    if (task.was_ever_in_plan || task.status !== "active" || task.parent_task_id) return;
+    if (assessTask(task, settings, today).quadrant.key === QUADRANTS.q2.key) {
+      task.was_ever_in_plan = true;
+      marked = true;
+    }
+  });
+  return marked;
 }
 
 // Every save also rewrites today's snapshot, so the last save of the day is that day's
@@ -430,6 +469,7 @@ function makeTask(overrides) {
     is_quick_win: false,  // "Bite-size" (true) vs "Main Course" sizing: display/organization only, no scoring effect
     status: "active",
     completed_at: null,
+    was_ever_in_plan: false, // set once its live quadrant first computes to Plan; never cleared (markEverInPlan)
   }, overrides);
 }
 

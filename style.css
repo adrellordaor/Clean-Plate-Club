@@ -102,21 +102,19 @@
   --badge-recurring-bg: transparent;
   --badge-recurring-text: var(--text-muted);
 
-  /* Calendar pace fills, in Fire/Ice terms: red (High/Critical overdue) is fire; green
-     (everything planned got done) is full ice; blue (only some of it) is pale ice; gray
-     ("nothing was due", not a low score) stays neutral. Dedicated tokens, tuned to read
-     at full-cell size. */
+  /* Calendar pace fills, in Fire/Ice terms: red (something overdue, any importance) is fire;
+     deep blue (everything planned got done) is full ice; pale blue (only some of it) is pale
+     ice; gray ("nothing was planned", not a low score) stays neutral. Dedicated tokens, tuned
+     to read at full-cell size. */
   --day-red-bg: #5b2415;
   --day-red-text: #ffb8a1;
-  --day-green-bg: #12506f;
-  --day-green-text: #c9ecff;
-  --day-blue-bg: #1b2e39;
-  --day-blue-text: #93cdea;
+  --day-deep-blue-bg: #12506f;
+  --day-deep-blue-text: #c9ecff;
+  --day-pale-blue-bg: #1b2e39;
+  --day-pale-blue-text: #93cdea;
   --day-gray-bg: #212120;
   --day-gray-text: #8f8e8a;
-  /* Overlays on any base fill: the minor-overdue ring borrows fire (it's an overdue signal
-     without the red fill); the big win is gold (importance), a glow plus a star. */
-  --day-ring: var(--fire);
+  /* The big-win overlay, on any base fill: gold (importance), a glow plus a star. */
   --day-win: var(--gold);
   --day-win-glow: var(--gold-glow);
 
@@ -228,10 +226,10 @@
 
   --day-red-bg: #f5c6b5;
   --day-red-text: #862808;
-  --day-green-bg: #9dd5f4;
-  --day-green-text: #094a70;
-  --day-blue-bg: #dbebf5;
-  --day-blue-text: #2b6585;
+  --day-deep-blue-bg: #9dd5f4;
+  --day-deep-blue-text: #094a70;
+  --day-pale-blue-bg: #dbebf5;
+  --day-pale-blue-text: #2b6585;
   --day-gray-bg: #e4e2db;
   --day-gray-text: #6b6a64;
 
@@ -4059,22 +4057,22 @@ html.lenis body {
 
 /* Day-color buckets: solid fills, not the continuous heat-map ramp the quadrant hues use —
    this is a discrete pace signal (strict priority order, see computeDayStats), not a
-   priority intensity. The bucket keys keep their historical names (red/green/blue/gray);
-   the colors are Fire and Ice: red = fire, green = full ice, blue = pale ice, gray stays
-   deliberately muted — "nothing was due", not a low score. */
+   priority intensity. Fire and Ice: red = fire (something was overdue), deep blue = full ice
+   (everything planned got done), pale blue = pale ice (only some of it), gray stays
+   deliberately muted — "nothing was planned", not a low score. */
 .calendar-day-red, .calendar-legend-chip.calendar-day-red {
   background: var(--day-red-bg);
   color: var(--day-red-text);
 }
 
-.calendar-day-green, .calendar-legend-chip.calendar-day-green {
-  background: var(--day-green-bg);
-  color: var(--day-green-text);
+.calendar-day-deep-blue, .calendar-legend-chip.calendar-day-deep-blue {
+  background: var(--day-deep-blue-bg);
+  color: var(--day-deep-blue-text);
 }
 
-.calendar-day-blue, .calendar-legend-chip.calendar-day-blue {
-  background: var(--day-blue-bg);
-  color: var(--day-blue-text);
+.calendar-day-pale-blue, .calendar-legend-chip.calendar-day-pale-blue {
+  background: var(--day-pale-blue-bg);
+  color: var(--day-pale-blue-text);
 }
 
 .calendar-day-gray, .calendar-legend-chip.calendar-day-gray {
@@ -4119,27 +4117,14 @@ html.lenis body {
   border-width: 1.5px;
 }
 
-/* ---- Overlays: independent of the base fill, drawn as pseudo-elements so they never
-   compete with the cell's own box-shadow (today / selected week / open / hover rings). ---- */
-
-/* Overdue ring: a Low/Medium-importance task is overdue as of this day. Thin, inset, fire,
-   visible on every fill — it flags a minor overdue item without giving it veto power over
-   the day's actual color (only High/Critical overdue turns the fill fire). */
-.calendar-cell-overdue-ring::after {
-  content: "";
-  position: absolute;
-  inset: 3px;
-  border: 1.5px solid var(--day-ring);
-  pointer-events: none;
-}
-
-/* Big win: a High/Critical-importance task got completed this day. Gold, the importance hue:
-   an inset glow at the cell's edge (inward, so it never bleeds under neighbours) plus a small
-   gold star in the top-right corner, so the win still reads on a fire or ice fill. Layers on
-   any base color — a fire day can still carry a win if something important also got cleared.
-   Both live on ::before (a full-cell frame whose text is the star), keeping ::after free for
-   the overdue ring. */
-.calendar-cell-gold::before {
+/* ---- Big win overlay: independent of the base fill, drawn as a pseudo-element so it never
+   competes with the cell's own box-shadow (today / selected week / open / hover rings). ----
+   A task completed this day that was ever in Plan, or a High/Critical task finished after its
+   deadline (isBigWin, calendar.js). Gold, the importance hue: an inset glow at the cell's edge
+   (inward, so it never bleeds under neighbours) plus a small gold star in the top-right corner,
+   so the win still reads on a fire or ice fill. Layers on any base color — a fire day can still
+   carry a win if something important also got cleared. */
+.calendar-cell-big-win::before {
   content: "✦";
   position: absolute;
   inset: 0;
@@ -4154,15 +4139,11 @@ html.lenis body {
   pointer-events: none;
 }
 
-.calendar-legend-chip.calendar-cell-overdue-ring::after {
-  inset: 1px;
-}
-
-.calendar-legend-chip.calendar-cell-gold {
+.calendar-legend-chip.calendar-cell-big-win {
   padding-left: 1.35rem;
 }
 
-.calendar-legend-chip.calendar-cell-gold::before {
+.calendar-legend-chip.calendar-cell-big-win::before {
   justify-content: flex-start;
   align-items: center;
   padding: 0 0.4rem;
