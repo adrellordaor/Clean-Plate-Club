@@ -1259,6 +1259,28 @@ kbd {
   transform: rotate(45deg);
 }
 
+/* Focus mode's reticle "scopes in": the sight pushes in a little and the target at its center
+   swells, like zooming through a scope. */
+.icon-focus,
+.icon-focus-dot {
+  transition: transform 0.28s var(--ease);
+}
+
+.icon-focus-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+:hover > .icon-focus,
+:focus-visible > .icon-focus {
+  transform: scale(1.18);
+}
+
+:hover > .icon-focus .icon-focus-dot,
+:focus-visible > .icon-focus .icon-focus-dot {
+  transform: scale(1.6);
+}
+
 /* Flip (flipIcon() in app.js): an on/off toggle turns over like a card to show its other
    side. Both faces share one grid cell; the back one starts turned away. */
 .flip {
@@ -1291,6 +1313,8 @@ kbd {
   .icon-next,
   .icon-import-arrow,
   .icon-gear,
+  .icon-focus,
+  .icon-focus-dot,
   .flip {
     transition: none;
   }

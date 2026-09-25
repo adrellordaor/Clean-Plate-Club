@@ -33,7 +33,7 @@ const ICONS = {
   moon: `<svg ${SVG_ATTRS}><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>`,
   gear: `<svg class="icon-gear" ${SVG_ATTRS}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
   bump: `<svg ${SVG_ATTRS}><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg>`,
-  focus: `<svg ${SVG_ATTRS}><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/></svg>`,
+  focus: `<svg class="icon-focus" ${SVG_ATTRS}><circle cx="12" cy="12" r="8"/><circle class="icon-focus-dot" cx="12" cy="12" r="2.5"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/></svg>`,
   close: `<svg ${SVG_ATTRS}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`,
   plus: `<svg class="icon-plus" ${SVG_ATTRS}><path d="M12 5v14"/><path d="M5 12h14"/></svg>`,
   // Skip: double-chevron "skip forward," distinct from the checkbox and from edit/delete.
@@ -52,9 +52,9 @@ const ICONS = {
 // defaults to the same icon (a plain roll); pass a different one to preview what a click does
 // (the Plate/Fridge expand icons). Roll is the fallback hover for prominent standalone icon
 // buttons: an icon whose shape suggests its own minimal gesture gets that instead (the "+"
-// turns, arrows nudge, the gear turns, the theme toggle flips — "Shape gestures" in
-// style.css). Not used on the small hover-revealed actions on cards and rows, which already
-// appear on hover.
+// turns, arrows nudge, the gear turns, the theme toggle flips, Focus mode's reticle scopes in —
+// "Shape gestures" in style.css). Not used on the small hover-revealed actions on cards and
+// rows, which already appear on hover.
 function rollIcon(front, back = front) {
   return `<span class="roll" aria-hidden="true">${front}${back}</span>`;
 }

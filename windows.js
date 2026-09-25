@@ -460,7 +460,7 @@ function renderWindow(win, ranked, today, nowIsEmpty) {
     const focusModeBtn = document.createElement("button");
     focusModeBtn.type = "button";
     focusModeBtn.className = "btn-icon window-focusmode-btn";
-    focusModeBtn.innerHTML = rollIcon(ICONS.focus);
+    focusModeBtn.innerHTML = ICONS.focus;
     focusModeBtn.title = "Focus: only what's planned for today";
     focusModeBtn.setAttribute("aria-label", "Focus mode");
     focusModeBtn.addEventListener("click", openFocusMode);
