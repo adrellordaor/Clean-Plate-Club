@@ -47,6 +47,7 @@
   --danger-hover: #ffffff;
   --done: #6f6e6a;
   --row-hover: #1d1d1d;
+  --panel: #1b1b1b;        /* a window's ground: one shade off the page, for separation only */
 
   /* Fire / Ice: the only two saturated colors. Fire's red end marks Do and overdue; its
      amber end marks Clear and "due today". Ice marks Plan and the calm, not-urgent side. */
@@ -161,6 +162,7 @@
   --danger-hover: #000000;
   --done: #9a9892;
   --row-hover: #eae9e4;
+  --panel: #f8f7f3;
 
   --fire: #d6400e;
   --fire-amber: #b36a00;
@@ -1335,10 +1337,13 @@ kbd {
 /* Non-interactive space anywhere in the panel doubles as a big expand/shrink hit target (see
    wireWindowExpandClick in windows.js) — cursor:pointer signals that everywhere, and cards,
    buttons, inputs and selects all set their own cursor anyway so this never fights them.
-   No box: a heavy rule on top, the title set large beneath it. */
+   Separated from the page by a ground one shade lighter (--panel) and a hairline edge, with
+   the heavy rule on top — separation, not a card: square, flat, no shadow. */
 .window-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
   border-top: 2px solid var(--view-accent, var(--text));
-  padding: 1rem 0 0;
+  padding: 1rem 1.1rem 1.1rem;
   min-width: 0;
   cursor: pointer;
 }
@@ -2437,8 +2442,10 @@ kbd {
 }
 
 .overview-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
   border-top: 2px solid var(--view-accent, var(--text));
-  padding-top: 0.9rem;
+  padding: 0.9rem 1rem 1rem;
 }
 
 @media (max-width: 900px) {
@@ -2620,8 +2627,10 @@ kbd {
 
 /* Scatter plot: no box, just the plot on the page, hairline axes. */
 .scatter {
-  border-top: 1px solid var(--border);
-  padding: 0.6rem 0 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--view-accent, var(--text));
+  padding: 0.75rem 0.75rem 0.5rem;
   overflow-x: auto; /* on a phone the plot keeps a readable size and scrolls inside its box */
 }
 
@@ -2643,9 +2652,9 @@ kbd {
   font-weight: 800;
   letter-spacing: -0.01em;
   pointer-events: none;
-  /* halo in the page colour keeps the word legible if a dot drifts close */
+  /* halo in the panel colour keeps the word legible if a dot drifts close */
   paint-order: stroke;
-  stroke: var(--bg);
+  stroke: var(--panel);
   stroke-width: 3px;
   stroke-linejoin: round;
 }
@@ -2687,7 +2696,7 @@ kbd {
 
 .scatter-dot {
   fill: var(--row-accent);
-  stroke: var(--bg);
+  stroke: var(--panel);
   stroke-width: 1.5;
   transition: r 0.12s var(--ease);
 }
@@ -2726,14 +2735,14 @@ kbd {
   pointer-events: none;
 }
 
-/* Always-on title labels: text colour with a page-coloured halo so they read over any
+/* Always-on title labels: text colour with a panel-coloured halo so they read over any
    quadrant tint; panel tasks are bold to match their bigger, numbered dots. */
 .scatter-label {
   fill: var(--text);
   font-size: 11px;
   pointer-events: none;
   paint-order: stroke;
-  stroke: var(--bg);
+  stroke: var(--panel);
   stroke-width: 3px;
   stroke-linejoin: round;
 }
