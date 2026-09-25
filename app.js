@@ -2204,13 +2204,25 @@ const recurringWeekdayLabel = document.getElementById("recurring-weekday-label")
 const recurringDomSelect = document.getElementById("recurring-dom");
 const recurringDomLabel = document.getElementById("recurring-dom-label");
 
-// Weekly shows the weekday picker, monthly the day-of-month picker, daily neither.
-function updateRecurringCadenceFields() {
-  recurringWeekdayLabel.hidden = recurringCadenceSelect.value !== "weekly";
-  recurringDomLabel.hidden = recurringCadenceSelect.value !== "monthly";
+// Weekly shows the weekday picker, monthly the day-of-month picker, daily neither. Changing the
+// cadence folds the right field open and the other shut (`animate`); filling the form as it
+// opens just sets them.
+function updateRecurringCadenceFields(animate = false) {
+  const cadence = recurringCadenceSelect.value;
+  if (animate) {
+    setShownAnimated(recurringWeekdayLabel, cadence === "weekly");
+    setShownAnimated(recurringDomLabel, cadence === "monthly");
+  } else {
+    [recurringWeekdayLabel, recurringDomLabel].forEach(label => { // settle any fold still running
+      clearTimeout(label.shownTimer);
+      label.classList.remove("section-opening", "section-closing");
+    });
+    recurringWeekdayLabel.hidden = cadence !== "weekly";
+    recurringDomLabel.hidden = cadence !== "monthly";
+  }
 }
 
-recurringCadenceSelect.addEventListener("change", updateRecurringCadenceFields);
+recurringCadenceSelect.addEventListener("change", () => updateRecurringCadenceFields(true));
 
 // Day-of-month options: "last day" (empty) then 1..31, built once.
 for (let day = 1; day <= 31; day++) {
