@@ -551,6 +551,26 @@ function setActiveView(view) {
   activeView = next;
   render();
   slideViews(prev, next);
+  if (prev !== next) scrollPageToTop();
+}
+
+// ---------- Smooth scroll ----------
+// The page scrolls with an eased, slightly lagged glide, and a tab change glides the new view
+// back to the top the same way. A deliberate exception to "motion is plain CSS" (CLAUDE.md):
+// CSS scroll-behavior only smooths scrolls the page itself triggers, never the mouse wheel, so
+// the glide comes from Lenis (loaded in index.html). allowNestedScroll leaves anything with its
+// own scrollbar (the Plate/Fridge bodies, modals, Focus mode) scrolling natively. Without Lenis
+// (offline) or with reduced motion on, the page scrolls natively and the tab-change return to
+// the top uses the browser's own smooth scroll (or jumps, for reduced motion).
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const lenis = typeof Lenis !== "undefined" && !reducedMotion
+  ? new Lenis({ autoRaf: true, allowNestedScroll: true })
+  : null;
+
+function scrollPageToTop() {
+  if (window.scrollY === 0) return;
+  if (lenis) lenis.scrollTo(0);
+  else window.scrollTo({ top: 0, behavior: reducedMotion ? "auto" : "smooth" });
 }
 
 // ---------- View switch slide ----------

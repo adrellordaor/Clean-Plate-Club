@@ -1173,6 +1173,14 @@ kbd {
   }
 }
 
+/* ---- Smooth scroll (Lenis, see app.js) ----
+   The one rule Lenis needs from its stylesheet: the page keeps its natural height while it
+   drives the scrolling. */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+
 /* ---- Text roll: the hover swap for clickable text and tab labels (applyTextRoll() in app.js) ----
    The label is a clipped track: the text, with a copy of it (::after, from data-text) stacked
    a small gap below. Hovering or keyboard-focusing the control slides the text up out of the
