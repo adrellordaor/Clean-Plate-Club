@@ -584,11 +584,7 @@ function renderCalendarCell(dateStr, data, today) {
     cell.appendChild(badge);
   }
 
-  cell.addEventListener("click", () => {
-    calendarSelectedWeekStart = weekStart;
-    calendarOpenDay = calendarOpenDay === dateStr ? null : dateStr;
-    render();
-  });
+  cell.addEventListener("click", () => selectCalendarDay(dateStr, weekStart));
 
   return cell;
 }
@@ -627,11 +623,7 @@ function renderCalendarCapacityCell(dateStr, data, today) {
   badge.textContent = stats.effort % 1 === 0 ? stats.effort : stats.effort.toFixed(1);
   cell.appendChild(badge);
 
-  cell.addEventListener("click", () => {
-    calendarSelectedWeekStart = weekStart;
-    calendarOpenDay = calendarOpenDay === dateStr ? null : dateStr;
-    render();
-  });
+  cell.addEventListener("click", () => selectCalendarDay(dateStr, weekStart));
 
   return cell;
 }
@@ -708,12 +700,14 @@ function formatCalendarShortDate(dateStr) {
 
 function renderCalendarDayRepo(data) {
   const panel = document.getElementById("calendar-day-repo");
-  panel.innerHTML = "";
+  // Opens and closes with the fold motion (setShownAnimated, app.js); on close the last day's
+  // contents stay put for the panel's exit rather than blanking first.
   if (!calendarOpenDay) {
-    panel.hidden = true;
+    setShownAnimated(panel, false);
     return;
   }
-  panel.hidden = false;
+  panel.innerHTML = "";
+  setShownAnimated(panel, true);
 
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
@@ -758,6 +752,45 @@ function renderCalendarDayRepo(data) {
   panel.appendChild(ul);
 }
 
+// Switching the week or the open day swaps what's in the Weekly Accomplishments panel and the
+// day repository: their rows fall and rise (changeWithRowRise, app.js), confined to those
+// panels and without scrolling the page. Opening or closing the day repository itself folds
+// it open or shut (renderCalendarDayRepo).
+function calendarWeeklyRows() {
+  return [...document.querySelectorAll("#calendar-weekly-panel > :not(.calendar-weekly-header), #calendar-weekly-panel .calendar-weekly-title")];
+}
+
+function calendarDayRepoRows() {
+  return [...document.querySelectorAll("#calendar-day-repo > *")];
+}
+
+function goToCalendarWeek(weekStart) {
+  if (weekStart === calendarSelectedWeekStart) return;
+  changeWithRowRise(() => {
+    calendarSelectedWeekStart = weekStart;
+    render();
+  }, { targets: calendarWeeklyRows, scroll: false });
+}
+
+function selectCalendarDay(dateStr, weekStart) {
+  const nextDay = calendarOpenDay === dateStr ? null : dateStr;
+  const weekChanges = weekStart !== calendarSelectedWeekStart;
+  const daySwaps = !!calendarOpenDay && !!nextDay; // one open day for another: same panel, new rows
+  const apply = () => {
+    calendarSelectedWeekStart = weekStart;
+    calendarOpenDay = nextDay;
+    render();
+  };
+  if (!weekChanges && !daySwaps) {
+    apply();
+    return;
+  }
+  changeWithRowRise(apply, {
+    targets: () => [...(weekChanges ? calendarWeeklyRows() : []), ...(daySwaps ? calendarDayRepoRows() : [])],
+    scroll: false,
+  });
+}
+
 function renderCalendarWeeklyPanel(data, today) {
   const panel = document.getElementById("calendar-weekly-panel");
   panel.innerHTML = "";
@@ -772,7 +805,7 @@ function renderCalendarWeeklyPanel(data, today) {
   prevBtn.className = "btn-icon";
   prevBtn.setAttribute("aria-label", "Previous week");
   prevBtn.innerHTML = ICONS.prev;
-  prevBtn.addEventListener("click", () => { calendarSelectedWeekStart = addDaysISODate(calendarSelectedWeekStart, -7); render(); });
+  prevBtn.addEventListener("click", () => goToCalendarWeek(addDaysISODate(calendarSelectedWeekStart, -7)));
   header.appendChild(prevBtn);
 
   const title = document.createElement("h2");
@@ -785,7 +818,7 @@ function renderCalendarWeeklyPanel(data, today) {
   nextBtn.className = "btn-icon";
   nextBtn.setAttribute("aria-label", "Next week");
   nextBtn.innerHTML = ICONS.next;
-  nextBtn.addEventListener("click", () => { calendarSelectedWeekStart = addDaysISODate(calendarSelectedWeekStart, 7); render(); });
+  nextBtn.addEventListener("click", () => goToCalendarWeek(addDaysISODate(calendarSelectedWeekStart, 7)));
   header.appendChild(nextBtn);
 
   if (summary.weekStartDate !== startOfWeekISODate(today)) {
@@ -793,7 +826,7 @@ function renderCalendarWeeklyPanel(data, today) {
     thisWeekBtn.type = "button";
     thisWeekBtn.className = "link-btn calendar-weekly-thisweek";
     thisWeekBtn.textContent = "This week";
-    thisWeekBtn.addEventListener("click", () => { calendarSelectedWeekStart = startOfWeekISODate(today); render(); });
+    thisWeekBtn.addEventListener("click", () => goToCalendarWeek(startOfWeekISODate(today)));
     header.appendChild(thisWeekBtn);
   }
 

@@ -460,10 +460,17 @@ function taskContextLabel(task) {
 const PANEL_EXPANDED_KEY = "overviewPanelExpanded";
 let overviewPanelExpanded = localStorage.getItem(PANEL_EXPANDED_KEY) === "1";
 
+// Expanding or shrinking the panel swaps its rows: they fall and rise (changeWithRowRise, app.js)
+// within the panel, without scrolling the page.
 function setOverviewPanelExpanded(expanded) {
-  overviewPanelExpanded = !!expanded;
-  try { localStorage.setItem(PANEL_EXPANDED_KEY, overviewPanelExpanded ? "1" : "0"); } catch (e) { /* private mode etc. */ }
-  render();
+  changeWithRowRise(() => {
+    overviewPanelExpanded = !!expanded;
+    try { localStorage.setItem(PANEL_EXPANDED_KEY, overviewPanelExpanded ? "1" : "0"); } catch (e) { /* private mode etc. */ }
+    render();
+  }, {
+    targets: () => [...document.querySelectorAll("#overview-panel .overview-panel-header, #overview-panel li, #overview-panel .overview-panel-rest")],
+    scroll: false,
+  });
 }
 
 function renderPrioritySummary(ranked, summary) {
