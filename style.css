@@ -162,7 +162,6 @@
   /* Focus mode dims much harder than a plain modal backdrop — real isolation — and its panel
      carries a soft fire glow: an urgency signal ("this is the urgent stuff"), not decoration. */
   --focus-overlay: rgba(0, 0, 0, 0.84);
-  --scope-vignette: rgba(0, 0, 0, 0.95); /* the edge darkening while Focus mode zooms in */
   --focus-glow: rgba(255, 90, 44, 0.26);
 
   /* Heat-map ramp: each quadrant has a fixed hue (see .quadrant-* below); a row's --p
@@ -261,7 +260,6 @@
 
   --overlay: rgba(20, 20, 18, 0.4);
   --focus-overlay: rgba(15, 15, 13, 0.7);
-  --scope-vignette: rgba(15, 15, 13, 0.9);
   --focus-glow: rgba(214, 64, 14, 0.35);
 
   --tint-s0: 30%;  --tint-s1: 72%;
@@ -2426,24 +2424,13 @@ html.lenis body {
 }
 
 /* Opening Focus mode (openFocusMode in windows.js): the panel zooms in from 85% as if through a
-   scope, the backdrop dims in behind it, and a vignette darkens the edges — center clear —
-   then widens and fades out as the zoom lands. Transition-only: nothing lingers afterwards. */
+   scope while the backdrop dims in behind it. Transition-only: nothing lingers afterwards. */
 .focus-overlay.scope-in {
   animation: scope-dim 0.52s var(--ease);
 }
 
 .focus-overlay.scope-in .focus-panel {
   animation: scope-zoom 0.52s var(--ease);
-}
-
-.focus-overlay.scope-in::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  background: radial-gradient(ellipse at center, transparent 32%, var(--scope-vignette) 72%);
-  animation: scope-vignette 0.52s var(--ease) forwards;
 }
 
 @keyframes scope-dim {
@@ -2455,19 +2442,10 @@ html.lenis body {
   40% { opacity: 1; }
 }
 
-@keyframes scope-vignette {
-  from, 50% { opacity: 1; transform: scale(1); }
-  to { opacity: 0; transform: scale(1.5); }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .focus-overlay.scope-in,
   .focus-overlay.scope-in .focus-panel {
     animation: none;
-  }
-
-  .focus-overlay.scope-in::before {
-    display: none;
   }
 }
 

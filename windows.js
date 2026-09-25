@@ -1271,7 +1271,7 @@ const focusPanel = document.getElementById("focus-panel");
 const focusBody = document.getElementById("focus-body");
 
 // Opening Focus mode zooms in like looking through a scope (.scope-in in style.css): the panel
-// scales up into place while a vignette darkens the edges and clears as the zoom lands. Only
+// scales up into place while the backdrop dims in behind it. Only
 // on opening, never on the re-renders while it's open; the class comes off once it's played.
 const SCOPE_IN_MS = 520;
 
