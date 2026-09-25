@@ -111,6 +111,14 @@ function setWindowPref(key, value) {
   render();
 }
 
+// Expanding or shrinking a window: the frames glide to their new widths (style.css) while the
+// cards inside, which switch between compact and detailed, fall and rise (changeWithRowRise,
+// app.js) rather than snapping. The page stays where it is.
+function setWindowFocus(value) {
+  if (windowPrefs.focus === value) return;
+  changeWithRowRise(() => setWindowPref("focus", value), { targets: () => rowRiseTargets(), scroll: false });
+}
+
 // ---------- Ordering (pure) ----------
 
 // null sorts after every real date; equal strings compare equal.
@@ -413,7 +421,7 @@ function renderWindow(win, ranked, today, nowIsEmpty) {
   // reflects the true size of what's showing, RecurringTasks included.
   const habitsDue = windowHabits(win, today);
 
-  const toggleExpand = () => setWindowPref("focus", expanded ? "none" : win.key);
+  const toggleExpand = () => setWindowFocus(expanded ? "none" : win.key);
 
   // Header: expand/focus icon (plate/fridge), title, pile-size indicator, hint, focus mode
   // (Now only), expand/shrink. Clicking non-interactive space anywhere in the window (not
@@ -1682,7 +1690,7 @@ function wireWindowExpandClick(el, win) {
   el.addEventListener("click", e => {
     if (e.target.closest("button, select, input, a, .window-card, .window-subtask, .window-habit, .window-completed-row")) return;
     const expanded = windowPrefs.focus === win.key;
-    setWindowPref("focus", expanded ? "none" : win.key);
+    setWindowFocus(expanded ? "none" : win.key);
   });
 }
 wireWindowExpandClick(document.getElementById("now-window"), WINDOWS.now);
@@ -1722,7 +1730,7 @@ document.addEventListener("click", e => {
     node.id === "overdue-callout"
   );
   if (isExempt) return;
-  setWindowPref("focus", "none");
+  setWindowFocus("none");
 });
 
 if (typeof module !== "undefined" && module.exports) {
