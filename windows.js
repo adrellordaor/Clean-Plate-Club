@@ -844,7 +844,7 @@ function scheduleCardDone(task, el, checked) {
     el.classList.add("done-pending");
     const timer = setTimeout(() => {
       pendingDone.delete(task.id);
-      if (task.status === "active") toggleTaskDone(task);
+      if (task.status === "active") leaveThen([task.id], () => { if (task.status === "active") toggleTaskDone(task); }, ".window-card, .overdue-card"); // app.js
     }, DONE_GRACE_MS);
     pendingDone.set(task.id, timer);
   } else {
@@ -862,7 +862,7 @@ function scheduleHabitDone(rt, el, checked) {
     el.classList.add("done-pending");
     const timer = setTimeout(() => {
       pendingDone.delete(rt.id);
-      if (!isRecurringDoneNow(rt)) toggleRecurringTask(rt);
+      if (!isRecurringDoneNow(rt)) leaveThen([rt.id], () => { if (!isRecurringDoneNow(rt)) toggleRecurringTask(rt); }, ".window-habit"); // app.js
     }, DONE_GRACE_MS);
     pendingDone.set(rt.id, timer);
   } else {
@@ -1171,12 +1171,12 @@ function renderCompletedToday(today) {
     list.className = "window-completed-list";
     list.dataset.section = "completed-today";
     doneTasks.forEach(task => {
-      list.appendChild(renderCompletedTodayRow(task.title, taskContextLabel(task), "Reopen " + task.title, () => toggleTaskDone(task)));
+      list.appendChild(renderCompletedTodayRow(task.id, task.title, taskContextLabel(task), "Reopen " + task.title, () => toggleTaskDone(task)));
     });
     doneHabits.forEach(rt => {
       const folder = folders.find(f => f.id === rt.folder_id);
       const meta = [folder ? folder.name : null, "recurring"].filter(Boolean).join(" · ");
-      list.appendChild(renderCompletedTodayRow(rt.title, meta, "Undo " + rt.title, () => toggleRecurringTask(rt)));
+      list.appendChild(renderCompletedTodayRow(rt.id, rt.title, meta, "Undo " + rt.title, () => toggleRecurringTask(rt)));
     });
     block.appendChild(list);
   }
@@ -1184,15 +1184,16 @@ function renderCompletedToday(today) {
 }
 
 // One Completed Today row, shared by regular tasks and habits alike: checkbox (checked,
-// reopens/undoes on uncheck), title, optional meta line.
-function renderCompletedTodayRow(titleText, metaText, ariaLabel, onToggle) {
+// reopens/undoes on uncheck — the row folds out of the list first), title, optional meta line.
+function renderCompletedTodayRow(id, titleText, metaText, ariaLabel, onToggle) {
   const row = document.createElement("label");
   row.className = "window-completed-row";
   const checkbox = document.createElement("input");
   checkbox.type = "checkbox";
   checkbox.checked = true;
+  checkbox.dataset.checkId = id;
   checkbox.setAttribute("aria-label", ariaLabel);
-  checkbox.addEventListener("change", onToggle);
+  checkbox.addEventListener("change", () => leaveThen([id], onToggle, ".window-completed-row")); // app.js
   row.appendChild(checkbox);
   const title = document.createElement("span");
   title.className = "window-completed-title";

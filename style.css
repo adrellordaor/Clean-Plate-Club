@@ -913,6 +913,32 @@ kbd {
   }
 }
 
+/* ---- Rows arriving, leaving and shifting (leaveThen / playRowMotion in app.js) ----
+   A leaving row folds shut (the same close as a fold) before it's removed; rows it or a new
+   arrival pushes around glide from their old spot (--flip-x / --flip-y) instead of jumping.
+   Arrivals rise in with the row-rise below. */
+.row-leaving {
+  interpolate-size: allow-keywords;
+  overflow: clip;
+  pointer-events: none;
+  animation: section-close 0.28s var(--ease) forwards;
+}
+
+.row-flip {
+  animation: row-flip 0.28s var(--ease);
+}
+
+@keyframes row-flip {
+  from { transform: translate(var(--flip-x, 0), var(--flip-y, 0)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row-leaving,
+  .row-flip {
+    animation: none;
+  }
+}
+
 /* ---- Row rise (changeWithRowRise in app.js) ----
    A filter or mode change inside a view: the current rows drop a little and fade out
    together, then the new rows fade in and rise into place, one row after another (80ms +

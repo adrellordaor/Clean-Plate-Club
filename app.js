@@ -528,9 +528,11 @@ function deleteRecurringTask(id) {
   const rt = recurringTasks.find(r => r.id === id);
   const label = rt ? `"${rt.title}"` : "this habit";
   if (!confirm(`Delete ${label}?`)) return;
-  recurringTasks = recurringTasks.filter(r => r.id !== id);
-  persist();
-  render();
+  leaveThen([id], () => {
+    recurringTasks = recurringTasks.filter(r => r.id !== id);
+    persist();
+    render();
+  });
 }
 
 let activeCategoryFilter = "all"; // "all" or a category id
@@ -729,6 +731,111 @@ function toggleSubtasks(task) {
   });
 }
 
+// ---------- Rows arriving, leaving and shifting ----------
+// Inside an unchanged view, a task or habit row never pops in or out. One leaving (completed
+// once its grace period ends, deleted, reopened out of Completed Today) folds shut first
+// (.row-leaving, leaveThen); one arriving (just added, moved in, reopened back) rises in like
+// the row-rise; and every row the change pushes around glides from its old spot to its new one
+// (.row-flip) instead of jumping. Rows are found by their completion checkbox's data-check-id.
+// A render that changes the view itself (tab, mode, filter, sort, a fold) is left to the slide,
+// row-rise and fold motions instead, so nothing doubles up.
+const MOTION_ROW_SELECTOR = "li, .window-card, .window-subtask, .window-habit, .window-completed-row, .overdue-card";
+
+// Visible rows keyed "<id>@<nearest container with an id>", so the same task showing in two
+// places (a card and the Overdue strip) counts as two rows.
+function motionRows() {
+  const rows = new Map();
+  document.querySelectorAll("input[type=checkbox][data-check-id]").forEach(box => {
+    if (box.offsetParent === null) return;
+    const row = box.closest(MOTION_ROW_SELECTOR);
+    if (!row) return;
+    const home = row.parentElement && row.parentElement.closest("[id]");
+    const key = box.dataset.checkId + "@" + (home ? home.id : "");
+    if (!rows.has(key)) rows.set(key, row);
+  });
+  return rows;
+}
+
+function rowMotionBusy() {
+  return !!rowChangeTimer
+    || document.documentElement.classList.contains("view-sliding")
+    || !!document.querySelector(".row-rise, .row-fall, .section-opening, .section-closing");
+}
+
+// Everything that, when it changes, makes a render a change of view rather than of rows.
+function renderContextKey() {
+  return JSON.stringify([
+    activeView, listDisplayMode, activeCategoryFilter, windowPrefs, focusModeOpen,
+    overviewDisplayMode, overviewPanelExpanded,
+    calendarDisplayMode, calendarMonth, calendarOpenDay, calendarSelectedWeekStart,
+    [...collapsedFolders], [...collapsedTasks], [...collapsedRecurringFolders], completedTodayOpen,
+  ]);
+}
+
+let lastRenderContext = null;
+
+// Called at the start of render(): the rows' positions before, if this render should animate.
+function snapshotRowMotion() {
+  const context = renderContextKey();
+  const animate = firstRenderDone && !reducedMotion && context === lastRenderContext && !rowMotionBusy();
+  lastRenderContext = context;
+  if (!animate) return null;
+  const before = new Map();
+  motionRows().forEach((row, key) => before.set(key, row.getBoundingClientRect()));
+  return before;
+}
+
+// Called at the end of render(): new rows rise in, moved rows glide from where they were.
+function playRowMotion(before) {
+  if (!before) return;
+  const after = motionRows();
+  const arrivals = [];
+  const moves = [];
+  after.forEach((row, key) => {
+    const old = before.get(key);
+    if (!old) {
+      arrivals.push(row);
+      return;
+    }
+    const now = row.getBoundingClientRect();
+    const dx = old.left - now.left;
+    const dy = old.top - now.top;
+    if (Math.abs(dx) > 1 || Math.abs(dy) > 1) moves.push({ row, dx, dy });
+  });
+  // A row inside one that's already moving or arriving goes along with it.
+  const moving = new Set([...arrivals, ...moves.map(m => m.row)]);
+  const carried = row => {
+    for (let el = row.parentElement; el; el = el.parentElement) if (moving.has(el)) return true;
+    return false;
+  };
+  moves.filter(m => !carried(m.row)).forEach(({ row, dx, dy }) => {
+    row.style.setProperty("--flip-x", dx + "px");
+    row.style.setProperty("--flip-y", dy + "px");
+    row.classList.add("row-flip");
+    setTimeout(() => row.classList.remove("row-flip"), ROW_RISE.riseMs);
+  });
+  const rising = arrivals.filter(row => !carried(row));
+  if (rising.length) riseRows(() => rising.filter(row => row.isConnected), false);
+}
+
+// Folds the rows showing these ids shut, then runs `apply` (the state change and re-render
+// that takes them away). `only` narrows it to the kinds of row the change actually removes —
+// completing a task takes its Plate/Fridge card away, but its list row and a subtask row stay
+// on, struck through.
+function leaveThen(ids, apply, only = MOTION_ROW_SELECTOR) {
+  const idSet = new Set(ids);
+  const rows = [...document.querySelectorAll("input[type=checkbox][data-check-id]")]
+    .filter(box => idSet.has(box.dataset.checkId) && box.offsetParent !== null)
+    .map(box => box.closest(MOTION_ROW_SELECTOR))
+    .filter(row => row && row.matches(only));
+  if (reducedMotion || !rows.length) {
+    apply();
+    return;
+  }
+  rows.forEach(row => row.classList.add("row-leaving"));
+  setTimeout(apply, SECTION_MS);
+}
+
 // Shows or hides a piece of standing layout (e.g. the header's category tabs, which only
 // Checklist has) with the same open/close motion, instead of it popping in or out. The first
 // render just sets it, so nothing animates on page load.
@@ -885,6 +992,7 @@ function setListDisplayMode(mode) {
 // ---------- Rendering ----------
 
 function render() {
+  const rowMotion = snapshotRowMotion();
   renderViewSwitch();
   renderCategoryTabs();
   renderListModeToggle();
@@ -896,6 +1004,7 @@ function render() {
   renderOverview();
   renderCalendar();
   firstRenderDone = true;
+  playRowMotion(rowMotion);
 }
 
 // ---------- Overdue callout ----------
@@ -1831,9 +1940,11 @@ function deleteTask(taskId) {
   const label = task ? `"${task.title}"` : "this task";
   const extra = descendantIds.length > 0 ? ` and its ${descendantIds.length} subtask(s)` : "";
   if (!confirm(`Delete ${label}${extra}?`)) return;
-  tasks = tasks.filter(t => !idsToRemove.has(t.id));
-  persist();
-  render();
+  leaveThen([...idsToRemove], () => {
+    tasks = tasks.filter(t => !idsToRemove.has(t.id));
+    persist();
+    render();
+  });
 }
 
 function collectDescendantIds(taskId) {
