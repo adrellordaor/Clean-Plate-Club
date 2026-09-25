@@ -43,6 +43,11 @@
   --tab-idle: var(--text-faint);
   --tab-hover: var(--text-muted);
   --tab-active: #ffffff;
+  /* Color tabs (.color-tab: the view tabs and category tabs): an active tab fills with its own
+     color, darkened this much toward black on the dark theme so its near-white label stays
+     legible over the lighter dark-theme tints. */
+  --tab-fill-strength: 64%;
+  --tab-on: #f7f6f2;
   --danger: var(--text);   /* destructive actions stay neutral; the confirm dialog carries the weight */
   --danger-hover: #ffffff;
   --done: #6f6e6a;
@@ -190,6 +195,8 @@
   --accent-hover: #000000;
   --on-accent: #f2f1ed;
   --tab-active: #000000;
+  --tab-fill-strength: 100%;
+  --tab-on: #ffffff;
   --danger-hover: #000000;
   --done: #9a9892;
   --row-hover: #eae9e4;
@@ -692,7 +699,7 @@ kbd {
   display: flex;
   flex-wrap: wrap; /* wraps rather than scrolling sideways, so a color picker isn't clipped */
   align-items: center;
-  gap: 0.25rem 1.6rem;
+  gap: 0.5rem 0.6rem;
 }
 
 .folder-tabs:empty {
@@ -706,28 +713,15 @@ kbd {
   align-self: center;
 }
 
+/* A category tab's label; its colors and states come from the .color-tab wrap around it. */
 .folder-tab {
   border: none;
   background: transparent;
-  padding: 0.55rem 0 0.6rem;
   font-size: var(--fs-group);
   font-weight: 700;
   letter-spacing: -0.01em;
-  color: var(--tab-idle);
   cursor: pointer;
-  transition: color 0.15s var(--ease);
-  border-bottom: 2px solid transparent;
   white-space: nowrap;
-}
-
-.folder-tab:hover {
-  color: var(--tab-hover);
-}
-
-.folder-tab.active,
-.folder-tab.active:hover {
-  color: var(--tab-active);
-  border-bottom-color: var(--view-accent, var(--text));
 }
 
 /* ---- Category color dots and picker ----
@@ -736,8 +730,6 @@ kbd {
    (categoryDotForFolder in app.js), so a folder's category reads at a glance. */
 .folder-tab-wrap {
   position: relative;
-  display: inline-flex;
-  align-items: center;
   gap: 0.2rem;
 }
 
@@ -877,10 +869,6 @@ kbd {
 
   .header-top {
     gap: 0.4rem 1rem;
-  }
-
-  #view-switch {
-    gap: 0.9rem;
   }
 
   #view-switch .view-switch-btn {
@@ -2829,6 +2817,86 @@ html.lenis body {
 .windows-toolbar .view-switch,
 .window-switch {
   gap: 0.9rem;
+}
+
+/* ---- Color tabs: the view tabs (Overview / Checklist / Calendar) and the category tabs ----
+   One mechanism for both, in the app's box language (hairline border, small radius, never a
+   pill), each tab in its own color (--tab-color: the view's accent, the category's color, ink
+   for "All"):
+   - idle: a thin underline in that color; the label (and any dot) stays neutral;
+   - hover: the underline closes into a box around the whole tab, and the label and dot take the
+     color too, all together;
+   - active: the box fills solid with the color, label and dot near-white on top.
+   A category tab's box is its wrap (dot + label); a view tab's box is the button itself. */
+.color-tab {
+  --tab-color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid transparent;
+  border-bottom-color: var(--tab-color);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-muted);
+  transition: color 0.2s var(--ease), background-color 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+
+.color-tab:hover,
+.color-tab:focus-within {
+  border-color: var(--tab-color);
+  color: var(--tab-color);
+}
+
+.color-tab.active,
+.color-tab.active:hover {
+  border-color: transparent;
+  background: color-mix(in oklab, var(--tab-color) var(--tab-fill-strength), #000);
+  color: var(--tab-on);
+}
+
+/* "All" is ink, not a hue: it fills with ink at full strength and takes the page color on top. */
+.color-tab-neutral.active,
+.color-tab-neutral.active:hover {
+  background: var(--text);
+  color: var(--bg);
+}
+
+.color-tab[data-view="overview"] { --tab-color: var(--accent-overview); }
+.color-tab[data-view="list"] { --tab-color: var(--accent-list); }
+.color-tab[data-view="calendar"] { --tab-color: var(--accent-calendar); }
+
+/* View tabs: the button is the box; boxes sit closer than bare labels did. */
+#view-switch {
+  gap: 0.4rem;
+}
+
+.view-switch-btn.color-tab {
+  padding: 0.3rem 0.6rem;
+}
+
+/* Category tabs: the wrap is the box; the label button and dot just carry its color. */
+.color-tab .folder-tab,
+.color-tab .folder-tab:hover {
+  color: inherit;
+  border: none;
+  padding: 0.3rem 0.6rem;
+}
+
+.color-tab .cat-dot-btn + .folder-tab {
+  padding-left: 0.15rem;
+}
+
+.color-tab .cat-dot-btn {
+  margin-left: 0.4rem;
+}
+
+.color-tab.active .cat-dot-btn {
+  background: radial-gradient(circle, var(--tab-on) 0 0.27rem, transparent 0.28rem);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .color-tab {
+    transition: none;
+  }
 }
 
 /* ---- Overview (scatter / quadrant list, priority panel, digest) ---- */

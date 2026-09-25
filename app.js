@@ -895,25 +895,32 @@ function setCategoryColor(category, key) {
 
 // The category tabs: "All" plus one per category, each with its color dot (click the dot to
 // pick a color), then "+ Category". They sit in the header banner and filter both List modes
-// (the folder list and the Plate/Fridge windows) through the one activeCategoryFilter.
+// (the folder list and the Plate/Fridge windows) through the one activeCategoryFilter. Each tab
+// is a color tab (.color-tab in style.css, shared with the view tabs): its wrap is the box that
+// underlines, outlines on hover and fills when active, in the category's color ("All": ink).
 function renderCategoryTabs() {
   const nav = document.getElementById("folder-tabs");
   nav.innerHTML = "";
 
+  const allWrap = document.createElement("span");
+  allWrap.className = "folder-tab-wrap color-tab color-tab-neutral" + (activeCategoryFilter === "all" ? " active" : "");
   const allBtn = document.createElement("button");
   allBtn.type = "button";
-  allBtn.className = "folder-tab" + (activeCategoryFilter === "all" ? " active" : "");
+  allBtn.className = "folder-tab";
+  allBtn.setAttribute("aria-pressed", activeCategoryFilter === "all" ? "true" : "false");
   allBtn.textContent = "All";
   allBtn.addEventListener("click", () => {
     activeCategoryFilter = "all";
     render();
   });
-  nav.appendChild(allBtn);
+  allWrap.appendChild(allBtn);
+  nav.appendChild(allWrap);
 
   const colorKeys = categoryColorKeys();
   categories.forEach(category => {
     const wrap = document.createElement("span");
-    wrap.className = "folder-tab-wrap";
+    wrap.className = "folder-tab-wrap color-tab" + (activeCategoryFilter === category.id ? " active" : "");
+    wrap.style.setProperty("--tab-color", "var(--cat-" + colorKeys[category.id] + ")");
 
     const dot = document.createElement("button");
     dot.type = "button";
@@ -931,7 +938,8 @@ function renderCategoryTabs() {
 
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.className = "folder-tab" + (activeCategoryFilter === category.id ? " active" : "");
+    btn.className = "folder-tab";
+    btn.setAttribute("aria-pressed", activeCategoryFilter === category.id ? "true" : "false");
     btn.textContent = category.name;
     btn.addEventListener("click", () => {
       activeCategoryFilter = category.id;
