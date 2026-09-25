@@ -137,6 +137,12 @@ file in an OneDrive-backed folder.
   add, a direct field edit, or deprioritizing. Shown as a small, plain
   tag whenever count ≥ 1 (e.g. "Rolled 3x"), just the number, no color
   tiers or thresholds, kept intentionally simple.
+- was_ever_in_plan: bool, default false — set true the first time this
+  task's live quadrant computes to Plan, stays true afterward even once
+  urgency later pushes it into Do. Drives the Calendar's big win marker
+  (see Calendar view section), one of two independent paths to a big
+  win, the other being completion after the task's own `deadline` had
+  passed. Never reset once true.
 - **Week-calendar do_date picker**: wherever `do_date` is set in the task
   form, show 7 boxes, today first, labeled with weekday letters, one tap
   picks a day, this is what makes scheduling something for tomorrow
@@ -489,6 +495,13 @@ The app has three views:
 - Tabs are Categories ("All" plus one per category); within a category tab,
   tasks are grouped into collapsible Folder sections (e.g. "Finances" and
   "Chores" as two sections inside the Errands tab)
+- **Category sections, collapsible with one exception**: when the "All"
+  tab is active, each category renders as its own collapsible section
+  (folders collapsible within it, same as always). When a single
+  category tab is active instead, that category's own section header is
+  NOT collapsible, since it's already the sole content on screen,
+  collapsing it would just empty the view for no benefit. Folders stay
+  collapsible in both cases regardless.
 - Nested task list within each folder, with collapsible subtasks
 - Checkboxes to mark done, live here
 - **Folder count display** (toggleable, `folder_count_display` setting):
@@ -748,7 +761,7 @@ The app has three views:
     an undo grace period (the strikethrough moment) with ongoing "look
     what I did" value (the persisted, tucked-away folder), consistent
     with how this app already treats evidence of completed work elsewhere
-    (the Weekly panel's cleared list, the gold glow). This folder exists
+    (the Weekly panel's cleared list, the big win marker). This folder exists
     **only in Daily Plate**, not Fridge, "completed today" is inherently
     a Daily Plate concept. Completing a task directly from Fridge doesn't
     create a second folder there, it moves into Daily Plate's Completed
@@ -982,38 +995,37 @@ productivity view")
   the flat weight above instead, everything else about their isolation
   from the scoring system (no importance, urgency, or quadrant) stays
   exactly as designed.
-- **Color reflects overall pace**, not just habits, in strict priority
-
-  order (matches the override pattern used elsewhere, e.g. the do_date
-  urgency floor):
-  1. **Red**: something **High/Critical importance** is overdue as of
-     that day — a regular task bucketed High importance (same bucket as
-     quadrant placement) with a `deadline` before that day that was still
-     open past it (`completed_at` null or later). A Low/Medium importance
-     overdue task does not trigger this, see the ring indicator below
-     instead. This is purely about `deadline` (real consequences),
-     `do_date` has no role in Red.
-  2. **Green**: nothing High-importance overdue, and everything *planned*
-     for that day (RecurringTasks scheduled that day, plus regular Tasks
-     with `do_date` exactly that day) got done. Note this uses `do_date`,
-     not `deadline` — a self-chosen task with no deadline at all still
-     counts as "planned," fixing the earlier flaw where a day full of
-     completed undated tasks (gym, cleaning, chores) would incorrectly
-     render Gray since nothing had a real due date that day.
-  3. **Blue**: nothing High-importance overdue, but only some of what was
-     planned (by the same `do_date` definition) got done.
+- **Color reflects overall day, not habits specifically**, in strict
+  priority order (matches the override pattern used elsewhere, e.g. the
+  do_date urgency floor):
+  1. **Red (rectify)**: a regular Task with a `deadline` on or before
+     that day was still open past it (`completed_at` null or later),
+     regardless of importance level. This replaces the earlier
+     importance-gated Red rule and the separate overdue ring below, any
+     genuine deadline miss counts directly now, there's no second tier
+     for lower-importance misses.
+  2. **Deep blue (good)**: nothing overdue by the Red rule, and
+     everything *planned* for that day (RecurringTasks scheduled that
+     day, plus regular Tasks with `do_date` exactly that day) got done.
+     Uses `do_date`, not `deadline`, a self-chosen task with no deadline
+     at all still counts as "planned," so a day full of completed
+     undated tasks (gym, cleaning, chores) correctly renders Deep blue
+     rather than Gray.
+  3. **Pale blue (average)**: nothing overdue by the Red rule, but only
+     some of what was planned (same `do_date` definition) got done,
+     left for future-you.
   4. **Gray**: nothing was planned at all that day, same "no obligation,
-     not a failure" principle as before.
-  Red and the overdue ring stay fully live-computed always, `deadline`
-  never changes retroactively so there's nothing to freeze there. Green/
-  Blue/Gray for **today** are also computed live. But for **any past day**,
+     not a failure" principle as before, not a performance color.
+  Red stays fully live-computed always, `deadline` never changes
+  retroactively so there's nothing to freeze there. Deep blue/Pale blue/
+  Gray for **today** are also computed live. But for **any past day**,
   computing "planned" live from each task's *current* `do_date` breaks
   once rollover exists: a task planned yesterday that wasn't finished
   rolls its `do_date` forward to today, so a live recompute of yesterday
   would show it as never having been planned at all, quietly turning an
-  honest Blue day into Green or Gray after the fact. To prevent the
-  calendar from rewriting its own history, freeze each day's planned set
-  once, right before daily maintenance rolls incomplete `do_date`s
+  honest Pale-blue day into Deep-blue or Gray after the fact. To prevent
+  the calendar from rewriting its own history, freeze each day's planned
+  set once, right before daily maintenance rolls incomplete `do_date`s
   forward: record which regular Tasks had `do_date` equal to that day and
   whether each was completed by day's end, plus which RecurringTasks were
   scheduled that day and completed. This is a permanent, append-only
@@ -1022,14 +1034,23 @@ productivity view")
   month), captured for free at the exact moment daily maintenance already
   runs, no separate process needed. Once frozen, a day's color never
   changes again regardless of what happens to `do_date` afterward.
-- **Overdue ring** (independent overlay, separate from the base fill
-  color): a thin outline on the cell when a Low/Medium importance task is
-  overdue as of that day, without forcing Red. Keeps minor overdue items
-  visible without giving them veto power over the day's actual color.
-- **Gold glow** (independent overlay, layers on any base color): fires
-  when a High/Critical importance task got completed that day (same
-  importance bucket as the Red rule above, no new setting). A red day can
-  still glow gold if something important also got cleared.
+- **Big win marker** (independent overlay, layers on any base color,
+  replaces the earlier importance-gated "gold glow" and its bite-size-
+  exemption-plus-7-day-sitting formula entirely): a new per-task boolean
+  `was_ever_in_plan`, set true the first time a task's live quadrant
+  computes to Plan, staying true afterward even once urgency later pushes
+  it into Do (Plan already implies High/Critical importance by
+  construction, no separate importance check needed on this path). On
+  completion, a task counts as a big win if EITHER `was_ever_in_plan` is
+  true, OR the task was completed after its own `deadline` had already
+  passed, a genuine slippage-then-recovery, not just age (this second
+  path needs an explicit High/Critical importance check, since a
+  Low/Medium deadline miss isn't the same accomplishment and never
+  passes through Plan to get the first path's exemption). The marker
+  fires on whichever day the qualifying task was completed, independent
+  of that day's Red/Deep-blue/Pale-blue/Gray color, a Pale-blue day can
+  still show a big win, it doesn't promote the day's tier. A red day can
+  still show a big win too, if something important also got cleared.
 - **Secondary count badge**: number of regular (non-recurring) tasks
   completed that day, regardless of whether they were "due" that day,
   raw context alongside the color, never blended into it.
@@ -1119,11 +1140,11 @@ productivity view")
   staleness check-ins, and the Calendar's Weekly Accomplishments panel and
   day-repository, Simple daily log in particular was never more than a
   three-word placeholder with no real definition behind it
-- Calendar view: pace-based coloring across all tasks (not just habits),
-  gold glow for big wins, count badge, click-through repository, a
-  Capacity view toggle (effort vs. daily_capacity_points, using
-  is_quick_win as the effort proxy), and a Weekly Accomplishments panel
-  (highlights, never a score)
+- Calendar view: day coloring across all tasks (not just habits, red/
+  deep-blue/pale-blue/gray), a big win marker, count badge, click-through
+  repository, a Capacity view toggle (effort vs. daily_capacity_points,
+  using is_quick_win as the effort proxy), and a Weekly Accomplishments
+  panel (highlights, never a score)
 - Heat-map row coloring in List view, tied to each task's live quadrant
 
 ## Visual Design System
@@ -1148,13 +1169,141 @@ Each major view (Overview, Checklist, Calendar) also carries a subtle
 distinguishing accent, used lightly on that view's typography/framing,
 not as a decorative wash.
 
-**Note (this file was edited directly by Claude Code during the visual
-pass, contrary to the established workflow where only chat edits this
-file, worth reconciling manually and not repeating going forward).**
+**Note (this file was edited directly by Claude Code during the initial
+visual pass, contrary to the established workflow where only chat edits
+this file, worth reconciling manually if any drift remains, and not
+repeating going forward).**
 
-**Queued, not yet built**: category tabs in the Daily Plate/Fridge
-windows, matching the main List view's category tabs, with assignable
-colors per category.
+**Window borders and fire/ice restored**: Daily Plate's border, icon, and
+header text carry fire (amber/red) coloring; Fridge's carry ice (blue),
+lost briefly during the color-scope overcorrection above and restored.
+The overdue glow (on individual overdue task cards) is likewise restored.
+
+**Window delineation**: Daily Plate, Fridge, the Overview scatter plot,
+and the Priority view each carry a subtle boundary (hairline border or a
+slightly distinct panel background) so they read as separated, still no
+soft drop-shadows, this is separation, not a card treatment.
+
+**Category tabs, built**: the Daily Plate/Fridge windows and the main
+List view share one category-tab mechanism (not two separate
+implementations), assignable colors per category. In Plate view, these
+live in the top banner, same placement as List view, not floating above
+the Daily Plate window. The same top-banner category filter extends to
+Overview and Calendar as well, one filter row usable everywhere, not
+List-view-only.
+
+**Quadrant legend key**: shown consistently in Plate view too, not just
+List/Checklist, so both views carry the same "hue = quadrant, intensity =
+priority" reference.
+
+**Color system (tabs and categories)**: box-based, not pill-shaped,
+consistent with the app's existing rectangular/hairline-border language.
+- Inactive: thin underline only, in that tab/category's color. Label
+  text and icon stay neutral.
+- Hover: a rectangular border (small radius, matching panel corners, not
+  a rounded pill) appears in that color. Label text and any adjacent
+  icon shift to the same color together, not just the border alone.
+- Active: the box fills solid with that color, label text and icon go
+  high-contrast for legibility against the fill.
+- Applies uniformly to view tabs (Overview/Checklist/Calendar) and
+  category tabs, one mechanism, not two.
+- Exception: the app title/icon stays neutral always. It's a brand mark,
+  not a state indicator, and does not take on any tab's or category's
+  color, matching how Konrad's own wordmark stays static through every
+  section's color shifts. It keeps its own hover treatment (below) only.
+- Folder color-coding (within List/Checklist content, not just the
+  top-banner tabs) extends beyond the small dot to font color and/or the
+  section-divider lines, the dividers are no longer hardcoded green,
+  they carry each folder's own color.
+
+**Toggles**: any toggle control keeps the same screen position across
+every view it appears in (switching views shouldn't require re-finding
+it). Implemented as a single button-style toggle rather than a
+multi-option control; on hover, the button's label text-rolls to preview
+the destination state's name, reusing the text-roll mechanism below
+rather than a separate hover treatment. The Flat/Folder toggle exists in
+both List/Checklist and Plate view, same mechanism in both places.
+
+**Motion system**, one signature easing curve throughout,
+`cubic-bezier(0.22, 1, 0.36, 1)`, at different speeds by scale (~0.18s
+small UI, ~0.3s medium, ~0.4-0.5s large/full-view transitions). Plain CSS
+by default, no animation library, that's a standing CLAUDE.md rule, not
+just a one-off choice; an animation library is a deliberate, flagged
+exception only when CSS genuinely can't achieve the effect (native
+`scroll-behavior: smooth`'s limited curve is the one confirmed case so
+far, see Smooth scroll below).
+- **Text-roll**: stacked duplicate text in a clipped container,
+  translated on hover to swap in the duplicate. Applies to clickable
+  text broadly, tabs, toggle labels, and most icons (Daily Plate/Fridge
+  icons etc.) as the default icon-hover treatment too.
+- **Icon motion exceptions**, where a more specific, shape-appropriate
+  gesture fits better than the roll default:
+  - Pile-size glyph (see below): scales up from baseline instead, on
+    both hover and task-add, not roll.
+  - App title icon: hop + rotate per utensil (fork, then plate, then
+    knife, staggered ~60-80ms apart), a quick upward translate paired
+    with a small rotational wiggle around each piece's own pivot, single
+    play on hover, not a loop.
+  - Focus mode's trigger icon: "scope in", a quick zoom/scale read as
+    looking through a sniper scope, distinct from roll or hop+rotate.
+  - A "+" add icon: a quarter turn on click/hover where that reads as
+    the more natural gesture for the shape.
+  Roll stays the default otherwise, these are named exceptions, not a
+  blanket ban, lean toward fully static for icons that repeat densely
+  (every list row, every card) so motion still reads as a flourish.
+- **Staggered reveal**: category changes and toggle-view changes (not
+  the main view-tab switch, see Tab-switch slide below) use a row-rise:
+  matching rows fade in and translate up, staggered per row, delay =
+  80ms + (index × 60ms), ~280ms per row. Same math for dropdown/menu
+  panels generally.
+- **Tab-switch slide**: switching between Overview/Checklist/Calendar
+  specifically slides content horizontally, direction follows tab order,
+  ~0.4-0.5s. Scoped to these three, not category or toggle changes.
+- **Scroll reveal**: major section headings/text blocks split into lines,
+  each clipped and sliding up into place as it enters the viewport, tied
+  to scroll position. Used sparingly, major headers only.
+- **Smooth scroll**: an eased, slightly lagged scroll feel throughout,
+  and the same motion drives auto-scroll-to-top on tab change. This is
+  the one confirmed case where plain CSS (`scroll-behavior: smooth`)
+  wasn't enough, its curve is too fixed/limited to reproduce the actual
+  lagged feel, so a lightweight scroll library (Lenis) is the flagged
+  exception here specifically.
+- **Sequencing rule**: auto-scroll-to-top always runs *after* whatever
+  entrance transition (slide or row-rise) finishes, never concurrently,
+  concurrent horizontal-plus-vertical motion reads as an unwanted
+  diagonal, not two clean motions.
+- **No snap transitions, standing rule**: every view/filter/screen
+  change animates, never cuts instantly. Exception: persistent/shared
+  chrome (the Daily Plate/Fridge window frames themselves) stays static
+  while only the content inside animates out and in, for content-only
+  changes.
+- **Reciprocal animations, standing rule**: any entrance animation needs
+  a matching exit in reverse, not a plain fade or instant close. Focus
+  mode is the worked example: scope-in entry (scale up from ~0.85 to
+  1.0, brief vignette that dissipates as the scale-in finishes, no
+  vignette lingering) pairs with a scope-out exit.
+- **Popup animations**: task form and settings popups (and popups
+  generally) get both entrance and exit motion, per the reciprocal rule,
+  they previously had none.
+
+**Pile-size glyph** (replaces a plain per-task-count row of triangle
+marks): a five-stage threshold indicator, not one mark per task. One
+consistent five-triangle composition at every stage (2 back triangles
+tallest/flanking, 2 mid triangles shorter/inset, 1 front triangle
+shortest/centered, all overlapping on a shared flush baseline, solid
+fill per tier, not opacity-shaded, no rotation, apex up), the same
+glyph scaled larger per stage rather than redrawn, height scaling faster
+than width so it climbs rather than just widening. Stage thresholds are
+a tuning question against real usage, not fixed. On hover, and on adding
+a task ("stoked"), the glyph scales up from its baseline (not centered/
+outward, and not the icon-roll treatment), with an optional soft glow,
+then eases back to resting size, this is its own mechanism, separate
+from the icon-hover roll.
+
+**Calendar-specific color** is specified in its own section above; this
+section covers the shared cross-app color/motion language only.
+
+## Backlog (v2+, not in scope now)
 - Bulk import via AI parsing of unstructured pasted text (ongoing API cost
   per use — start with template/tag-based parsing instead, see below)
 - (Daily time-capacity limits moved out of Backlog and into the Calendar
@@ -1199,8 +1348,8 @@ Inbox category) for manual sorting.
    backgrounds split at quadrant_split_score), priority summary panel
    (top_n + flag_threshold rule), display-mode toggle to the existing
    quadrant-list style, with change-tracking since yesterday
-6. Calendar view: pace-based coloring (red/green/blue/gray priority rules),
-   gold glow overlay for big wins, count badge for regular task
+6. Calendar view: day coloring (red/deep-blue/pale-blue/gray priority
+   rules), big win marker overlay, count badge for regular task
    completions, click-through day repository, Weekly Accomplishments
    panel (cleared list, biggest win only)
 7. Polish pass (styling, keyboard shortcuts, quick-capture)
