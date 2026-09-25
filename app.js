@@ -817,9 +817,9 @@ function renderViewSwitch() {
   // The category tabs filter either List mode, from the same spot in the header; the heat-map
   // legend belongs to the folder-organized "full" page; the Overdue callout is a safety signal
   // and stays up in either List mode.
-  document.getElementById("folder-tabs").hidden = !isList;
+  setShownAnimated(document.getElementById("folder-tabs"), isList);
   document.getElementById("heatmap-legend").hidden = !(isList && listMode === "full");
-  document.getElementById("overdue-callout").hidden = !isList;
+  setShownAnimated(document.getElementById("overdue-callout"), isList);
   document.getElementById("windows-toolbar").hidden = !(isList && listMode === "windows");
   document.getElementById("windows-row").hidden = !(isList && listMode === "windows");
   document.getElementById("list-full").hidden = !(isList && listMode === "full");
@@ -885,6 +885,7 @@ function render() {
   renderRecurringSidebar();
   renderOverview();
   renderCalendar();
+  firstRenderDone = true;
 }
 
 // ---------- Overdue callout ----------
