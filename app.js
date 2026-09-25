@@ -551,8 +551,9 @@ function setActiveView(view) {
   const prev = activeView;
   activeView = next;
   render();
-  slideViews(prev, next);
-  if (prev !== next) scrollPageToTop();
+  // Back to the top once the new view has slid in — after the slide, not during it, so the two
+  // motions never combine into a diagonal.
+  slideViews(prev, next, scrollPageToTop);
 }
 
 // ---------- Smooth scroll ----------
@@ -634,7 +635,10 @@ function changeWithRowRise(apply) {
 }
 
 function riseRows() {
-  if (reducedMotion) return;
+  if (reducedMotion) {
+    scrollPageToTop();
+    return;
+  }
   const rows = rowRiseTargets();
   // Row index by on-screen line: elements sharing a top edge rise together.
   const tops = [...new Set(rows.map(row => Math.round(row.getBoundingClientRect().top / 4)))].sort((a, b) => a - b);
@@ -644,8 +648,10 @@ function riseRows() {
     row.classList.add("row-rise");
   });
   const lastLine = Math.min(tops.length - 1, ROW_RISE.maxRow);
+  // Once the last row has landed, glide back to the top — after the reveal, never during it.
   setTimeout(() => {
     rows.forEach(row => row.classList.remove("row-rise"));
+    scrollPageToTop();
   }, ROW_RISE.baseMs + lastLine * ROW_RISE.stepMs + ROW_RISE.riseMs);
 }
 
@@ -659,9 +665,13 @@ const VIEW_ORDER = ["overview", "list", "calendar"];
 const VIEW_ELEMENT_IDS = { overview: "overview-view", list: "list-view", calendar: "calendar-view" };
 let viewSlideCleanup = null;
 
-function slideViews(prev, next) {
-  if (viewSlideCleanup) viewSlideCleanup(); // a second switch mid-slide: settle the first at once
-  if (prev === next || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+function slideViews(prev, next, onDone) {
+  if (viewSlideCleanup) viewSlideCleanup(false); // a second switch mid-slide: settle the first at once
+  if (prev === next) return;
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    onDone();
+    return;
+  }
 
   const main = document.querySelector(".app-main");
   const oldEl = document.getElementById(VIEW_ELEMENT_IDS[prev]);
@@ -676,7 +686,8 @@ function slideViews(prev, next) {
   oldEl.classList.add("view-out");
   newEl.classList.add("view-in");
 
-  const cleanup = () => {
+  // `finished`: the slide ran to its end (not cut short by another switch), so `onDone` may run.
+  const cleanup = (finished = true) => {
     clearTimeout(fallback);
     newEl.removeEventListener("animationend", onEnd);
     oldEl.classList.remove("view-out");
@@ -686,6 +697,7 @@ function slideViews(prev, next) {
     main.classList.remove("view-sliding");
     document.documentElement.classList.remove("view-sliding");
     viewSlideCleanup = null;
+    if (finished) onDone();
   };
   const onEnd = e => { if (e.target === newEl) cleanup(); };
   newEl.addEventListener("animationend", onEnd);
