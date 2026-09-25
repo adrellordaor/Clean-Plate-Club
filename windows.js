@@ -1270,9 +1270,20 @@ const focusOverlay = document.getElementById("focus-overlay");
 const focusPanel = document.getElementById("focus-panel");
 const focusBody = document.getElementById("focus-body");
 
+// Opening Focus mode zooms in like looking through a scope (.scope-in in style.css): the panel
+// scales up into place while a vignette darkens the edges and clears as the zoom lands. Only
+// on opening, never on the re-renders while it's open; the class comes off once it's played.
+const SCOPE_IN_MS = 520;
+
 function openFocusMode() {
+  const wasOpen = focusModeOpen;
   focusModeOpen = true;
   render();
+  if (wasOpen || focusOverlay.classList.contains("hidden")) return;
+  focusOverlay.classList.remove("scope-in");
+  void focusOverlay.offsetWidth; // restart the animation if it was somehow still on
+  focusOverlay.classList.add("scope-in");
+  setTimeout(() => focusOverlay.classList.remove("scope-in"), SCOPE_IN_MS + 50);
 }
 
 function closeFocusMode() {
