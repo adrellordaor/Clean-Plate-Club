@@ -258,12 +258,20 @@ function renderNowLaterWindows() {
     return;
   }
   const today = todayISODate();
-  const ranked = rankActiveTasks(today);
+  // The category tabs filter both windows, the same selection the folder list uses.
+  const ranked = rankActiveTasks(today).filter(entry => folderInActiveCategory(entry.task.folder_id));
 
   // The shared sort dropdown and grouping switch for both windows sit above them, side by
   // side — one shared value each, not something that needs its own copy per window.
   const toolbar = document.getElementById("windows-toolbar");
   toolbar.innerHTML = "";
+  // Category tabs (the same renderer and selection as the folder-organized List mode's header
+  // tabs), left-aligned; the toolbar's own "+ Category" follows, so no second add button here.
+  const tabs = document.createElement("nav");
+  tabs.className = "folder-tabs windows-category-tabs";
+  tabs.setAttribute("aria-label", "Categories");
+  renderCategoryTabs(tabs, false);
+  toolbar.appendChild(tabs);
   toolbar.appendChild(makeWindowSortSelect(WINDOW_SORT_KEYS, windowPrefs.sort, key => setWindowPref("sort", key), "Sort (both windows)"));
   toolbar.appendChild(makeWindowSwitch(WINDOW_GROUP_MODES, windowPrefs.group, key => setWindowPref("group", key), "Window grouping"));
   // Category/folder management otherwise only surfaces in "full" List mode (category tabs,
@@ -364,9 +372,10 @@ function renderPileFlame(count, grew) {
 function renderPileIndicator(win, count) {
   if (win.key === "now") {
     const cached = pileParticleCache.now;
-    // Stoke only on a genuine increase — never on the first render (page load) or a decrease.
-    const grew = !!cached && count > cached.count;
-    pileParticleCache.now = { count };
+    // Stoke only on a genuine increase — never on the first render (page load), a decrease, or
+    // a category-tab switch (which changes the count without adding anything).
+    const grew = !!cached && cached.filter === activeCategoryFilter && count > cached.count;
+    pileParticleCache.now = { count, filter: activeCategoryFilter };
 
     const wrap = document.createElement("span");
     wrap.className = "pile-indicator pile-fire" + (count === 0 ? " pile-empty" : "");
@@ -552,7 +561,8 @@ function isHabitInCompletedToday(rt, today) {
 }
 
 function windowHabits(win, today) {
-  const due = recurringTasks.filter(rt => win.habitMember(rt, today) && !(win.key === "now" && isHabitInCompletedToday(rt, today)));
+  const due = recurringTasks.filter(rt => win.habitMember(rt, today) && folderInActiveCategory(rt.folder_id)
+    && !(win.key === "now" && isHabitInCompletedToday(rt, today)));
   const cadenceOrder = rt => (CADENCE_ORDER[rt.cadence] !== undefined ? CADENCE_ORDER[rt.cadence] : 3);
   due.sort((a, b) => Number(isRecurringResolvedNow(a)) - Number(isRecurringResolvedNow(b))
     || compareDoDates(nextRecurringOccurrence(a, today), nextRecurringOccurrence(b, today))
@@ -752,7 +762,7 @@ function wireBucketDrop(zone, win, bucket) {
 function appendCards(container, entries, win, expanded, addPrefill) {
   if (windowPrefs.group === "folder") {
     groupEntriesByFolder(entries).forEach((group, i) => {
-      container.appendChild(makeBucketHeader(group.name, group.entries.length, i === 0));
+      container.appendChild(makeBucketHeader(group.name, group.entries.length, i === 0, null, group.folderId));
       group.entries.forEach(entry => container.appendChild(renderWindowCard(entry, win, expanded)));
       if (group.folderId) {
         container.appendChild(makeBucketAddIcon(group.name, () => addTaskFromBucket(Object.assign({}, addPrefill, { folder_id: group.folderId }))));
@@ -766,9 +776,12 @@ function appendCards(container, entries, win, expanded, addPrefill) {
 // Bucket divider: just the label and its count (separate spans — the label is set as a
 // section heading, the count as a quiet numeral). The bucket's own add control lives at the
 // bottom of the bucket instead (makeBucketAddIcon), not up here.
-function makeBucketHeader(label, count, first, hint) {
+function makeBucketHeader(label, count, first, hint, folderId) {
   const div = document.createElement("div");
   div.className = "window-bucket-header" + (first ? " window-bucket-header-first" : "");
+  // Folder groups lead with their category's color dot, like the folder list's headers.
+  const dot = folderId ? categoryDotForFolder(folderId) : null;
+  if (dot) div.appendChild(dot);
   const text = document.createElement("span");
   text.className = "window-bucket-label";
   text.textContent = label;
@@ -974,6 +987,7 @@ function renderWindowCard(entry, win, expanded) {
       assessment.urgency.reason,
       win.key === "later" && task.deadline ? "due " + task.deadline : null,
     ].filter(Boolean).join(" · ");
+    if (context) prependCategoryDot(meta, task.folder_id);
     body.appendChild(meta);
   }
   if (expanded && win.key === "later") body.appendChild(renderInlineDates(task, card));
@@ -1158,8 +1172,8 @@ function renderInlineDates(task, card) {
 // Now, rather than a separate habit-only version of the concept. Nothing stored: both sets
 // clear themselves at the next day boundary because the date tests are live.
 function renderCompletedToday(today) {
-  const doneTasks = tasks.filter(t => t.status === "done" && t.completed_at && toLocalDateString(t.completed_at) === today);
-  const doneHabits = recurringTasks.filter(rt => isHabitInCompletedToday(rt, today));
+  const doneTasks = tasks.filter(t => t.status === "done" && t.completed_at && toLocalDateString(t.completed_at) === today && folderInActiveCategory(t.folder_id));
+  const doneHabits = recurringTasks.filter(rt => isHabitInCompletedToday(rt, today) && folderInActiveCategory(rt.folder_id));
   if (doneTasks.length === 0 && doneHabits.length === 0) return null;
   doneTasks.sort((a, b) => (a.completed_at < b.completed_at ? 1 : a.completed_at > b.completed_at ? -1 : 0)); // newest first
 

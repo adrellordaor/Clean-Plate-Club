@@ -714,6 +714,7 @@ function renderOverdueCard(entry, today) {
   meta.className = "overdue-card-meta";
   const context = taskContextLabel(task);
   meta.textContent = (context ? context + " · " : "") + "overdue by " + daysOver + (daysOver === 1 ? " day" : " days");
+  if (context) prependCategoryDot(meta, task.folder_id);
   body.appendChild(meta);
 
   card.appendChild(body);
@@ -758,11 +759,83 @@ function makeAddIcon(title, ariaLabel, onAdd, label) {
   return btn;
 }
 
-function renderCategoryTabs() {
-  const nav = document.getElementById("folder-tabs");
+// ---------- Category colors ----------
+// Each category can carry a color, picked from a small muted palette (--cat-* in style.css,
+// chosen to stay clear of Fire/Ice, gold and the habit hues). Stored as a palette key on the
+// Category itself (`color`, optional — an older data file simply has none). A category with
+// no stored color gets the first palette color not already taken by a stored color or by an
+// earlier category, so every category has a stable color without writing anything until the
+// user actually picks one. Shown as a dot on its tab and beside folder names / folder labels.
+const CATEGORY_COLORS = ["slate", "moss", "clay", "rose", "lagoon", "lavender", "olive", "stone"];
+const CATEGORY_COLOR_NAMES = {
+  slate: "Slate", moss: "Moss", clay: "Clay", rose: "Rose",
+  lagoon: "Lagoon", lavender: "Lavender", olive: "Olive", stone: "Stone",
+};
+
+function categoryColorKeys() {
+  const keys = {};
+  const taken = new Set(categories.map(c => c.color).filter(k => CATEGORY_COLORS.includes(k)));
+  categories.forEach(c => {
+    if (CATEGORY_COLORS.includes(c.color)) { keys[c.id] = c.color; return; }
+    const free = CATEGORY_COLORS.find(k => !taken.has(k)) || CATEGORY_COLORS[categories.indexOf(c) % CATEGORY_COLORS.length];
+    taken.add(free);
+    keys[c.id] = free;
+  });
+  return keys;
+}
+
+// A small colored dot for the category a folder belongs to, or null if the folder (or its
+// category) can't be found.
+function categoryDotForFolder(folderId) {
+  const folder = folders.find(f => f.id === folderId);
+  const category = folder && categories.find(c => c.id === folder.category_id);
+  if (!category) return null;
+  const dot = document.createElement("span");
+  dot.className = "cat-dot";
+  dot.style.setProperty("--cat-color", "var(--cat-" + categoryColorKeys()[category.id] + ")");
+  dot.title = category.name;
+  dot.setAttribute("aria-hidden", "true");
+  return dot;
+}
+
+// Puts a folder's category dot at the start of a meta line that names the folder.
+function prependCategoryDot(el, folderId) {
+  const dot = categoryDotForFolder(folderId);
+  if (dot) el.prepend(dot);
+}
+
+// Whether a folder falls under the active category tab (always true on "All"). Shared by the
+// folder list and the Daily Plate / Fridge windows, so both filter by the same selection.
+function folderInActiveCategory(folderId) {
+  if (activeCategoryFilter === "all") return true;
+  const folder = folders.find(f => f.id === folderId);
+  return !!folder && folder.category_id === activeCategoryFilter;
+}
+
+let openCategoryPalette = null; // category id whose color picker is open, if any
+
+// Picking a color first writes every category's current color down, so the pick changes only
+// the one category — otherwise the others' auto-assigned colors could shuffle, since "next
+// unused color" depends on which colors are taken.
+function setCategoryColor(category, key) {
+  const current = categoryColorKeys();
+  categories.forEach(c => { c.color = current[c.id]; });
+  category.color = key;
+  openCategoryPalette = null;
+  persist();
+  render();
+}
+
+// The category tabs: "All" plus one per category, each with its color dot (click the dot to
+// pick a color). One renderer, drawn in two places — the header in the folder-organized List
+// mode, and the windows toolbar in Plate mode — both reading and setting the same
+// activeCategoryFilter. `withAdd` appends the "+ Category" button (the windows toolbar already
+// has its own).
+function renderCategoryTabs(nav = document.getElementById("folder-tabs"), withAdd = true) {
   nav.innerHTML = "";
 
   const allBtn = document.createElement("button");
+  allBtn.type = "button";
   allBtn.className = "folder-tab" + (activeCategoryFilter === "all" ? " active" : "");
   allBtn.textContent = "All";
   allBtn.addEventListener("click", () => {
@@ -771,21 +844,71 @@ function renderCategoryTabs() {
   });
   nav.appendChild(allBtn);
 
+  const colorKeys = categoryColorKeys();
   categories.forEach(category => {
+    const wrap = document.createElement("span");
+    wrap.className = "folder-tab-wrap";
+
+    const dot = document.createElement("button");
+    dot.type = "button";
+    dot.className = "cat-dot cat-dot-btn";
+    dot.style.setProperty("--cat-color", "var(--cat-" + colorKeys[category.id] + ")");
+    dot.title = "Color for " + category.name;
+    dot.setAttribute("aria-label", "Change color for " + category.name);
+    dot.setAttribute("aria-expanded", openCategoryPalette === category.id ? "true" : "false");
+    dot.addEventListener("click", e => {
+      e.stopPropagation();
+      openCategoryPalette = openCategoryPalette === category.id ? null : category.id;
+      render();
+    });
+    wrap.appendChild(dot);
+
     const btn = document.createElement("button");
+    btn.type = "button";
     btn.className = "folder-tab" + (activeCategoryFilter === category.id ? " active" : "");
     btn.textContent = category.name;
     btn.addEventListener("click", () => {
       activeCategoryFilter = category.id;
       render();
     });
-    nav.appendChild(btn);
+    wrap.appendChild(btn);
+
+    if (openCategoryPalette === category.id) wrap.appendChild(renderCategoryPalette(category, colorKeys[category.id]));
+    nav.appendChild(wrap);
   });
 
   // Wrapped, not passed directly: makeAddIcon wires this as a click handler, which would hand
   // openCategoryModal the click event as its targetSelect argument otherwise.
-  nav.appendChild(makeAddIcon("Add a category", "Add category", () => openCategoryModal(), "Category"));
+  if (withAdd) nav.appendChild(makeAddIcon("Add a category", "Add category", () => openCategoryModal(), "Category"));
 }
+
+function renderCategoryPalette(category, currentKey) {
+  const pop = document.createElement("div");
+  pop.className = "cat-palette";
+  pop.setAttribute("role", "group");
+  pop.setAttribute("aria-label", "Color for " + category.name);
+  pop.addEventListener("click", e => e.stopPropagation());
+  CATEGORY_COLORS.forEach(key => {
+    const sw = document.createElement("button");
+    sw.type = "button";
+    sw.className = "cat-swatch";
+    sw.style.setProperty("--cat-color", "var(--cat-" + key + ")");
+    sw.title = CATEGORY_COLOR_NAMES[key];
+    sw.setAttribute("aria-label", CATEGORY_COLOR_NAMES[key]);
+    sw.setAttribute("aria-pressed", key === currentKey ? "true" : "false");
+    sw.addEventListener("click", () => setCategoryColor(category, key));
+    pop.appendChild(sw);
+  });
+  return pop;
+}
+
+// Click anywhere else, or Esc, closes an open color picker.
+document.addEventListener("click", () => {
+  if (openCategoryPalette) { openCategoryPalette = null; render(); }
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && openCategoryPalette) { openCategoryPalette = null; render(); }
+});
 
 // A completed task keeps showing (struck through) in its folder for the rest of the day it
 // was completed, same as always, but stops showing at all from the next day on — the
@@ -840,6 +963,9 @@ function renderFolderSection(folder) {
   caret.className = "folder-caret";
   caret.textContent = "▼";
   header.appendChild(caret);
+
+  const catDot = categoryDotForFolder(folder.id);
+  if (catDot) header.appendChild(catDot);
 
   const name = document.createElement("span");
   name.className = "folder-name";
@@ -1229,6 +1355,9 @@ function renderRecurringFolderSection(folder, cadence, folderItems) {
   caret.className = "folder-caret";
   caret.textContent = "▼";
   header.appendChild(caret);
+
+  const catDot = categoryDotForFolder(folder.id);
+  if (catDot) header.appendChild(catDot);
 
   const name = document.createElement("span");
   name.className = "folder-name";

@@ -433,6 +433,7 @@ function renderMatrixItem(entry, inSummary) {
   const meta = document.createElement("span");
   meta.className = "matrix-item-meta";
   meta.textContent = taskContextLabel(task);
+  if (meta.textContent) prependCategoryDot(meta, task.folder_id);
   li.appendChild(meta);
 
   // Tag lives beside the score, not inside the ellipsised title/meta lines, so a long title
@@ -570,6 +571,7 @@ function renderPriorityCard(entry, inSummary, editable) {
   meta.className = "priority-card-meta";
   const context = taskContextLabel(task);
   meta.textContent = (context ? context + " · " : "") + assessment.quadrant.label + " · " + assessment.urgency.reason;
+  if (context) prependCategoryDot(meta, task.folder_id);
   body.appendChild(meta);
 
   if (editable) body.appendChild(renderPriorityEditRow(task));
@@ -775,6 +777,7 @@ function renderStalenessCheckInLine(entry) {
     const ctx = document.createElement("span");
     ctx.className = "digest-staleness-context";
     ctx.textContent = context;
+    prependCategoryDot(ctx, task.folder_id);
     li.appendChild(ctx);
   }
 
@@ -814,6 +817,7 @@ function renderDigestLine(task, from, to, reason) {
     const ctx = document.createElement("span");
     ctx.className = "digest-context";
     ctx.textContent = context;
+    prependCategoryDot(ctx, task.folder_id);
     text.appendChild(ctx);
   }
 
