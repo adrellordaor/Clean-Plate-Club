@@ -1207,11 +1207,22 @@ kbd {
   transform: translateY(3px);
 }
 
+/* The settings gear turns one tooth. */
+.icon-gear {
+  transition: transform 0.32s var(--ease);
+}
+
+:hover > .icon-gear,
+:focus-visible > .icon-gear {
+  transform: rotate(45deg);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .icon-plus,
   .icon-prev,
   .icon-next,
-  .icon-import-arrow {
+  .icon-import-arrow,
+  .icon-gear {
     transition: none;
   }
 }
