@@ -3725,11 +3725,16 @@ html.lenis body {
   margin-bottom: 1.75rem;
 }
 
-/* Pace/Capacity toggle: pushed to the far right of the toolbar, same top-right corner the
-   mode toggle sits in on every other view (Overview, List). */
+/* Pace/Capacity toggle: at the far right of the month/year row, the same top-right corner the
+   mode toggle sits in on every other view (Overview, List). The legend, which changes size
+   between the two modes, gets a row of its own underneath, so it can never move the toggle. */
 .calendar-mode {
   margin-left: auto;
   margin-right: 0;
+}
+
+.calendar-toolbar .calendar-legend {
+  flex-basis: 100%;
 }
 
 .calendar-nav {
