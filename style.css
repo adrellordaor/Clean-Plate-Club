@@ -653,6 +653,42 @@ kbd {
   padding: 2rem 2rem;
 }
 
+/* ---- View switch slide (slideViews in app.js) ----
+   For the length of the slide the outgoing and incoming views share one grid cell, the
+   outgoing one travels a full width off to one side while the incoming one arrives from the
+   other (--slide-dir: 1 = moving right in tab order, -1 = left). A bit longer than the small
+   UI motions given how much is moving, same signature curve. The page clips sideways overflow
+   meanwhile so no horizontal scrollbar flashes. */
+:root.view-sliding body {
+  overflow-x: clip;
+}
+
+.app-main.view-sliding {
+  display: grid;
+}
+
+.app-main.view-sliding > * {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+.view-out {
+  animation: view-out 0.45s var(--ease) forwards;
+  pointer-events: none;
+}
+
+.view-in {
+  animation: view-in 0.45s var(--ease);
+}
+
+@keyframes view-out {
+  to { transform: translateX(calc(var(--slide-dir) * -100%)); }
+}
+
+@keyframes view-in {
+  from { transform: translateX(calc(var(--slide-dir) * 100%)); }
+}
+
 /* Below ~900px the large wordmark can't share a row with the tabs and icon buttons: give it
    its own row and put the tabs (left) and icons (right) together on the row beneath, rather
    than letting the icons wrap onto a row of their own. */

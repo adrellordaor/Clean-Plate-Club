@@ -501,8 +501,55 @@ function setActiveView(view) {
   // gating this on "arriving from another tab" silently did nothing when Checklist was already
   // the active view.
   if (next === "list") setWindowPref("focus", "now");
+  const prev = activeView;
   activeView = next;
   render();
+  slideViews(prev, next);
+}
+
+// ---------- View switch slide ----------
+// Switching views slides the content horizontally, direction following tab order: moving to a
+// tab on the right slides the current view out to the left and brings the new one in from the
+// right, and vice versa. render() has already hidden the old view; it's shown again just for
+// the slide, stacked in the same grid cell as the new one (.view-sliding in style.css), then
+// hidden once the new view's animation ends. Plain CSS keyframes, no library.
+const VIEW_ORDER = ["overview", "list", "calendar"];
+const VIEW_ELEMENT_IDS = { overview: "overview-view", list: "list-view", calendar: "calendar-view" };
+let viewSlideCleanup = null;
+
+function slideViews(prev, next) {
+  if (viewSlideCleanup) viewSlideCleanup(); // a second switch mid-slide: settle the first at once
+  if (prev === next || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+  const main = document.querySelector(".app-main");
+  const oldEl = document.getElementById(VIEW_ELEMENT_IDS[prev]);
+  const newEl = document.getElementById(VIEW_ELEMENT_IDS[next]);
+  const dir = VIEW_ORDER.indexOf(next) > VIEW_ORDER.indexOf(prev) ? 1 : -1;
+
+  document.documentElement.classList.add("view-sliding");
+  main.classList.add("view-sliding");
+  main.style.setProperty("--slide-dir", dir);
+  oldEl.hidden = false;
+  oldEl.setAttribute("aria-hidden", "true");
+  oldEl.classList.add("view-out");
+  newEl.classList.add("view-in");
+
+  const cleanup = () => {
+    clearTimeout(fallback);
+    newEl.removeEventListener("animationend", onEnd);
+    oldEl.classList.remove("view-out");
+    newEl.classList.remove("view-in");
+    oldEl.removeAttribute("aria-hidden");
+    oldEl.hidden = activeView !== prev; // unless the user has since switched straight back
+    main.classList.remove("view-sliding");
+    document.documentElement.classList.remove("view-sliding");
+    viewSlideCleanup = null;
+  };
+  const onEnd = e => { if (e.target === newEl) cleanup(); };
+  newEl.addEventListener("animationend", onEnd);
+  // Safety net if animationend never arrives (e.g. a hidden tab skips the animation).
+  const fallback = setTimeout(cleanup, 900);
+  viewSlideCleanup = cleanup;
 }
 
 document.querySelectorAll("#view-switch .view-switch-btn").forEach(btn => {
