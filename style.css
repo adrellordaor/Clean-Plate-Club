@@ -66,6 +66,15 @@
   --flame-5: #ffcb70;
   --flame-6: #ffe2a8;
   --flame-glow: rgba(255, 120, 40, 0.75);
+  /* The Fridge ice cubes' shades, deepest first — same rules as the flame. */
+  --ice-0: #1b4a86;
+  --ice-1: #2767ad;
+  --ice-2: #3a8cd4;
+  --ice-3: #5bc4fb;
+  --ice-4: #8ad6fc;
+  --ice-5: #bde8fd;
+  --ice-6: #e4f6ff;
+  --ice-glow: rgba(120, 210, 255, 0.8);
 
   /* Escalating tag (Do Today < Due Today < Overdue), one slot, most severe wins: neutral
      outline -> amber -> solid fire, so severity reads from saturation as well as wording. */
@@ -199,6 +208,14 @@
   --flame-5: #f2a338;
   --flame-6: #f5bd55;
   --flame-glow: rgba(230, 90, 20, 0.55);
+  --ice-0: #0f3a6e;
+  --ice-1: #1a5594;
+  --ice-2: #1f6fb5;
+  --ice-3: #0c84c6;
+  --ice-4: #3fa2da;
+  --ice-5: #72bde6;
+  --ice-6: #a3d5f0;
+  --ice-glow: rgba(12, 132, 198, 0.5);
 
   --tag-overdue-text: #ffffff;
 
@@ -1623,11 +1640,10 @@ kbd {
 }
 
 /* ---- Pile-size indicator: fire (Daily Plate) / ice (Fridge) ----
-   The count numeral in the window's element color with a pile icon beside it. Daily Plate's
-   is the staged flame (renderPileFlame in windows.js): static at rest, and "stoked" when a
-   task is added — the roll box swaps in its brighter, larger, glowing twin for about a
-   second. Fridge's is a row of flat ice shards (2 to 7, scaling with --fullness) that only
-   animate in when the count actually changes. */
+   The count numeral in the window's element color with a staged pile icon beside it
+   (renderPileIcon in windows.js): a flame for Daily Plate, a stack of ice cubes for Fridge.
+   Static at rest; adding a task "stokes" it — the roll box swaps in its brighter, larger,
+   glowing twin for about a second. */
 .pile-indicator {
   display: inline-flex;
   align-items: flex-end;
@@ -1647,57 +1663,19 @@ kbd {
   color: var(--text-faint);
 }
 
-/* The flame sits on the count's baseline: its box has a little headroom below the base line
-   (see FLAME_BOX), pulled back with a negative margin so the triangles' base lines up. */
-.pile-flame-holder {
+/* The icon sits on the count's baseline: its box has a little headroom around the shapes (see
+   PILE_BOX), pulled back with negative margins so the shapes' base lines up. */
+.pile-icon-holder {
   display: inline-flex;
   margin: -6px 0 -2px -4px;
 }
 
-.pile-flame {
+.pile-icon {
   display: block;
 }
 
-.pile-flame-stoked {
-  filter: drop-shadow(0 0 4px var(--flame-glow));
-}
-
-.pile-particles {
-  display: inline-flex;
-  align-items: flex-end;
-  gap: 2px;
-  height: 14px;
-  pointer-events: none;
-}
-
-.pile-particle {
-  display: block;
-  flex: none;
-}
-
-.pile-ice .pile-particle {
-  background: var(--ice);
-  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
-}
-
-.pile-particles.pile-changed .pile-particle {
-  animation-duration: 0.42s;
-  animation-timing-function: var(--ease);
-  animation-fill-mode: backwards;
-}
-
-.pile-ice .pile-particles.pile-changed .pile-particle { animation-name: pile-ice-fall; }
-
-@keyframes pile-ice-fall {
-  from { transform: translateY(-8px) rotate(-60deg); opacity: 0; }
-  to { transform: none; opacity: 1; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .pile-particles.pile-changed .pile-particle {
-    animation: none;
-  }
-}
+.pile-fire .pile-icon-stoked { filter: drop-shadow(0 0 4px var(--flame-glow)); }
+.pile-ice .pile-icon-stoked { filter: drop-shadow(0 0 4px var(--ice-glow)); }
 
 .window-controls {
   display: flex;

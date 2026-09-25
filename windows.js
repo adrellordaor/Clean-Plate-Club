@@ -296,138 +296,118 @@ function renderNowLaterWindows() {
 
 // ---------- Pile-size indicator (fire / ice) ----------
 // The window's count as a numeral in its element color (fire for Daily Plate, ice for
-// Fridge), beside a pile icon that shows how full the window is. Daily Plate's is a flame
-// (renderPileFlame below); Fridge's is still the row of flat ice shards.
-const PILE_FULLNESS_CAP = { now: 6, later: 14 };
-
-// Mark sizes persist across renders, keyed by window and regenerated only when `count` itself
-// changes (a task genuinely added/removed) — render() fires on nearly every interaction, and
-// without this cache the pile would reshuffle, and re-animate, on any click.
-const pileParticleCache = {};
-
-// ---- Daily Plate flame ----
-// A threshold-staged "ridge": upright triangles of different heights overlapping on one shared
-// base, like a mountain range read as a fire. Depth comes from distinct shades, not opacity —
-// the tallest, rearmost pieces deepest red, the short front ones light amber (--flame-0..6 in
-// style.css, darkest first). Each stage grows taller faster than it grows wider.
-// Stage thresholds by task count; below the first, no flame at all.
-const FLAME_STAGE_MIN_COUNTS = [1, 3, 5, 8, 12];
-// Per stage, back to front: [x offset from centre, base width, height, shade index].
-const FLAME_STAGES = [
-  [[0, 10, 9, 3]],
-  [[-2, 13, 14, 1], [4, 10, 8, 4]],
-  [[0, 16, 19, 0], [-6, 12, 11, 2], [6, 11, 8, 4]],
-  [[1, 20, 24, 0], [-7, 15, 15, 1], [8, 13, 12, 3], [-2, 11, 7, 5]],
-  [[-2, 23, 29, 0], [6, 18, 22, 1], [-9, 15, 15, 2], [9, 13, 10, 4], [0, 12, 7, 5]],
-];
-// A little headroom around the flame (box 44 x 36, base at y 34) so the stoked version — 8%
+// Fridge), beside a pile icon that shows how full the window is: a flame for Daily Plate,
+// a stack of ice cubes for Fridge. Both are threshold-staged — five stages, growing taller
+// faster than wider — built from flat shapes whose depth comes from distinct shades
+// (--flame-0..6 / --ice-0..6 in style.css, darkest first), never opacity. Below a pile's
+// first threshold it shows no icon at all.
+//
+// Flame: a "ridge" of upright triangles of different heights overlapping on one shared base,
+// the tallest, rearmost pieces deepest red, the short front ones light amber.
+// Ice: an orderly pyramid of flat cubes with hairline gaps, stacking up as the Fridge fills.
+// Shape data per stage, back to front — triangle: [x offset, base width, height, shade];
+// cube: [x offset, bottom, size, shade].
+const PILE_ICONS = {
+  now: {
+    shape: "triangle",
+    shades: "flame",
+    minCounts: [1, 3, 5, 8, 12],
+    stages: [
+      [[0, 10, 9, 3]],
+      [[-2, 13, 14, 1], [4, 10, 8, 4]],
+      [[0, 16, 19, 0], [-6, 12, 11, 2], [6, 11, 8, 4]],
+      [[1, 20, 24, 0], [-7, 15, 15, 1], [8, 13, 12, 3], [-2, 11, 7, 5]],
+      [[-2, 23, 29, 0], [6, 18, 22, 1], [-9, 15, 15, 2], [9, 13, 10, 4], [0, 12, 7, 5]],
+    ],
+  },
+  later: {
+    shape: "cube",
+    shades: "ice",
+    minCounts: [1, 4, 8, 12, 18], // the Fridge holds more than the Plate, so it fills more slowly
+    stages: [
+      [[0, 0, 10, 3]],
+      [[-5, 0, 9, 2], [5, 0, 9, 4]],
+      [[-5, 0, 9, 2], [5, 0, 9, 4], [0, 9.5, 9, 1]],
+      [[-10, 0, 9, 2], [0, 0, 9, 4], [10, 0, 9, 3], [-5, 9.5, 9, 1], [5, 9.5, 9, 3]],
+      [[-10, 0, 9, 2], [0, 0, 9, 4], [10, 0, 9, 3], [-5, 9.5, 9, 1], [5, 9.5, 9, 3], [0, 19, 9, 0]],
+    ],
+  },
+};
+// A little headroom around the icon (box 44 x 36, base at y 34) so the stoked version — 8%
 // larger, with a glow — isn't clipped by the roll box.
-const FLAME_BOX = { w: 44, h: 36, base: 34 };
+const PILE_BOX = { w: 44, h: 36, base: 34 };
 const STOKE_MS = 1000;
-let flameStokeUntil = 0; // Date.now() until which the flame stays stoked (survives re-renders)
+// Date.now() until which each window's pile stays stoked, so it survives re-renders.
+const pileStokeUntil = { now: 0, later: 0 };
+// Last rendered count and category filter per window, to tell a genuine increase apart from a
+// first render, a decrease or a category-tab switch.
+const pileLastRender = {};
 
-function flameStage(count) {
+function pileStage(icon, count) {
   let stage = -1;
-  FLAME_STAGE_MIN_COUNTS.forEach((min, i) => { if (count >= min) stage = i; });
+  icon.minCounts.forEach((min, i) => { if (count >= min) stage = i; });
   return stage;
 }
 
-function flameSvg(stage, stoked) {
+function pileSvg(icon, stage, stoked) {
   const k = stoked ? 1.08 : 1;
-  const cx = FLAME_BOX.w / 2;
-  const polys = FLAME_STAGES[stage].map(([dx, w, h, shade]) => {
-    const W = w * k, H = h * k, x = cx + dx * k;
+  const cx = PILE_BOX.w / 2;
+  const base = PILE_BOX.base;
+  const shapes = icon.stages[stage].map(([dx, a, b, shade]) => {
     const s = Math.min(shade + (stoked ? 1 : 0), 6); // stoked: every piece one shade brighter
-    return `<polygon points="${(x - W / 2).toFixed(1)},${FLAME_BOX.base} ${x.toFixed(1)},${(FLAME_BOX.base - H).toFixed(1)} ${(x + W / 2).toFixed(1)},${FLAME_BOX.base}" style="fill:var(--flame-${s})"/>`;
+    const fill = `style="fill:var(--${icon.shades}-${s})"`;
+    const x = cx + dx * k;
+    if (icon.shape === "cube") {
+      const bottom = a * k, size = b * k;
+      return `<rect x="${(x - size / 2).toFixed(2)}" y="${(base - bottom - size).toFixed(2)}" width="${size.toFixed(2)}" height="${size.toFixed(2)}" ${fill}/>`;
+    }
+    const W = a * k, H = b * k;
+    return `<polygon points="${(x - W / 2).toFixed(1)},${base} ${x.toFixed(1)},${(base - H).toFixed(1)} ${(x + W / 2).toFixed(1)},${base}" ${fill}/>`;
   }).join("");
-  return `<svg class="pile-flame${stoked ? " pile-flame-stoked" : ""}" viewBox="0 0 ${FLAME_BOX.w} ${FLAME_BOX.h}" width="${FLAME_BOX.w}" height="${FLAME_BOX.h}">${polys}</svg>`;
+  return `<svg class="pile-icon${stoked ? " pile-icon-stoked" : ""}" viewBox="0 0 ${PILE_BOX.w} ${PILE_BOX.h}" width="${PILE_BOX.w}" height="${PILE_BOX.h}">${shapes}</svg>`;
 }
 
-// The resting flame and its stoked twin share one roll box (rollIcon, app.js). Adding a task
-// "stokes" it: the box rolls to the brighter, larger, glowing twin, then rolls back after
-// about a second. The stoke deadline lives outside the DOM, so a re-render mid-stoke rebuilds
-// the box already rolled and still settles on time.
-function renderPileFlame(count, grew) {
-  const stage = flameStage(count);
+// The resting icon and its stoked twin share one roll box (rollIcon, app.js). Adding a task
+// stokes it — the flame flares, the ice frosts: the box rolls to the brighter, larger, glowing
+// twin, then rolls back after about a second. The deadline lives outside the DOM, so a
+// re-render mid-stoke rebuilds the box already rolled and still settles on time.
+function renderPileIcon(key, count, grew) {
+  const icon = PILE_ICONS[key];
+  const stage = pileStage(icon, count);
   const holder = document.createElement("span");
-  holder.className = "pile-flame-holder";
+  holder.className = "pile-icon-holder";
   holder.setAttribute("aria-hidden", "true");
   if (stage < 0) return holder;
 
-  holder.innerHTML = rollIcon(flameSvg(stage, false), flameSvg(stage, true));
+  holder.innerHTML = rollIcon(pileSvg(icon, stage, false), pileSvg(icon, stage, true));
   const roll = holder.firstElementChild;
   const now = Date.now();
   if (grew) {
-    flameStokeUntil = now + STOKE_MS;
+    pileStokeUntil[key] = now + STOKE_MS;
     requestAnimationFrame(() => requestAnimationFrame(() => roll.classList.add("rolled")));
-  } else if (flameStokeUntil > now) {
+  } else if (pileStokeUntil[key] > now) {
     roll.classList.add("rolled");
   }
-  if (flameStokeUntil > now) {
-    setTimeout(() => roll.classList.remove("rolled"), flameStokeUntil - now);
+  if (pileStokeUntil[key] > now) {
+    setTimeout(() => roll.classList.remove("rolled"), pileStokeUntil[key] - now);
   }
   return holder;
 }
 
 function renderPileIndicator(win, count) {
-  if (win.key === "now") {
-    const cached = pileParticleCache.now;
-    // Stoke only on a genuine increase — never on the first render (page load), a decrease, or
-    // a category-tab switch (which changes the count without adding anything).
-    const grew = !!cached && cached.filter === activeCategoryFilter && count > cached.count;
-    pileParticleCache.now = { count, filter: activeCategoryFilter };
-
-    const wrap = document.createElement("span");
-    wrap.className = "pile-indicator pile-fire" + (count === 0 ? " pile-empty" : "");
-    const countEl = document.createElement("span");
-    countEl.className = "window-count";
-    countEl.textContent = count; // every active member, nested ones included; never habits or done tasks
-    wrap.appendChild(countEl);
-    wrap.appendChild(renderPileFlame(count, grew));
-    return wrap;
-  }
-
-  const cap = PILE_FULLNESS_CAP[win.key] || 10;
-  const fullness = Math.max(0, Math.min(1, count / cap));
+  const last = pileLastRender[win.key];
+  // Stoke only on a genuine increase — never on the first render (page load), a decrease, or
+  // a category-tab switch (which changes the count without adding anything).
+  const grew = !!last && last.filter === activeCategoryFilter && count > last.count;
+  pileLastRender[win.key] = { count, filter: activeCategoryFilter };
 
   const wrap = document.createElement("span");
   wrap.className = "pile-indicator " + (win.key === "now" ? "pile-fire" : "pile-ice") + (count === 0 ? " pile-empty" : "");
-  wrap.style.setProperty("--fullness", fullness.toFixed(3));
-
   const countEl = document.createElement("span");
   countEl.className = "window-count";
   countEl.textContent = count; // every active member, nested ones included; never habits or done tasks
   wrap.appendChild(countEl);
-
-  const particles = document.createElement("span");
-  particles.className = "pile-particles";
-  particles.setAttribute("aria-hidden", "true");
-  const particleCount = count > 0 ? Math.round(2 + fullness * 5) : 0; // 2..7, none when empty
-
-  const cached = pileParticleCache[win.key];
-  let params;
-  if (cached && cached.count === count) {
-    params = cached.params;
-  } else {
-    params = [];
-    for (let i = 0; i < particleCount; i++) {
-      params.push({ size: Math.round(5 + Math.random() * 3 + fullness * 4) }); // 5..12px
-    }
-    // Animate only on a genuine change, never on the very first render (page load).
-    if (cached) particles.classList.add("pile-changed");
-    pileParticleCache[win.key] = { count, params };
-  }
-
-  params.forEach((param, i) => {
-    const p = document.createElement("span");
-    p.className = "pile-particle";
-    p.style.width = param.size + "px";
-    p.style.height = param.size + "px";
-    p.style.animationDelay = (i * 0.04).toFixed(2) + "s";
-    particles.appendChild(p);
-  });
-  wrap.appendChild(particles);
-
+  wrap.appendChild(renderPileIcon(win.key, count, grew));
   return wrap;
 }
 
