@@ -1578,13 +1578,13 @@ function promptForDeadline(task, opts) {
     document.getElementById("now-deadline-confirm").textContent = opts.confirmLabel;
     nowDeadlineInput.value = opts.defaultDate || defaultNowDeadline();
     nowDeadlineInput.min = todayISODate();
-    nowDeadlineModal.classList.remove("hidden");
+    showModal(nowDeadlineModal);
     nowDeadlineInput.focus();
   });
 }
 
 function settleDeadlinePrompt(value) {
-  nowDeadlineModal.classList.add("hidden");
+  hideModal(nowDeadlineModal);
   const resolve = nowDeadlineResolve;
   nowDeadlineResolve = null;
   if (resolve) resolve(value);

@@ -98,6 +98,28 @@ new MutationObserver(mutations => {
   }
 }).observe(document.body, { childList: true, subtree: true });
 
+// Pop-ups (.modal): opening dims the backdrop in while the sheet rises and settles into place
+// (.modal-opening); closing plays the same motion the other way (.modal-closing) — the sheet
+// sinks and fades, the dim lifts — before it's actually taken off screen. "hidden" is still the
+// state everything else checks (is a pop-up open?), and it's set at once on close; the closing
+// class just keeps the sheet on screen for its exit.
+const MODAL_MOTION_MS = 280;
+
+function showModal(modal) {
+  clearTimeout(modal.modalMotionTimer);
+  modal.classList.remove("hidden", "modal-closing");
+  modal.classList.add("modal-opening");
+  modal.modalMotionTimer = setTimeout(() => modal.classList.remove("modal-opening"), MODAL_MOTION_MS);
+}
+
+function hideModal(modal) {
+  if (modal.classList.contains("hidden")) return;
+  clearTimeout(modal.modalMotionTimer);
+  modal.classList.remove("modal-opening");
+  modal.classList.add("hidden", "modal-closing");
+  modal.modalMotionTimer = setTimeout(() => modal.classList.remove("modal-closing"), MODAL_MOTION_MS);
+}
+
 // Flip: a two-sided icon (.flip in style.css) for an on/off toggle — hovering its button turns
 // it over like a card to show its other side (the theme toggle's sun and moon).
 function flipIcon(front, back) {
@@ -1764,12 +1786,12 @@ function openTaskModal(prefillOrTask) {
   taskFolderLastRealValue = taskFolderSelect.value;
   taskParentSelect.value = prefillOrTask.parent_task_id || "";
 
-  taskModal.classList.remove("hidden");
+  showModal(taskModal);
   document.getElementById("task-title").focus();
 }
 
 function closeTaskModal() {
-  taskModal.classList.add("hidden");
+  hideModal(taskModal);
   taskForm.reset();
   taskError.textContent = "";
 }
@@ -2020,12 +2042,12 @@ function openFolderModal(targetSelect) {
     ? activeCategoryFilter
     : (categories[0] ? categories[0].id : null);
   populateFolderCategorySelect(defaultCategoryId);
-  folderModal.classList.remove("hidden");
+  showModal(folderModal);
   document.getElementById("folder-name").focus();
 }
 
 function closeFolderModal() {
-  folderModal.classList.add("hidden");
+  hideModal(folderModal);
   folderModalTarget = null;
 }
 
@@ -2107,12 +2129,12 @@ function openRecurringModal(prefillOrRt) {
   recurringDomSelect.value = isEdit && prefillOrRt.day_of_month != null ? String(prefillOrRt.day_of_month) : "";
   updateRecurringCadenceFields();
 
-  recurringModal.classList.remove("hidden");
+  showModal(recurringModal);
   document.getElementById("recurring-title").focus();
 }
 
 function closeRecurringModal() {
-  recurringModal.classList.add("hidden");
+  hideModal(recurringModal);
   recurringForm.reset();
 }
 
@@ -2164,12 +2186,12 @@ let categoryModalTarget = null;
 function openCategoryModal(targetSelect) {
   categoryModalTarget = targetSelect || null;
   categoryForm.reset();
-  categoryModal.classList.remove("hidden");
+  showModal(categoryModal);
   document.getElementById("category-name").focus();
 }
 
 function closeCategoryModal() {
-  categoryModal.classList.add("hidden");
+  hideModal(categoryModal);
   categoryModalTarget = null;
 }
 
@@ -2330,12 +2352,12 @@ function openBulkImportModal() {
   bulkImportError.textContent = "";
   bulkImportForm.hidden = false;
   bulkImportResults.hidden = true;
-  bulkImportModal.classList.remove("hidden");
+  showModal(bulkImportModal);
   bulkImportText.focus();
 }
 
 function closeBulkImportModal() {
-  bulkImportModal.classList.add("hidden");
+  hideModal(bulkImportModal);
 }
 
 bulkImportForm.addEventListener("submit", e => {
@@ -2442,12 +2464,12 @@ function validateSettings(v) {
 
 function openSettingsModal() {
   fillSettingsForm(settings);
-  settingsModal.classList.remove("hidden");
+  showModal(settingsModal);
   document.getElementById(SETTINGS_FIELDS.deadline_low_days).focus();
 }
 
 function closeSettingsModal() {
-  settingsModal.classList.add("hidden");
+  hideModal(settingsModal);
 }
 
 settingsForm.addEventListener("submit", e => {
@@ -2596,7 +2618,7 @@ async function chooseFolder() {
 
 function showStorageGate() {
   document.getElementById("storage-gate-folder").textContent = storage.folderName;
-  storageGate.classList.remove("hidden");
+  showModal(storageGate);
 }
 
 async function applyLoadResult(result) {
@@ -2604,7 +2626,7 @@ async function applyLoadResult(result) {
     showStorageGate();
     return;
   }
-  storageGate.classList.add("hidden");
+  hideModal(storageGate);
   loadState(result.data);
   runDailyMaintenance();      // freeze past planned days, roll do_dates forward
   persistIfSnapshotChanged(); // first open of the day: freeze yesterday, start today's snapshot
@@ -2656,7 +2678,7 @@ function showBackfillIfNeeded() {
     backfillList.appendChild(row);
   });
 
-  backfillModal.classList.remove("hidden");
+  showModal(backfillModal);
   const first = backfillList.querySelector("input");
   if (first) first.focus();
 }
@@ -2673,7 +2695,7 @@ backfillForm.addEventListener("submit", e => {
     applyDeadlineDefault(task);
     task.last_touched_at = now;
   });
-  backfillModal.classList.add("hidden");
+  hideModal(backfillModal);
   persist();
   render();
 });
@@ -2742,10 +2764,10 @@ scheduleMidnightRender();
 const shortcutsModal = document.getElementById("shortcuts-modal");
 
 function openShortcutsModal() {
-  shortcutsModal.classList.remove("hidden");
+  showModal(shortcutsModal);
 }
 function closeShortcutsModal() {
-  shortcutsModal.classList.add("hidden");
+  hideModal(shortcutsModal);
 }
 document.getElementById("shortcuts-btn").addEventListener("click", openShortcutsModal);
 document.getElementById("shortcuts-close-btn").addEventListener("click", closeShortcutsModal);

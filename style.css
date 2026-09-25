@@ -2556,6 +2556,57 @@ html.lenis body {
   display: none;
 }
 
+/* Opening and closing (showModal/hideModal in app.js): the backdrop dims in as the sheet rises
+   a little and settles; closing is the same motion in reverse. A closing pop-up is already
+   "hidden" as far as the app is concerned, so it stays on screen only for its exit, and takes
+   no clicks meanwhile. */
+.modal.modal-closing {
+  display: flex;
+  pointer-events: none;
+  animation: modal-undim 0.28s var(--ease) forwards;
+}
+
+.modal.modal-opening {
+  animation: modal-dim 0.28s var(--ease);
+}
+
+.modal.modal-opening .modal-content {
+  animation: modal-sheet-in 0.28s var(--ease);
+}
+
+.modal.modal-closing .modal-content {
+  animation: modal-sheet-out 0.28s var(--ease) forwards;
+}
+
+@keyframes modal-dim {
+  from { background-color: transparent; }
+}
+
+@keyframes modal-undim {
+  to { background-color: transparent; }
+}
+
+@keyframes modal-sheet-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
+}
+
+@keyframes modal-sheet-out {
+  to { opacity: 0; transform: translateY(14px) scale(0.98); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal.modal-opening,
+  .modal.modal-opening .modal-content,
+  .modal.modal-closing,
+  .modal.modal-closing .modal-content {
+    animation: none;
+  }
+
+  .modal.modal-closing {
+    display: none;
+  }
+}
+
 .modal-content {
   background: var(--surface);
   border: 1px solid var(--border);
