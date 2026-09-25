@@ -16,6 +16,7 @@
   /* Type scale: section labels (window titles, quadrant names, folder/category names) are
      set well above UI text; task titles sit at body size in medium weight; metadata drops
      smaller and quieter. */
+  --fs-title: 2.6rem;     /* the app name in the header: always the largest type */
   --fs-display: 2.25rem;  /* Daily Plate / Fridge / Focus */
   --fs-section: 1.6rem;   /* Do / Plan / Clear / Backlog, panel headings, modal titles */
   --fs-group: 1.08rem;    /* folder / category / bucket names */
@@ -362,12 +363,24 @@ input[type="checkbox"].check-anim::after {
   margin-bottom: 0.6rem;
 }
 
+/* The app's name is the biggest type on the page — a step above the Daily Plate / Fridge
+   display headings — paired with the place-setting logo at cap height. */
 .app-header h1 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55em;
   margin: 0;
-  font-size: 1.45rem;
+  font-size: var(--fs-title);
   font-weight: 800;
-  letter-spacing: var(--tracking-tight);
+  letter-spacing: -0.035em;
+  line-height: 1;
   white-space: nowrap;
+}
+
+.app-logo {
+  flex: none;
+  width: 1.3em;
+  height: auto;
 }
 
 .header-actions {
@@ -630,10 +643,28 @@ kbd {
   padding: 2rem 2rem;
 }
 
-/* Phones: 1rem gutters, the wordmark on its own line with the view tabs and icon buttons
-   sharing the row beneath it, and the display size stepped down a notch. */
+/* Below ~900px the large wordmark can't share a row with the tabs and icon buttons: give it
+   its own row and put the tabs (left) and icons (right) together on the row beneath, rather
+   than letting the icons wrap onto a row of their own. */
+@media (max-width: 900px) {
+  .app-header h1 {
+    flex-basis: 100%;
+  }
+
+  #view-switch {
+    margin-left: 0;
+  }
+
+  .header-actions {
+    margin-left: auto;
+  }
+}
+
+/* Phones: 1rem gutters, tighter tabs and icon buttons, and the title/display sizes stepped
+   down a notch. */
 @media (max-width: 600px) {
   :root {
+    --fs-title: 2.1rem;
     --fs-display: 1.9rem;
     --fs-section: 1.4rem;
   }
@@ -650,21 +681,12 @@ kbd {
     gap: 0.4rem 1rem;
   }
 
-  .app-header h1 {
-    flex-basis: 100%;
-  }
-
   #view-switch {
-    margin-left: 0;
     gap: 0.9rem;
   }
 
   #view-switch .view-switch-btn {
     font-size: 0.88rem;
-  }
-
-  .header-actions {
-    margin-left: auto;
   }
 
   .theme-toggle {

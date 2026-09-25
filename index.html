@@ -19,7 +19,16 @@
 <body>
 <header class="app-header">
   <div class="header-top">
-    <h1>Clean Plate Club</h1>
+    <!-- Logo: a top-down place setting (fork, plate rim + well, knife), same minimal line style
+         as the rest of the icon set. Decorative next to the name, so hidden from screen readers. -->
+    <h1 class="app-title">
+      <svg class="app-logo" viewBox="0 0 34 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M2 3v4.5a1.75 1.75 0 0 0 3.5 0V3"/><path d="M3.75 3v4.5"/><path d="M3.75 9.25V21"/>
+        <circle cx="17" cy="12" r="9"/><circle cx="17" cy="12" r="5.5"/>
+        <path d="M31.5 3c-1.7 1.3-2.5 3.7-2.5 6.7 0 .9.6 1.3 1.4 1.3h1.1"/><path d="M31.5 3v18"/>
+      </svg>
+      Clean Plate Club
+    </h1>
     <div id="view-switch" class="view-switch" role="tablist" aria-label="View">
       <button type="button" class="view-switch-btn" data-view="overview" role="tab">Overview</button>
       <button type="button" class="view-switch-btn" data-view="list" role="tab">Checklist</button>
