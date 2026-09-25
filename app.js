@@ -574,6 +574,81 @@ function scrollPageToTop() {
   else window.scrollTo({ top: 0, behavior: reducedMotion ? "auto" : "smooth" });
 }
 
+// ---------- Row rise ----------
+// A change within a view — a category tab, a mode toggle (Plate/List, Flat/Folder,
+// Scatter/Quadrants, Pace/Capacity), the sort, the calendar month — never cuts over. The
+// view's current rows drop a little and fade out together (.row-fall), then the new ones fade
+// in and rise into place, staggered row by row (.row-rise): delay 80ms + row × 60ms, 280ms
+// each. Rows side by side (the two windows, a calendar week) count as one row and rise
+// together. Persistent frames — the Plate/Fridge windows themselves, the quadrant boxes —
+// stay put; only what's inside them moves. The horizontal slide stays reserved for switching
+// between Overview, Checklist and Calendar.
+const ROW_RISE = { baseMs: 80, stepMs: 60, riseMs: 280, fallMs: 160, maxRow: 10 };
+let rowChangeTimer = null;
+let rowChangeApply = null;
+
+// What counts as a row, per view: everything a filter or mode change swaps out, and nothing
+// that stays put.
+function rowRiseTargets() {
+  let selector;
+  if (activeView === "overview") {
+    selector = overviewDisplayMode === "scatter"
+      ? "#overview-scatter"
+      : "#matrix-grid .matrix-cell-header, #matrix-grid .matrix-item, #matrix-grid .empty-hint";
+  } else if (activeView === "calendar") {
+    selector = "#calendar-legend, #calendar-grid > *";
+  } else if (listDisplayMode === "windows") {
+    selector = "#windows-row .window-bucket > *, #windows-row .window-body > :not(.window-bucket), #windows-row .window-completed";
+  } else {
+    selector = "#folder-list .folder-header, #folder-list .task-list > li, #folder-list > .btn-icon, #folder-list > .empty-hint, .recurring-box";
+  }
+  return [...document.querySelectorAll(selector)].filter(el => el.offsetParent !== null);
+}
+
+// Runs `apply` (which changes state and re-renders) with the rows falling out first and the
+// new rows rising in after. A second change mid-fall applies the first at once and carries on.
+function changeWithRowRise(apply) {
+  if (rowChangeTimer) {
+    clearTimeout(rowChangeTimer);
+    rowChangeTimer = null;
+    rowChangeApply();
+  }
+  const oldRows = rowRiseTargets();
+  if (reducedMotion || !oldRows.length) {
+    apply();
+    riseRows();
+    return;
+  }
+  oldRows.forEach(row => row.classList.add("row-fall"));
+  // Containers that outlive the re-render (the scatter plot, the habit boxes, the calendar
+  // legend) must drop the fall again, or they'd stay faded out; they rise with the rest.
+  rowChangeApply = () => {
+    apply();
+    oldRows.forEach(row => row.classList.remove("row-fall"));
+  };
+  rowChangeTimer = setTimeout(() => {
+    rowChangeTimer = null;
+    rowChangeApply();
+    riseRows();
+  }, ROW_RISE.fallMs);
+}
+
+function riseRows() {
+  if (reducedMotion) return;
+  const rows = rowRiseTargets();
+  // Row index by on-screen line: elements sharing a top edge rise together.
+  const tops = [...new Set(rows.map(row => Math.round(row.getBoundingClientRect().top / 4)))].sort((a, b) => a - b);
+  rows.forEach(row => {
+    const line = tops.indexOf(Math.round(row.getBoundingClientRect().top / 4));
+    row.style.setProperty("--rise-i", Math.min(line, ROW_RISE.maxRow));
+    row.classList.add("row-rise");
+  });
+  const lastLine = Math.min(tops.length - 1, ROW_RISE.maxRow);
+  setTimeout(() => {
+    rows.forEach(row => row.classList.remove("row-rise"));
+  }, ROW_RISE.baseMs + lastLine * ROW_RISE.stepMs + ROW_RISE.riseMs);
+}
+
 // ---------- View switch slide ----------
 // Switching views slides the content horizontally, direction following tab order: moving to a
 // tab on the right slides the current view out to the left and brings the new one in from the
@@ -685,9 +760,11 @@ function makeModeToggle(modes, activeKey, onPick, groupLabel) {
 
 function setListDisplayMode(mode) {
   if (listDisplayMode === mode) return;
-  listDisplayMode = mode;
-  localStorage.setItem("listDisplayMode", mode);
-  render();
+  changeWithRowRise(() => {
+    listDisplayMode = mode;
+    localStorage.setItem("listDisplayMode", mode);
+    render();
+  });
 }
 
 // ---------- Rendering ----------
@@ -921,8 +998,11 @@ function renderCategoryTabs() {
   allBtn.setAttribute("aria-pressed", activeCategoryFilter === "all" ? "true" : "false");
   allBtn.textContent = "All";
   allBtn.addEventListener("click", () => {
-    activeCategoryFilter = "all";
-    render();
+    if (activeCategoryFilter === "all") return;
+    changeWithRowRise(() => {
+      activeCategoryFilter = "all";
+      render();
+    });
   });
   allWrap.appendChild(allBtn);
   nav.appendChild(allWrap);
@@ -953,8 +1033,11 @@ function renderCategoryTabs() {
     btn.setAttribute("aria-pressed", activeCategoryFilter === category.id ? "true" : "false");
     btn.textContent = category.name;
     btn.addEventListener("click", () => {
-      activeCategoryFilter = category.id;
-      render();
+      if (activeCategoryFilter === category.id) return;
+      changeWithRowRise(() => {
+        activeCategoryFilter = category.id;
+        render();
+      });
     });
     wrap.appendChild(btn);
 

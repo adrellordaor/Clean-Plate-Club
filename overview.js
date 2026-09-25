@@ -77,9 +77,11 @@ function renderOverviewModeToggle() {
 
 function setOverviewDisplayMode(mode) {
   if (overviewDisplayMode === mode) return;
-  overviewDisplayMode = mode;
-  localStorage.setItem("overviewDisplayMode", mode);
-  render();
+  changeWithRowRise(() => { // app.js
+    overviewDisplayMode = mode;
+    localStorage.setItem("overviewDisplayMode", mode);
+    render();
+  });
 }
 
 // ---------- Scatter plot ----------

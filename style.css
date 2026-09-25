@@ -797,6 +797,35 @@ kbd {
   padding: 2rem 2rem;
 }
 
+/* ---- Row rise (changeWithRowRise in app.js) ----
+   A filter or mode change inside a view: the current rows drop a little and fade out
+   together, then the new rows fade in and rise into place, one row after another (80ms +
+   row × 60ms, set through --rise-i). The fall is the rise in reverse. */
+.row-rise {
+  animation: row-rise 280ms var(--ease) backwards;
+  animation-delay: calc(80ms + var(--rise-i, 0) * 60ms);
+}
+
+.row-fall {
+  animation: row-fall 160ms var(--ease) forwards;
+  pointer-events: none;
+}
+
+@keyframes row-rise {
+  from { opacity: 0; transform: translateY(12px); }
+}
+
+@keyframes row-fall {
+  to { opacity: 0; transform: translateY(12px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row-rise,
+  .row-fall {
+    animation: none;
+  }
+}
+
 /* ---- View switch slide (slideViews in app.js) ----
    For the length of the slide the outgoing and incoming views share one grid cell, the
    outgoing one travels a full width off to one side while the incoming one arrives from the

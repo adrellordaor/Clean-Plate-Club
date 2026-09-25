@@ -413,9 +413,11 @@ function renderCalendarModeToggle() {
 
 function setCalendarDisplayMode(mode) {
   if (calendarDisplayMode === mode) return;
-  calendarDisplayMode = mode;
-  localStorage.setItem("calendarDisplayMode", mode);
-  render();
+  changeWithRowRise(() => { // app.js
+    calendarDisplayMode = mode;
+    localStorage.setItem("calendarDisplayMode", mode);
+    render();
+  });
 }
 
 function calendarGoToMonth(delta) {
@@ -423,14 +425,19 @@ function calendarGoToMonth(delta) {
   month += delta;
   if (month < 0) { month = 11; year -= 1; }
   else if (month > 11) { month = 0; year += 1; }
-  calendarMonth = { year, month };
-  render();
+  changeWithRowRise(() => { // app.js
+    calendarMonth = { year, month };
+    render();
+  });
 }
 
 function calendarGoToToday() {
   const d = new Date();
-  calendarMonth = { year: d.getFullYear(), month: d.getMonth() };
-  render();
+  if (calendarMonth.year === d.getFullYear() && calendarMonth.month === d.getMonth()) return;
+  changeWithRowRise(() => { // app.js
+    calendarMonth = { year: d.getFullYear(), month: d.getMonth() };
+    render();
+  });
 }
 
 function renderCalendarToolbar() {
