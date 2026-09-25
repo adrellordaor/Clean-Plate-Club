@@ -797,6 +797,52 @@ kbd {
   padding: 2rem 2rem;
 }
 
+/* ---- Opening and closing sections (toggleSection / setShownAnimated in app.js) ----
+   A section grows open from zero height and fades in; closing is the same in reverse. Its
+   caret turns along with it. interpolate-size lets the height run to and from "auto". */
+.section-opening,
+.section-closing {
+  interpolate-size: allow-keywords;
+  overflow: clip;
+}
+
+.section-opening {
+  animation: section-open 0.28s var(--ease);
+}
+
+.section-closing {
+  animation: section-close 0.28s var(--ease) forwards;
+  pointer-events: none;
+}
+
+@keyframes section-open {
+  from { height: 0; opacity: 0; padding-block: 0; margin-block: 0; }
+}
+
+@keyframes section-close {
+  to { height: 0; opacity: 0; padding-block: 0; margin-block: 0; }
+}
+
+.caret-closing {
+  transform: rotate(-90deg) !important; /* momentary, and must beat each caret's own open-state rule */
+}
+
+.caret-opening {
+  animation: caret-open 0.28s var(--ease);
+}
+
+@keyframes caret-open {
+  from { transform: rotate(-90deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .section-opening,
+  .section-closing,
+  .caret-opening {
+    animation: none;
+  }
+}
+
 /* ---- Row rise (changeWithRowRise in app.js) ----
    A filter or mode change inside a view: the current rows drop a little and fade out
    together, then the new rows fade in and rise into place, one row after another (80ms +
@@ -3681,6 +3727,26 @@ html.lenis body {
 
 .digest-secondary summary:hover {
   color: var(--text);
+}
+
+/* Opening and closing grow and fade the section, the same motion as every other fold. */
+.digest-secondary::details-content {
+  interpolate-size: allow-keywords;
+  height: 0;
+  opacity: 0;
+  overflow: clip;
+  transition: height 0.28s var(--ease), opacity 0.28s var(--ease), content-visibility 0.28s allow-discrete;
+}
+
+.digest-secondary[open]::details-content {
+  height: auto;
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .digest-secondary::details-content {
+    transition: none;
+  }
 }
 
 .digest-list-secondary {

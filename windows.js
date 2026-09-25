@@ -943,7 +943,9 @@ function renderWindowCard(entry, win, expanded) {
   if (expanded && win.key === "later") body.appendChild(renderInlineDates(task, card));
 
   if (children.length > 0 && !collapsedTasks.has(task.id)) {
-    body.appendChild(renderCardSubtasks(children, win, today));
+    const subtasks = renderCardSubtasks(children, win, today);
+    subtasks.dataset.section = "task:" + task.id;
+    body.appendChild(subtasks);
   }
 
   card.appendChild(body);
@@ -1002,13 +1004,12 @@ function makeSubtaskCaret(task) {
   const caret = document.createElement("button");
   caret.type = "button";
   caret.className = "task-caret window-card-caret" + (collapsed ? " collapsed" : "");
+  caret.dataset.sectionCaret = "task:" + task.id;
   caret.textContent = "▼";
   caret.setAttribute("aria-label", collapsed ? "Expand subtasks" : "Collapse subtasks");
   caret.addEventListener("click", e => {
     e.stopPropagation();
-    if (collapsedTasks.has(task.id)) collapsedTasks.delete(task.id);
-    else collapsedTasks.add(task.id);
-    render();
+    toggleSubtasks(task); // app.js
   });
   return caret;
 }
@@ -1088,7 +1089,9 @@ function renderCardSubtaskRow(task, win, today) {
   row.appendChild(head);
 
   if (grandchildren.length > 0 && !collapsedTasks.has(task.id)) {
-    row.appendChild(renderCardSubtasks(grandchildren, win, today));
+    const subtasks = renderCardSubtasks(grandchildren, win, today);
+    subtasks.dataset.section = "task:" + task.id;
+    row.appendChild(subtasks);
   }
 
   return row;
@@ -1136,6 +1139,7 @@ function renderCompletedToday(today) {
   header.setAttribute("aria-expanded", completedTodayOpen ? "true" : "false");
   const caret = document.createElement("span");
   caret.className = "folder-caret";
+  caret.dataset.sectionCaret = "completed-today";
   caret.textContent = "▼";
   header.appendChild(caret);
   const label = document.createElement("span");
@@ -1147,14 +1151,17 @@ function renderCompletedToday(today) {
   count.textContent = doneTasks.length + doneHabits.length;
   header.appendChild(count);
   header.addEventListener("click", () => {
-    completedTodayOpen = !completedTodayOpen;
-    render();
+    toggleSection("completed-today", completedTodayOpen, () => { // app.js
+      completedTodayOpen = !completedTodayOpen;
+      render();
+    });
   });
   block.appendChild(header);
 
   if (completedTodayOpen) {
     const list = document.createElement("div");
     list.className = "window-completed-list";
+    list.dataset.section = "completed-today";
     doneTasks.forEach(task => {
       list.appendChild(renderCompletedTodayRow(task.title, taskContextLabel(task), "Reopen " + task.title, () => toggleTaskDone(task)));
     });

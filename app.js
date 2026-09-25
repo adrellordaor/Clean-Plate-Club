@@ -677,6 +677,77 @@ function riseRows() {
   }, ROW_RISE.baseMs + lastLine * ROW_RISE.stepMs + ROW_RISE.riseMs);
 }
 
+// ---------- Opening and closing sections ----------
+// Anything that folds open and shut — a folder, a task's subtasks, a habit folder, Completed
+// Today — grows open from nothing and fades in (.section-opening), and closes the same way in
+// reverse (.section-closing), its caret turning with it. Sections are rebuilt on every render,
+// so the helper runs the close before the state change and re-render, and the open after.
+// The section is marked data-section="<key>" and its caret data-section-caret="<key>".
+const SECTION_MS = 280;
+
+function toggleSection(key, collapse, apply) {
+  const find = attr => [...document.querySelectorAll("[" + attr + '="' + key + '"]')].filter(el => el.offsetParent !== null);
+  if (reducedMotion) {
+    apply();
+    return;
+  }
+  if (collapse) {
+    find("data-section-caret").forEach(caret => caret.classList.add("caret-closing"));
+    const sections = find("data-section");
+    if (!sections.length) {
+      apply();
+      return;
+    }
+    sections.forEach(section => section.classList.add("section-closing"));
+    setTimeout(apply, SECTION_MS);
+  } else {
+    apply();
+    const opened = [...find("data-section"), ...find("data-section-caret")];
+    opened.forEach(el => el.classList.add(el.hasAttribute("data-section") ? "section-opening" : "caret-opening"));
+    setTimeout(() => opened.forEach(el => el.classList.remove("section-opening", "caret-opening")), SECTION_MS);
+  }
+}
+
+// Folds or unfolds a task's subtasks — the folder list and the Plate/Fridge cards share the
+// one collapsedTasks set, so it folds everywhere.
+function toggleSubtasks(task) {
+  const collapse = !collapsedTasks.has(task.id);
+  toggleSection("task:" + task.id, collapse, () => {
+    if (collapse) collapsedTasks.add(task.id);
+    else collapsedTasks.delete(task.id);
+    render();
+  });
+}
+
+// Shows or hides a piece of standing layout (e.g. the header's category tabs, which only
+// Checklist has) with the same open/close motion, instead of it popping in or out. The first
+// render just sets it, so nothing animates on page load.
+let firstRenderDone = false;
+
+function setShownAnimated(el, shown) {
+  const closing = el.classList.contains("section-closing");
+  if (shown === !el.hidden && !closing) return;
+  clearTimeout(el.shownTimer);
+  if (!firstRenderDone || reducedMotion) {
+    el.classList.remove("section-closing", "section-opening");
+    el.hidden = !shown;
+    return;
+  }
+  if (shown) {
+    el.classList.remove("section-closing");
+    el.hidden = false;
+    el.classList.add("section-opening");
+    el.shownTimer = setTimeout(() => el.classList.remove("section-opening"), SECTION_MS);
+  } else {
+    el.classList.remove("section-opening");
+    el.classList.add("section-closing");
+    el.shownTimer = setTimeout(() => {
+      el.classList.remove("section-closing");
+      el.hidden = true;
+    }, SECTION_MS);
+  }
+}
+
 // ---------- View switch slide ----------
 // Switching views slides the content horizontally, direction following tab order: moving to a
 // tab on the right slides the current view out to the left and brings the new one in from the
@@ -1152,17 +1223,19 @@ function renderFolderSection(folder) {
 
   const header = document.createElement("div");
   header.className = "folder-header";
+  const sectionKey = "folder:" + folder.id;
   header.addEventListener("click", () => {
-    if (collapsedFolders.has(folder.id)) {
-      collapsedFolders.delete(folder.id);
-    } else {
-      collapsedFolders.add(folder.id);
-    }
-    render();
+    const collapse = !collapsedFolders.has(folder.id);
+    toggleSection(sectionKey, collapse, () => {
+      if (collapse) collapsedFolders.add(folder.id);
+      else collapsedFolders.delete(folder.id);
+      render();
+    });
   });
 
   const caret = document.createElement("span");
   caret.className = "folder-caret";
+  caret.dataset.sectionCaret = sectionKey;
   caret.textContent = "▼";
   header.appendChild(caret);
 
@@ -1195,6 +1268,7 @@ function renderFolderSection(folder) {
 
   const body = document.createElement("div");
   body.className = "folder-body";
+  body.dataset.section = sectionKey;
 
   if (topLevelTasks.length === 0) {
     const hint = document.createElement("div");
@@ -1253,16 +1327,10 @@ function renderTaskRow(task) {
     const caret = document.createElement("button");
     caret.type = "button";
     caret.className = "task-caret" + (isCollapsed ? " collapsed" : "");
+    caret.dataset.sectionCaret = "task:" + task.id;
     caret.textContent = "▼";
     caret.setAttribute("aria-label", isCollapsed ? "Expand subtasks" : "Collapse subtasks");
-    caret.addEventListener("click", () => {
-      if (collapsedTasks.has(task.id)) {
-        collapsedTasks.delete(task.id);
-      } else {
-        collapsedTasks.add(task.id);
-      }
-      render();
-    });
+    caret.addEventListener("click", () => toggleSubtasks(task));
     row.appendChild(caret);
   } else {
     const spacer = document.createElement("span");
@@ -1327,6 +1395,7 @@ function renderTaskRow(task) {
   if (visibleChildren.length > 0) {
     const subtaskContainer = document.createElement("div");
     subtaskContainer.className = "subtask-container" + (isCollapsed ? " collapsed" : "");
+    subtaskContainer.dataset.section = "task:" + task.id;
     subtaskContainer.appendChild(renderTaskList(visibleChildren));
     main.appendChild(subtaskContainer);
   }
@@ -1545,16 +1614,17 @@ function renderRecurringFolderSection(folder, cadence, folderItems) {
   const header = document.createElement("div");
   header.className = "folder-header";
   header.addEventListener("click", () => {
-    if (collapsedRecurringFolders.has(key)) {
-      collapsedRecurringFolders.delete(key);
-    } else {
-      collapsedRecurringFolders.add(key);
-    }
-    render();
+    const collapse = !collapsedRecurringFolders.has(key);
+    toggleSection("habits:" + key, collapse, () => {
+      if (collapse) collapsedRecurringFolders.add(key);
+      else collapsedRecurringFolders.delete(key);
+      render();
+    });
   });
 
   const caret = document.createElement("span");
   caret.className = "folder-caret";
+  caret.dataset.sectionCaret = "habits:" + key;
   caret.textContent = "▼";
   header.appendChild(caret);
 
@@ -1576,6 +1646,7 @@ function renderRecurringFolderSection(folder, cadence, folderItems) {
 
   const body = document.createElement("div");
   body.className = "folder-body";
+  body.dataset.section = "habits:" + key;
 
   const ul = document.createElement("ul");
   ul.className = "task-list";
