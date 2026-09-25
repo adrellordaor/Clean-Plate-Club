@@ -611,35 +611,45 @@ let rowChangeTimer = null;
 let rowChangeApply = null;
 
 // What counts as a row, per view: everything a filter or mode change swaps out, and nothing
-// that stays put.
-function rowRiseTargets() {
+// that stays put. `frames`: the change swaps the layout itself (Plate/List, Scatter/Quadrants),
+// so the frames and toolbars that belong to one layout only — the Plate/Fridge windows and
+// their toolbar, the List legend, the quadrant boxes — fall and rise along with their rows.
+// For a change within one layout (a category, the sort, Flat/Folder) they stay put.
+function rowRiseTargets(frames = false) {
   let selector;
   if (activeView === "overview") {
     selector = overviewDisplayMode === "scatter"
       ? "#overview-scatter"
-      : "#matrix-grid .matrix-cell-header, #matrix-grid .matrix-item, #matrix-grid .empty-hint";
+      : frames
+        ? "#matrix-grid > *, #matrix-grid .matrix-item, #matrix-grid .empty-hint"
+        : "#matrix-grid .matrix-cell-header, #matrix-grid .matrix-item, #matrix-grid .empty-hint";
   } else if (activeView === "calendar") {
     selector = "#calendar-legend, #calendar-grid > *";
   } else if (listDisplayMode === "windows") {
-    selector = "#windows-row .window-bucket > *, #windows-row .window-body > :not(.window-bucket), #windows-row .window-completed";
+    selector = "#windows-row .window-bucket > *, #windows-row .window-body > :not(.window-bucket), #windows-row .window-completed"
+      + (frames ? ", #windows-toolbar, #windows-row .window-panel" : "");
   } else {
-    selector = "#folder-list .folder-header, #folder-list .task-list > li, #folder-list > .btn-icon, #folder-list > .empty-hint, .recurring-box";
+    selector = "#folder-list .folder-header, #folder-list .task-list > li, #folder-list > .btn-icon, #folder-list > .empty-hint, .recurring-box"
+      + (frames ? ", #heatmap-legend" : "");
   }
   return [...document.querySelectorAll(selector)].filter(el => el.offsetParent !== null);
 }
 
 // Runs `apply` (which changes state and re-renders) with the rows falling out first and the
 // new rows rising in after. A second change mid-fall applies the first at once and carries on.
-function changeWithRowRise(apply) {
+// Options: `frames` (see rowRiseTargets), or `targets` — a function listing the rows for a
+// change confined to one panel — and `scroll: false` to stay where the page is afterwards.
+function changeWithRowRise(apply, opts = {}) {
   if (rowChangeTimer) {
     clearTimeout(rowChangeTimer);
     rowChangeTimer = null;
     rowChangeApply();
   }
-  const oldRows = rowRiseTargets();
+  const targets = opts.targets || (() => rowRiseTargets(opts.frames));
+  const oldRows = targets();
   if (reducedMotion || !oldRows.length) {
     apply();
-    riseRows();
+    riseRows(targets, opts.scroll !== false);
     return;
   }
   oldRows.forEach(row => row.classList.add("row-fall"));
@@ -652,16 +662,16 @@ function changeWithRowRise(apply) {
   rowChangeTimer = setTimeout(() => {
     rowChangeTimer = null;
     rowChangeApply();
-    riseRows();
+    riseRows(targets, opts.scroll !== false);
   }, ROW_RISE.fallMs);
 }
 
-function riseRows() {
+function riseRows(targets = rowRiseTargets, scroll = true) {
   if (reducedMotion) {
-    scrollPageToTop();
+    if (scroll) scrollPageToTop();
     return;
   }
-  const rows = rowRiseTargets();
+  const rows = targets();
   // Row index by on-screen line: elements sharing a top edge rise together.
   const tops = [...new Set(rows.map(row => Math.round(row.getBoundingClientRect().top / 4)))].sort((a, b) => a - b);
   rows.forEach(row => {
@@ -673,7 +683,7 @@ function riseRows() {
   // Once the last row has landed, glide back to the top — after the reveal, never during it.
   setTimeout(() => {
     rows.forEach(row => row.classList.remove("row-rise"));
-    scrollPageToTop();
+    if (scroll) scrollPageToTop();
   }, ROW_RISE.baseMs + lastLine * ROW_RISE.stepMs + ROW_RISE.riseMs);
 }
 
@@ -869,7 +879,7 @@ function setListDisplayMode(mode) {
     listDisplayMode = mode;
     localStorage.setItem("listDisplayMode", mode);
     render();
-  });
+  }, { frames: true });
 }
 
 // ---------- Rendering ----------

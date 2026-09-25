@@ -81,7 +81,7 @@ function setOverviewDisplayMode(mode) {
     overviewDisplayMode = mode;
     localStorage.setItem("overviewDisplayMode", mode);
     render();
-  });
+  }, { frames: true });
 }
 
 // ---------- Scatter plot ----------
