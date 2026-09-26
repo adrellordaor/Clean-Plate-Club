@@ -269,14 +269,13 @@ function renderNowLaterWindows() {
   // The category tabs filter both windows, the same selection the folder list uses.
   const ranked = rankActiveTasks(today).filter(entry => folderInActiveCategory(entry.task.folder_id));
 
-  // The shared sort dropdown and grouping switch for both windows sit above them, side by
-  // side — one shared value each, not something that needs its own copy per window.
+  // The shared sort dropdown sits above both windows; the Flat/Folder switch is rendered once,
+  // shared with "full" List mode, by renderListGroupToggle (app.js), not duplicated here.
   const toolbar = document.getElementById("windows-toolbar");
   toolbar.innerHTML = "";
   // The category tabs (and their "+ Category") live in the header banner, the same ones the
   // folder-organized List mode shows (renderCategoryTabs, app.js), filtering both windows here.
   toolbar.appendChild(makeWindowSortSelect(WINDOW_SORT_KEYS, windowPrefs.sort, key => changeWithRowRise(() => setWindowPref("sort", key)), "Sort (both windows)"));
-  toolbar.appendChild(makeModeToggle(WINDOW_GROUP_MODES, windowPrefs.group, key => changeWithRowRise(() => setWindowPref("group", key)), "Grouping")); // app.js
   // Folder management otherwise only surfaces in "full" List mode (the folder-list "+"); Plate
   // mode needs its own reach to it too, or there'd be no way to add one without switching modes
   // (the task form's own folder picker also has an inline "+ New folder…" option, but only once

@@ -1809,6 +1809,17 @@ html.lenis body {
   margin-top: 0.15rem;
 }
 
+/* Flat grouping only (renderTaskRow's showFolderContext): the folder name a task's own header
+   would otherwise have named, same dot the folder header itself uses. */
+.task-folder-context {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: var(--fs-meta);
+  color: var(--text-muted);
+  margin-bottom: 0.15rem;
+}
+
 .task-notes {
   font-size: 0.82rem;
   color: var(--text-muted);

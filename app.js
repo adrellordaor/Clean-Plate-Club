@@ -977,6 +977,7 @@ function renderViewSwitch() {
   // stays up in either List mode.
   setShownAnimated(document.getElementById("folder-tabs"), isList);
   document.getElementById("heatmap-legend").hidden = !isList;
+  document.getElementById("list-group-mode").hidden = !isList;
   document.querySelector(".toolbar").classList.toggle("toolbar-windows-mode", isList && listMode === "windows");
   setShownAnimated(document.getElementById("overdue-callout"), isList);
   document.getElementById("windows-toolbar").hidden = !(isList && listMode === "windows");
@@ -999,6 +1000,15 @@ const LIST_MODES = [
 function renderListModeToggle() {
   document.getElementById("list-mode").replaceChildren(
     makeModeToggle(LIST_MODES, listDisplayMode, setListDisplayMode, "List display"));
+}
+
+// Flat/Folder: one shared toggle for both List display modes (windowPrefs.group, windows.js) —
+// Plate groups cards by folder within each bucket, "full" List mode groups tasks into folder
+// sections at all. Same mechanism, same screen position, in both places (spec's Toggles
+// section), so it lives in the shared toolbar row rather than being duplicated per mode.
+function renderListGroupToggle() {
+  document.getElementById("list-group-mode").replaceChildren(
+    makeModeToggle(WINDOW_GROUP_MODES, windowPrefs.group, key => changeWithRowRise(() => setWindowPref("group", key)), "Grouping")); // windows.js
 }
 
 // ---------- Mode toggles ----------
@@ -1038,6 +1048,7 @@ function render() {
   renderViewSwitch();
   renderCategoryTabs();
   renderListModeToggle();
+  renderListGroupToggle();
   renderOverdueCallout();
   renderHeatMapLegend();
   renderNowLaterWindows();
@@ -1391,15 +1402,33 @@ function renderFolderList() {
     ? folders
     : folders.filter(f => f.category_id === activeCategoryFilter);
 
-  visibleFolders.forEach(folder => {
-    container.appendChild(renderFolderSection(folder));
-  });
-
-  if (visibleFolders.length === 0) {
-    const hint = document.createElement("div");
-    hint.className = "empty-hint";
-    hint.textContent = "No folders yet. Add one to get started.";
-    container.appendChild(hint);
+  // Flat/Folder (windowPrefs.group, shared with Plate — renderListGroupToggle): Folder is the
+  // page's original behavior (one collapsible section per folder); Flat drops the folder
+  // sections entirely and lists every visible task from these folders together, each top-level
+  // row naming its own folder inline since there's no header left to do it (renderTaskRow's
+  // showFolderContext).
+  if (windowPrefs.group === "flat") { // windows.js
+    const today = todayISODate();
+    const flatTasks = visibleFolders.flatMap(folder =>
+      tasks.filter(t => t.folder_id === folder.id && !t.parent_task_id && visibleInFolderList(t, today)));
+    if (flatTasks.length === 0) {
+      const hint = document.createElement("div");
+      hint.className = "empty-hint";
+      hint.textContent = "No tasks yet.";
+      container.appendChild(hint);
+    } else {
+      container.appendChild(renderTaskList(flatTasks, true));
+    }
+  } else {
+    visibleFolders.forEach(folder => {
+      container.appendChild(renderFolderSection(folder));
+    });
+    if (visibleFolders.length === 0) {
+      const hint = document.createElement("div");
+      hint.className = "empty-hint";
+      hint.textContent = "No folders yet. Add one to get started.";
+      container.appendChild(hint);
+    }
   }
 
   container.appendChild(makeAddIcon("Add a folder", "Add folder", () => openFolderModal(), "Folder"));
@@ -1476,16 +1505,20 @@ function renderFolderSection(folder) {
   return section;
 }
 
-function renderTaskList(taskGroup) {
+function renderTaskList(taskGroup, showFolderContext) {
   const ul = document.createElement("ul");
   ul.className = "task-list";
   taskGroup.forEach(task => {
-    ul.appendChild(renderTaskRow(task));
+    ul.appendChild(renderTaskRow(task, showFolderContext));
   });
   return ul;
 }
 
-function renderTaskRow(task) {
+// `showFolderContext`: Flat grouping (windowPrefs.group === "flat") has no folder header to
+// name a task's folder, so each top-level row names it inline instead — same dot the folder
+// header itself uses, plus the folder name (taskContextLabel, overview.js). Never shown on
+// subtasks, already visually nested under a row that (at the top level) carries it.
+function renderTaskRow(task, showFolderContext) {
   const li = document.createElement("li");
 
   const pending = pendingDone.has(task.id);
@@ -1544,6 +1577,16 @@ function renderTaskRow(task) {
 
   const main = document.createElement("div");
   main.className = "task-main";
+
+  if (showFolderContext && !task.parent_task_id && task.folder_id) {
+    const context = document.createElement("div");
+    context.className = "task-folder-context";
+    prependCategoryDot(context, task.folder_id);
+    const label = document.createElement("span");
+    label.textContent = taskContextLabel(task); // overview.js
+    context.appendChild(label);
+    main.appendChild(context);
+  }
 
   const titleLine = document.createElement("div");
   titleLine.className = "task-title-line";
