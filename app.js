@@ -609,6 +609,7 @@ function deleteRecurringTask(id) {
 
 let activeCategoryFilter = "all"; // "all" or a category id
 let collapsedFolders = new Set();
+let collapsedCategories = new Set(); // category sections, "All" tab only — see renderCategorySection
 let collapsedTasks = new Set();
 let collapsedRecurringFolders = new Set(); // keyed by "<cadence>:<folder_id>"
 
@@ -840,7 +841,7 @@ function renderContextKey() {
     activeView, listDisplayMode, activeCategoryFilter, windowPrefs, focusModeOpen,
     overviewDisplayMode, overviewPanelExpanded,
     calendarDisplayMode, calendarMonth, calendarOpenDay, calendarSelectedWeekStart,
-    [...collapsedFolders], [...collapsedTasks], [...collapsedRecurringFolders], completedTodayOpen,
+    [...collapsedFolders], [...collapsedCategories], [...collapsedTasks], [...collapsedRecurringFolders], completedTodayOpen,
   ]);
 }
 
@@ -1461,7 +1462,26 @@ function renderFolderList() {
     } else {
       container.appendChild(renderTaskList(flatTasks, true));
     }
+  } else if (activeCategoryFilter === "all") {
+    // "All": each category is its own collapsible section (folders collapsible within it, same
+    // as always); a folder whose category no longer exists renders on its own, uncategorized.
+    categories.forEach(category => {
+      const categoryFolders = visibleFolders.filter(f => f.category_id === category.id);
+      if (categoryFolders.length > 0) container.appendChild(renderCategorySection(category, categoryFolders));
+    });
+    const categoryIds = new Set(categories.map(c => c.id));
+    visibleFolders.filter(f => !categoryIds.has(f.category_id)).forEach(folder => {
+      container.appendChild(renderFolderSection(folder));
+    });
+    if (visibleFolders.length === 0) {
+      const hint = document.createElement("div");
+      hint.className = "empty-hint";
+      hint.textContent = "No folders yet. Add one to get started.";
+      container.appendChild(hint);
+    }
   } else {
+    // A single category tab: its own section header would be the only thing on screen and
+    // collapsing it would just empty the view, so no category wrapper here — folders directly.
     visibleFolders.forEach(folder => {
       container.appendChild(renderFolderSection(folder));
     });
@@ -1474,6 +1494,55 @@ function renderFolderList() {
   }
 
   container.appendChild(makeAddIcon("Add a folder", "Add folder", () => openFolderModal(), "Folder"));
+}
+
+// A category's collapsible wrapper around its folder sections, "All" tab only (item 38):
+// unlike a folder, collapsing it is never a dead end (there's always at least one other
+// category tab, or "All" itself, to get back to), so it's collapsible with no exception.
+function renderCategorySection(category, categoryFolders) {
+  const key = "category:" + category.id;
+  const collapsed = collapsedCategories.has(category.id);
+
+  const section = document.createElement("div");
+  section.className = "folder-section category-section" + (collapsed ? " collapsed" : "");
+  section.style.setProperty("--folder-accent", "var(--cat-" + categoryColorKeys()[category.id] + ")");
+
+  const header = document.createElement("div");
+  header.className = "folder-header category-header";
+  header.addEventListener("click", () => {
+    const collapse = !collapsedCategories.has(category.id);
+    toggleSection(key, collapse, () => {
+      if (collapse) collapsedCategories.add(category.id);
+      else collapsedCategories.delete(category.id);
+      render();
+    });
+  });
+
+  const caret = document.createElement("span");
+  caret.className = "folder-caret";
+  caret.dataset.sectionCaret = key;
+  caret.textContent = "▼";
+  header.appendChild(caret);
+
+  const dot = document.createElement("span");
+  dot.className = "cat-dot";
+  dot.style.setProperty("--cat-color", "var(--cat-" + categoryColorKeys()[category.id] + ")");
+  header.appendChild(dot);
+
+  const name = document.createElement("span");
+  name.className = "folder-name category-name";
+  name.textContent = category.name;
+  header.appendChild(name);
+
+  section.appendChild(header);
+
+  const body = document.createElement("div");
+  body.className = "folder-body category-body";
+  body.dataset.section = key;
+  categoryFolders.forEach(folder => body.appendChild(renderFolderSection(folder)));
+  section.appendChild(body);
+
+  return section;
 }
 
 function renderFolderSection(folder) {

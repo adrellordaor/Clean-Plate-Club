@@ -1541,10 +1541,12 @@ html.lenis body {
   border-top: 1px solid var(--border-strong);
 }
 
-/* Top-level folders: the divider carries the folder's own category color (--folder-accent, set
-   inline per section, app.js) rather than a hardcoded green or the view accent — a folder with
-   no category yet (or no color assigned) falls back to the view accent, same as before. */
-.folder-list > .folder-section {
+/* Folders directly in the list (a single category tab) or nested one level under a category
+   section ("All" tab, item 38): the divider carries the folder's own category color
+   (--folder-accent, set inline per section, app.js) rather than a hardcoded green or the view
+   accent — a folder with no category yet (or no color assigned) falls back to the view accent,
+   same as before. */
+#folder-list .folder-section {
   border-top-color: var(--folder-accent, var(--view-accent, var(--border-strong)));
 }
 
@@ -1606,6 +1608,26 @@ html.lenis body {
 
 .folder-section.collapsed .folder-body {
   display: none;
+}
+
+/* Category sections ("All" tab, item 38): one level up from a folder, so its name reads a
+   touch larger/looser than the folders nested inside it, which get their own indent to read
+   as a level down rather than sitting flush with the category name above them. */
+.category-name {
+  font-size: 1.5rem;
+  letter-spacing: var(--tracking-tight);
+}
+
+.category-body {
+  padding-left: 1.1rem;
+}
+
+.category-body > .folder-section:first-child {
+  border-top: none;
+}
+
+.category-body > .folder-section:first-child .folder-header {
+  padding-top: 0.3rem;
 }
 
 .empty-hint {
