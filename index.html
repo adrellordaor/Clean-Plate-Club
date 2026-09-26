@@ -99,6 +99,9 @@
       <div id="heatmap-legend" class="heatmap-legend"></div>
       <div id="list-mode" class="list-mode"></div>
       <button type="button" id="bulk-import-btn" class="btn-icon" aria-label="Bulk import tasks" title="Bulk import: paste multiple lines, one task per line"></button>
+      <!-- "windows"-only controls (Priority sort, Flat/Folder, +Folder): merged into this same
+           top row rather than a second row of their own, see windows.js. -->
+      <div id="windows-toolbar" class="windows-toolbar" aria-label="Window grouping"></div>
     </div>
 
     <!-- "windows": Now (live union: do_date == today OR quadrant Do/Clear, plus today's habits)
@@ -106,7 +109,6 @@
          drag a Later card into Now to plan it for today, drag a Now card onto Later to
          deprioritize it (a close deadline forces a reschedule prompt; otherwise do_date resets
          and the task settles into Plan/Backlog on its own). -->
-    <div id="windows-toolbar" class="windows-toolbar" aria-label="Window grouping"></div>
     <div id="windows-row" class="windows-row">
       <section id="now-window" class="window-panel window-now" aria-label="Daily Plate"></section>
       <section id="later-window" class="window-panel window-later" aria-label="Fridge"></section>

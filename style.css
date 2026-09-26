@@ -1052,7 +1052,7 @@ kbd {
 .toolbar {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   flex-wrap: wrap;
   gap: 0.5rem 1rem;
   margin-bottom: 1.5rem;
@@ -1090,10 +1090,11 @@ kbd {
   color: var(--text-faint);
 }
 
-/* List display-mode toggle (windows / full): pushed to the far right of the toolbar, same
-   top-right corner the mode toggle sits in on every other view (Overview, Calendar). */
+/* List display-mode toggle (windows / full): in "full" mode, heatmap-legend's margin-right:auto
+   (above) pushes this to the far right of the toolbar, same top-right corner the mode toggle
+   sits in on every other view (Overview, Calendar). In "windows" mode heatmap-legend is hidden,
+   so this and the windows-only controls that follow it sit top-left instead. */
 .list-mode {
-  margin-left: auto;
   margin-right: 0;
 }
 
@@ -4390,14 +4391,13 @@ html.lenis body {
 }
 
 /* ---- Windows: shared toolbar, global "+" icons ---- */
-/* The shared sort dropdown and flat/folder switch for both windows, right-aligned above them. */
+/* The shared sort dropdown and flat/folder switch for both windows: merged into the main
+   list-view toolbar row (top-left, item 28) rather than a second row of their own. */
 .windows-toolbar {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  justify-content: flex-end;
   gap: 0.5rem 1.25rem;
-  margin-bottom: 1.75rem;
 }
 
 /* The plain global "+" at the right end of each window's controls row (where the per-window
