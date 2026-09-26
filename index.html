@@ -97,13 +97,15 @@
   <div id="list-view">
     <div class="toolbar">
       <div id="heatmap-legend" class="heatmap-legend"></div>
-      <div id="list-mode" class="list-mode"></div>
-      <button type="button" id="bulk-import-btn" class="btn-icon" aria-label="Bulk import tasks" title="Bulk import: paste multiple lines, one task per line"></button>
       <!-- Flat/Folder: shared by both List display modes, same control, same spot either way. -->
       <div id="list-group-mode" class="list-mode"></div>
       <!-- "windows"-only controls (Priority sort, +Folder): merged into this same top row
-           rather than a second row of their own, see windows.js. -->
+           rather than a second row of their own, see windows.js. Sit left of the Plate/List
+           toggle, right of the legend (item 41) — never right of the toggle itself, that's the
+           one control that has to keep the same top-right spot in every List display mode. -->
       <div id="windows-toolbar" class="windows-toolbar" aria-label="Window grouping"></div>
+      <div id="list-mode" class="list-mode"></div>
+      <button type="button" id="bulk-import-btn" class="btn-icon" aria-label="Bulk import tasks" title="Bulk import: paste multiple lines, one task per line"></button>
     </div>
 
     <!-- "windows": Now (live union: do_date == today OR quadrant Do/Clear, plus today's habits)

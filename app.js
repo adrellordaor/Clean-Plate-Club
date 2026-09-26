@@ -1030,7 +1030,6 @@ function renderViewSwitch() {
   document.getElementById("folder-tabs").hidden = false;
   document.getElementById("heatmap-legend").hidden = !isList;
   document.getElementById("list-group-mode").hidden = !isList;
-  document.querySelector(".toolbar").classList.toggle("toolbar-windows-mode", isList && listMode === "windows");
   setShownAnimated(document.getElementById("overdue-callout"), isList);
   document.getElementById("windows-toolbar").hidden = !(isList && listMode === "windows");
   document.getElementById("windows-row").hidden = !(isList && listMode === "windows");
