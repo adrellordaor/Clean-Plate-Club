@@ -647,7 +647,10 @@ function makeWindowSkipButton(rt) {
   btn.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
-    toggleRecurringSkip(rt);
+    // Same fold-then-apply treatment completing a habit gets here (scheduleHabitDone above):
+    // a skip (or undoing one) can move the row to the other window/bucket exactly like
+    // completing can, so it shouldn't just snap away either.
+    leaveThen([rt.id], () => toggleRecurringSkip(rt), ".window-habit"); // app.js
   });
   return btn;
 }
