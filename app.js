@@ -112,6 +112,7 @@ function showModal(modal) {
   modal.classList.remove("hidden", "modal-closing");
   modal.classList.add("modal-opening");
   modal.modalMotionTimer = setTimeout(() => modal.classList.remove("modal-opening"), MODAL_MOTION_MS);
+  ensureModalScrollGlide(modal.querySelector(".modal-content"));
 }
 
 function hideModal(modal) {
@@ -658,9 +659,11 @@ function setActiveView(view) {
 // back to the top the same way. A deliberate exception to "motion is plain CSS" (CLAUDE.md):
 // CSS scroll-behavior only smooths scrolls the page itself triggers, never the mouse wheel, so
 // the glide comes from Lenis (loaded in index.html). allowNestedScroll leaves anything with its
-// own scrollbar (the Plate/Fridge bodies, modals, Focus mode) scrolling natively. Without Lenis
-// (offline) or with reduced motion on, the page scrolls natively and the tab-change return to
-// the top uses the browser's own smooth scroll (or jumps, for reduced motion).
+// own scrollbar (the Plate/Fridge bodies, Focus mode) scrolling natively; popups get their own
+// Lenis instance instead (ensureModalScrollGlide below), so the same eased/lagged feel covers
+// their scrollable content too, not just the main views. Without Lenis (offline) or with
+// reduced motion on, the page scrolls natively and the tab-change return to the top uses the
+// browser's own smooth scroll (or jumps, for reduced motion).
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const lenis = typeof Lenis !== "undefined" && !reducedMotion
   ? new Lenis({ autoRaf: true, allowNestedScroll: true })
@@ -670,6 +673,22 @@ function scrollPageToTop() {
   if (window.scrollY === 0) return;
   if (lenis) lenis.scrollTo(0);
   else window.scrollTo({ top: 0, behavior: reducedMotion ? "auto" : "smooth" });
+}
+
+// A popup's own Lenis instance, scoped to its .modal-content (the element that actually
+// scrolls — max-height + overflow-y: auto, see style.css). Lenis needs a single child to carry
+// as its scrollable "content" distinct from the "wrapper" that clips it, so the modal-content's
+// existing children (heading, form, actions) get moved into one wrapper div the first time a
+// given modal opens; every open after that reuses the same instance. No-op without Lenis or
+// with reduced motion, same as the page-level glide above.
+function ensureModalScrollGlide(modalContent) {
+  if (!lenis || !modalContent || modalContent.lenisReady) return;
+  modalContent.lenisReady = true;
+  const inner = document.createElement("div");
+  inner.className = "modal-content-inner";
+  while (modalContent.firstChild) inner.appendChild(modalContent.firstChild);
+  modalContent.appendChild(inner);
+  new Lenis({ wrapper: modalContent, content: inner, autoRaf: true });
 }
 
 // ---------- Row rise ----------
