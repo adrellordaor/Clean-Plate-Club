@@ -971,11 +971,13 @@ function renderViewSwitch() {
   const isList = activeView === "list";
   const listMode = listDisplayMode;
   document.getElementById("list-view").hidden = !isList;
-  // The category tabs filter either List mode, from the same spot in the header; the heat-map
-  // legend belongs to the folder-organized "full" page; the Overdue callout is a safety signal
-  // and stays up in either List mode.
+  // The category tabs filter either List mode, from the same spot in the header; the quadrant
+  // legend key now shows in both List modes (Plate carries the same "hue = quadrant, intensity
+  // = priority" reference as full/folder mode); the Overdue callout is a safety signal and
+  // stays up in either List mode.
   setShownAnimated(document.getElementById("folder-tabs"), isList);
-  document.getElementById("heatmap-legend").hidden = !(isList && listMode === "full");
+  document.getElementById("heatmap-legend").hidden = !isList;
+  document.querySelector(".toolbar").classList.toggle("toolbar-windows-mode", isList && listMode === "windows");
   setShownAnimated(document.getElementById("overdue-callout"), isList);
   document.getElementById("windows-toolbar").hidden = !(isList && listMode === "windows");
   document.getElementById("windows-row").hidden = !(isList && listMode === "windows");

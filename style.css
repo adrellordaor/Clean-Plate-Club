@@ -1092,10 +1092,20 @@ kbd {
 
 /* List display-mode toggle (windows / full): in "full" mode, heatmap-legend's margin-right:auto
    (above) pushes this to the far right of the toolbar, same top-right corner the mode toggle
-   sits in on every other view (Overview, Calendar). In "windows" mode heatmap-legend is hidden,
-   so this and the windows-only controls that follow it sit top-left instead. */
+   sits in on every other view (Overview, Calendar). In "windows" mode this and the windows-only
+   controls that follow it sit top-left instead (see .toolbar-windows-mode below), with the
+   legend itself pushed to the right end of the row rather than the left. */
 .list-mode {
   margin-right: 0;
+}
+
+/* Plate ("windows") mode: the legend moves to the end of the row (order + its own auto margin)
+   instead of leading it, so the Plate/List toggle, download icon and Priority/Folder/+Folder
+   controls stay grouped at top-left (item 28) with the quadrant key at the right (item 29). */
+.toolbar-windows-mode .heatmap-legend {
+  order: 1;
+  margin-right: 0;
+  margin-left: auto;
 }
 
 /* ---- Heat-map colour maths ----
