@@ -1867,7 +1867,14 @@ function renderRecurringBox(cadence, containerId, label) {
     });
   }
 
-  body.appendChild(makeHabitAddIcon(label, () => openRecurringModal({ cadence })));
+  // One "+" per box (not one per folder inside it too, that was a redundant second control):
+  // "All" leaves the new habit's folder to its own natural default (openRecurringModal falls
+  // back to the first folder overall); a specific category tab pre-fills the first folder in
+  // that category instead, same idea as the task form's own context-aware prefills.
+  const categoryFolder = activeCategoryFilter === "all"
+    ? null
+    : folders.find(f => f.category_id === activeCategoryFilter);
+  body.appendChild(makeHabitAddIcon(label, () => openRecurringModal({ cadence, folder_id: categoryFolder ? categoryFolder.id : null })));
 
   container.appendChild(body);
 }
@@ -1932,8 +1939,6 @@ function renderRecurringFolderSection(folder, cadence, folderItems) {
   ul.className = "task-list";
   folderItems.forEach(rt => ul.appendChild(renderRecurringRow(rt)));
   body.appendChild(ul);
-
-  body.appendChild(makeHabitAddIcon(folder.name, () => openRecurringModal({ cadence, folder_id: folder.id })));
 
   section.appendChild(body);
   return section;
