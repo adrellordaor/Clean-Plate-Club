@@ -104,25 +104,37 @@ function plannedTaskDone(task, dateStr) {
 
 // The frozen shape of one day's planned set: which regular Tasks had do_date == that day
 // and whether each got done by day's end, plus which RecurringTasks were scheduled and
-// done. Titles are stored so a later rename or delete can't change what a frozen day says.
+// done. Titles and folder_id are stored so a later rename, re-file or delete can't change what
+// a frozen day says — folder_id is what lets the category tabs filter a past day, not just
+// today (item 40; a day frozen before this only has id/title/done, see plannedRecordFor).
 // Pure, so the same code both freezes a day (runDailyMaintenance, right before rollover)
 // and evaluates today live.
 function buildPlannedRecord(dateStr, tasks, recurringTasks, completionLog) {
   return {
     tasks: tasks
       .filter(t => isPlannedOn(t, dateStr))
-      .map(t => ({ id: t.id, title: t.title, done: plannedTaskDone(t, dateStr) })),
+      .map(t => ({ id: t.id, title: t.title, done: plannedTaskDone(t, dateStr), folder_id: t.folder_id })),
     recurring: recurringTasks
       .filter(rt => recurringScheduledOn(rt, dateStr))
-      .map(rt => ({ id: rt.id, title: rt.title, done: recurringDoneFor(rt, dateStr, completionLog) })),
+      .map(rt => ({ id: rt.id, title: rt.title, done: recurringDoneFor(rt, dateStr, completionLog), folder_id: rt.folder_id })),
   };
 }
 
 // The planned set to score `dateStr` with: the frozen record for a past day, a live read
-// for today (and, best-effort, for a past day that was never frozen).
+// for today (and, best-effort, for a past day that was never frozen). `data.tasks` /
+// `data.recurringTasks` are already category-filtered by the caller (renderCalendar), so the
+// live path is filtered for free; a frozen day needs its own filter here since it's read
+// straight from storage. A day frozen before item 40 has no folder_id on its rows, so it
+// filters out entirely under a specific category tab rather than misreporting — the accepted
+// limitation the spec calls out, unaffected by "All".
 function plannedRecordFor(dateStr, data, today) {
   const frozen = data.plannedHistory && dateStr < today ? data.plannedHistory[dateStr] : null;
-  if (frozen && Array.isArray(frozen.tasks) && Array.isArray(frozen.recurring)) return frozen;
+  if (frozen && Array.isArray(frozen.tasks) && Array.isArray(frozen.recurring)) {
+    return {
+      tasks: frozen.tasks.filter(t => folderInActiveCategory(t.folder_id)), // app.js
+      recurring: frozen.recurring.filter(rt => folderInActiveCategory(rt.folder_id)),
+    };
+  }
   return buildPlannedRecord(dateStr, data.tasks, data.recurringTasks, data.completionLog);
 }
 
