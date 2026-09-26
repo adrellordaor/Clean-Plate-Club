@@ -221,6 +221,22 @@
   </div>
 </div>
 
+<!-- Generic delete confirmation (confirmDialog, app.js): replaces window.confirm for deleting
+     a task, which some browsers silently auto-dismiss after "prevent this page from creating
+     additional dialogs" gets checked (a real Chrome trap after a couple of native confirm()
+     popups), making the delete button look broken with no error at all. Heading/text/onConfirm
+     are set by confirmDialog() before this unhides; no default copy needs to live here. -->
+<div id="confirm-modal" class="modal hidden">
+  <div class="modal-content">
+    <h2 id="confirm-modal-heading"></h2>
+    <p id="confirm-modal-text"></p>
+    <div class="modal-actions">
+      <button type="button" id="confirm-modal-cancel-btn" class="btn btn-secondary">Cancel</button>
+      <button type="button" id="confirm-modal-confirm-btn" class="btn btn-danger"></button>
+    </div>
+  </div>
+</div>
+
 <!-- Focus mode: on-demand overlay showing only the do_date == today subset of Now. The dimmed
      backdrop is a drop zone (deprioritize), the panel inside holds the cards. See windows.js. -->
 <div id="focus-overlay" class="focus-overlay hidden" role="dialog" aria-label="Focus mode">

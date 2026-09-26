@@ -122,6 +122,38 @@ function hideModal(modal) {
   modal.modalMotionTimer = setTimeout(() => modal.classList.remove("modal-closing"), MODAL_MOTION_MS);
 }
 
+// ---------- Generic confirm dialog ----------
+// A styled in-app replacement for window.confirm (deleteTask below). A bare confirm() is a
+// blocking native dialog some browsers let a person silently switch off mid-session ("prevent
+// this page from creating additional dialogs" appears after a couple of them in a row) — once
+// that happens confirm() just returns false forever with no error, and the delete button looks
+// permanently broken. This dialog is regular page content instead, so it can't be suppressed.
+const confirmModal = document.getElementById("confirm-modal");
+let confirmModalOnConfirm = null;
+
+function confirmDialog(heading, text, confirmLabel, onConfirm) {
+  document.getElementById("confirm-modal-heading").textContent = heading;
+  document.getElementById("confirm-modal-text").textContent = text;
+  document.getElementById("confirm-modal-confirm-btn").textContent = confirmLabel;
+  confirmModalOnConfirm = onConfirm;
+  showModal(confirmModal);
+}
+
+function closeConfirmModal() {
+  hideModal(confirmModal);
+  confirmModalOnConfirm = null;
+}
+
+document.getElementById("confirm-modal-confirm-btn").addEventListener("click", () => {
+  const onConfirm = confirmModalOnConfirm;
+  closeConfirmModal();
+  if (onConfirm) onConfirm();
+});
+document.getElementById("confirm-modal-cancel-btn").addEventListener("click", closeConfirmModal);
+confirmModal.addEventListener("click", e => {
+  if (e.target === confirmModal) closeConfirmModal();
+});
+
 // Flip: a two-sided icon (.flip in style.css) for an on/off toggle — hovering its button turns
 // it over like a card to show its other side (the theme toggle's sun and moon).
 function flipIcon(front, back) {
@@ -2024,12 +2056,11 @@ function deleteTask(taskId) {
   const task = tasks.find(t => t.id === taskId);
   const label = task ? `"${task.title}"` : "this task";
   const extra = descendantIds.length > 0 ? ` and its ${descendantIds.length} subtask(s)` : "";
-  if (!confirm(`Delete ${label}${extra}?`)) return;
-  leaveThen([...idsToRemove], () => {
+  confirmDialog("Delete task?", `Delete ${label}${extra}?`, "Delete", () => leaveThen([...idsToRemove], () => {
     tasks = tasks.filter(t => !idsToRemove.has(t.id));
     persist();
     render();
-  });
+  }));
 }
 
 function collectDescendantIds(taskId) {
@@ -3131,6 +3162,7 @@ function isTypingTarget(el) {
 // top of it (see taskFolderSelect/folderCategorySelect), and Esc should close the topmost one
 // first, not the task form underneath it.
 function closeTopModal() {
+  if (!confirmModal.classList.contains("hidden")) return closeConfirmModal();
   if (!categoryModal.classList.contains("hidden")) return closeCategoryModal();
   if (!folderModal.classList.contains("hidden")) return closeFolderModal();
   if (!taskModal.classList.contains("hidden")) return closeTaskModal();
@@ -3142,7 +3174,7 @@ function closeTopModal() {
 }
 
 function anyModalOpen() {
-  return [taskModal, folderModal, recurringModal, categoryModal, settingsModal, shortcutsModal, nowDeadlineModal, bulkImportModal]
+  return [taskModal, folderModal, recurringModal, categoryModal, settingsModal, shortcutsModal, nowDeadlineModal, bulkImportModal, confirmModal]
     .some(modal => !modal.classList.contains("hidden"));
 }
 
