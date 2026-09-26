@@ -546,11 +546,11 @@ function windowHabits(win, today) {
   return due;
 }
 
-// The standalone Habits block (score-based sorts). Returns null when the window has no
-// habit, so it stays clean.
+// The standalone Habits block (score-based sorts). Always rendered, even with nothing due —
+// it's the only reach the Plate/Fridge windows have to add a habit at all, so it can't hide
+// behind having one already (item 37); List mode's own boxes are otherwise the only way in.
 function renderWindowHabits(win, today) {
   const due = windowHabits(win, today);
-  if (due.length === 0) return null;
   const doneCount = due.filter(isRecurringResolvedNow).length;
 
   const block = document.createElement("div");
@@ -581,8 +581,15 @@ function renderWindowHabits(win, today) {
 
   const list = document.createElement("div");
   list.className = "window-habits-list";
-  due.forEach(rt => list.appendChild(renderWindowHabitRow(rt, today)));
+  if (due.length === 0) {
+    list.appendChild(makeEmptyHint("Nothing here.", "window-zone-empty"));
+  } else {
+    due.forEach(rt => list.appendChild(renderWindowHabitRow(rt, today)));
+  }
   block.appendChild(list);
+  // New habit defaults to Daily, editable in the form — the Plate/Fridge windows have no
+  // per-cadence boxes the way List mode does, so there's no better default to pick from here.
+  block.appendChild(makeAddIcon("Add a habit", "Add habit", () => openRecurringModal({ cadence: "daily", folder_id: habitFolderPrefill() }), "Habit")); // app.js
   return block;
 }
 

@@ -1871,12 +1871,18 @@ function renderRecurringBox(cadence, containerId, label) {
   // "All" leaves the new habit's folder to its own natural default (openRecurringModal falls
   // back to the first folder overall); a specific category tab pre-fills the first folder in
   // that category instead, same idea as the task form's own context-aware prefills.
-  const categoryFolder = activeCategoryFilter === "all"
-    ? null
-    : folders.find(f => f.category_id === activeCategoryFilter);
-  body.appendChild(makeHabitAddIcon(label, () => openRecurringModal({ cadence, folder_id: categoryFolder ? categoryFolder.id : null })));
+  body.appendChild(makeHabitAddIcon(label, () => openRecurringModal({ cadence, folder_id: habitFolderPrefill() })));
 
   container.appendChild(body);
+}
+
+// Shared by every habit "+" (the box-level ones here, and the Plate/Fridge windows' own —
+// windows.js): "All" returns null, leaving openRecurringModal to its own natural default (the
+// first folder overall); a specific category tab returns the first folder in that category.
+function habitFolderPrefill() {
+  if (activeCategoryFilter === "all") return null;
+  const folder = folders.find(f => f.category_id === activeCategoryFilter);
+  return folder ? folder.id : null;
 }
 
 // Same bottom-left "+" pill as the folder list's per-folder add (makeBucketAddIcon, windows.js),
