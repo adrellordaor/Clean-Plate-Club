@@ -744,19 +744,55 @@ function wireBucketDrop(zone, win, bucket) {
 // any other here: same header component, same bottom "+" add icon, pre-filling that folder —
 // plus whatever the enclosing bucket itself prefills (importance level, do_date/deadline,
 // is_quick_win), so a folder group nested inside e.g. the Critical bucket still genuinely
-// belongs there when added from its own "+", not just visually placed there.
+// belongs there when added from its own "+", not just visually placed there. Collapsible the
+// same way the folder list's own sections are (item 42) — same shared state and section key,
+// so collapsing "Work" here collapses it in List view too, and vice versa.
 function appendCards(container, entries, win, expanded, addPrefill) {
   if (windowPrefs.group === "folder") {
     groupEntriesByFolder(entries).forEach((group, i) => {
-      container.appendChild(makeBucketHeader(group.name, group.entries.length, i === 0, null, group.folderId));
-      group.entries.forEach(entry => container.appendChild(renderWindowCard(entry, win, expanded)));
-      if (group.folderId) {
-        container.appendChild(makeBucketAddIcon(group.name, () => addTaskFromBucket(Object.assign({}, addPrefill, { folder_id: group.folderId }))));
-      }
+      container.appendChild(makeFolderGroup(group, i, win, expanded, addPrefill));
     });
   } else {
     entries.forEach(entry => container.appendChild(renderWindowCard(entry, win, expanded)));
   }
+}
+
+function makeFolderGroup(group, index, win, expanded, addPrefill) {
+  const collapsed = group.folderId ? collapsedFolders.has(group.folderId) : false; // app.js
+  const key = "folder:" + group.folderId;
+
+  const wrap = document.createElement("div");
+  wrap.className = "window-folder-group" + (collapsed ? " collapsed" : "");
+
+  const header = makeBucketHeader(group.name, group.entries.length, index === 0, null, group.folderId);
+  if (group.folderId) {
+    header.classList.add("window-folder-header");
+    const caret = document.createElement("span");
+    caret.className = "folder-caret";
+    caret.dataset.sectionCaret = key;
+    caret.textContent = "▼";
+    header.prepend(caret);
+    header.addEventListener("click", () => {
+      const collapse = !collapsedFolders.has(group.folderId);
+      toggleSection(key, collapse, () => { // app.js
+        if (collapse) collapsedFolders.add(group.folderId);
+        else collapsedFolders.delete(group.folderId);
+        render();
+      });
+    });
+  }
+  wrap.appendChild(header);
+
+  const body = document.createElement("div");
+  body.className = "window-folder-body";
+  body.dataset.section = key;
+  group.entries.forEach(entry => body.appendChild(renderWindowCard(entry, win, expanded)));
+  if (group.folderId) {
+    body.appendChild(makeBucketAddIcon(group.name, () => addTaskFromBucket(Object.assign({}, addPrefill, { folder_id: group.folderId }))));
+  }
+  wrap.appendChild(body);
+
+  return wrap;
 }
 
 // Bucket divider: just the label and its count (separate spans — the label is set as a

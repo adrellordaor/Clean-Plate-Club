@@ -2171,6 +2171,33 @@ html.lenis body {
   min-height: 2.4rem;
 }
 
+/* Folder subgroup within a bucket ("Folder" grouping, item 42): collapsible the same way the
+   folder list's own sections are, same shared state — so it needs its own gap between cards
+   (a plain wrapper div, not itself a flex child sharing .window-bucket's gap) and its own
+   caret-rotate/hide-body rule, matching .folder-section's pattern in the folder list. */
+.window-folder-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.window-folder-header {
+  cursor: pointer;
+  user-select: none;
+}
+
+.window-folder-header .folder-caret {
+  font-size: 0.65rem;
+}
+
+.window-folder-group.collapsed .window-folder-body {
+  display: none;
+}
+
+.window-folder-group.collapsed .folder-caret {
+  transform: rotate(-90deg);
+}
+
 .window-zone-empty {
   padding: 0.35rem 0;
   font-size: 0.8rem;
