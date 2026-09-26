@@ -266,8 +266,9 @@ function renderNowLaterWindows() {
     return;
   }
   const today = todayISODate();
-  // The category tabs filter both windows, the same selection the folder list uses.
-  const ranked = rankActiveTasks(today).filter(entry => folderInActiveCategory(entry.task.folder_id));
+  // The category tabs filter both windows, the same selection the folder list uses —
+  // rankActiveTasks (overview.js) now applies it itself, before ranking.
+  const ranked = rankActiveTasks(today);
 
   // The shared sort dropdown sits above both windows; the Flat/Folder switch is rendered once,
   // shared with "full" List mode, by renderListGroupToggle (app.js), not duplicated here.

@@ -398,7 +398,17 @@ function renderCalendar() {
   // overview_top_n OR score ≥ overview_flag_threshold), so the accented future-deadline
   // marker means "top priority" by the same definition used everywhere else in the app.
   const topPriorityIds = new Set(selectPrioritySummary(rankActiveTasks(today), settings).map(e => e.task.id));
-  const data = { tasks, folders, categories, recurringTasks, completionLog, plannedHistory, topPriorityIds };
+  // The header's category tabs now filter Calendar too (app.js), the same activeCategoryFilter
+  // List and Overview use. completionLog has no folder_id of its own, so it's filtered by
+  // whichever recurring tasks survived the same filter.
+  const categoryTasks = tasks.filter(t => folderInActiveCategory(t.folder_id)); // app.js
+  const categoryRecurring = recurringTasks.filter(rt => folderInActiveCategory(rt.folder_id));
+  const recurringIdsInCategory = new Set(categoryRecurring.map(rt => rt.id));
+  const categoryCompletionLog = completionLog.filter(l => recurringIdsInCategory.has(l.recurring_task_id));
+  const data = {
+    tasks: categoryTasks, folders, categories, recurringTasks: categoryRecurring,
+    completionLog: categoryCompletionLog, plannedHistory, topPriorityIds,
+  };
 
   renderCalendarToolbar();
   renderCalendarModeToggle();

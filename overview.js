@@ -51,10 +51,12 @@ function renderOverview() {
 // independent importance/urgency/priority_score/quadrant, none of that machinery runs below
 // the top-level task, so they never enter this ranking (which drives the scatter, the
 // quadrant-list, the priority panel, and Now/Later's own membership and bucketing). Ties keep
-// the original array order.
+// the original array order. Filtered by the header's category tabs (folderInActiveCategory,
+// app.js) before ranking, not after, so a displayed rank (the scatter dots, the priority
+// panel) always runs contiguously 1, 2, 3... within whatever the tabs currently show.
 function rankActiveTasks(today) {
   return tasks
-    .filter(t => t.status === "active" && !t.parent_task_id)
+    .filter(t => t.status === "active" && !t.parent_task_id && folderInActiveCategory(t.folder_id))
     .map(task => ({ task, assessment: assessTask(task, settings, today) }))
     .sort((a, b) => b.assessment.priorityScore - a.assessment.priorityScore)
     .map((entry, i) => Object.assign(entry, { rank: i + 1 }));

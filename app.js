@@ -1003,11 +1003,11 @@ function renderViewSwitch() {
   const isList = activeView === "list";
   const listMode = listDisplayMode;
   document.getElementById("list-view").hidden = !isList;
-  // The category tabs filter either List mode, from the same spot in the header; the quadrant
-  // legend key now shows in both List modes (Plate carries the same "hue = quadrant, intensity
-  // = priority" reference as full/folder mode); the Overdue callout is a safety signal and
-  // stays up in either List mode.
-  setShownAnimated(document.getElementById("folder-tabs"), isList);
+  // The category tabs filter every view now (Overview, both List modes, Calendar), one filter
+  // row from the same spot in the header, always shown; the quadrant legend key shows in both
+  // List modes (Plate carries the same "hue = quadrant, intensity = priority" reference as
+  // full/folder mode); the Overdue callout is a safety signal and stays up in either List mode.
+  document.getElementById("folder-tabs").hidden = false;
   document.getElementById("heatmap-legend").hidden = !isList;
   document.getElementById("list-group-mode").hidden = !isList;
   document.querySelector(".toolbar").classList.toggle("toolbar-windows-mode", isList && listMode === "windows");
