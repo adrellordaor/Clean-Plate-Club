@@ -1249,6 +1249,16 @@ function categoryColorKeys() {
   return keys;
 }
 
+// The CSS color value for the category a folder belongs to (as a var(--cat-*) reference,
+// ready to drop into a custom property), or null if the folder (or its category) can't be
+// found. Shared by the dot and the folder section's own divider/name color (item 33).
+function categoryColorVarForFolder(folderId) {
+  const folder = folders.find(f => f.id === folderId);
+  const category = folder && categories.find(c => c.id === folder.category_id);
+  if (!category) return null;
+  return "var(--cat-" + categoryColorKeys()[category.id] + ")";
+}
+
 // A small colored dot for the category a folder belongs to, or null if the folder (or its
 // category) can't be found.
 function categoryDotForFolder(folderId) {
@@ -1257,7 +1267,7 @@ function categoryDotForFolder(folderId) {
   if (!category) return null;
   const dot = document.createElement("span");
   dot.className = "cat-dot";
-  dot.style.setProperty("--cat-color", "var(--cat-" + categoryColorKeys()[category.id] + ")");
+  dot.style.setProperty("--cat-color", categoryColorVarForFolder(folderId));
   dot.title = category.name;
   dot.setAttribute("aria-hidden", "true");
   return dot;
@@ -1472,6 +1482,10 @@ function renderFolderSection(folder) {
 
   const section = document.createElement("div");
   section.className = "folder-section" + (collapsedFolders.has(folder.id) ? " collapsed" : "");
+  // The section's divider line and its name (below) carry the folder's own category color
+  // instead of a hardcoded/view-accent one (item 33), same color the dot next to it uses.
+  const folderAccent = categoryColorVarForFolder(folder.id);
+  if (folderAccent) section.style.setProperty("--folder-accent", folderAccent);
 
   const header = document.createElement("div");
   header.className = "folder-header";

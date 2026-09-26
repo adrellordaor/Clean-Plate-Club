@@ -1541,9 +1541,11 @@ html.lenis body {
   border-top: 1px solid var(--border-strong);
 }
 
-/* Top-level folders are List mode's main framing, so their rules take the view accent. */
+/* Top-level folders: the divider carries the folder's own category color (--folder-accent, set
+   inline per section, app.js) rather than a hardcoded green or the view accent — a folder with
+   no category yet (or no color assigned) falls back to the view accent, same as before. */
 .folder-list > .folder-section {
-  border-top-color: var(--view-accent, var(--border-strong));
+  border-top-color: var(--folder-accent, var(--view-accent, var(--border-strong)));
 }
 
 .folder-header {
@@ -1572,6 +1574,7 @@ html.lenis body {
   font-weight: 800;
   letter-spacing: var(--tracking-tight);
   flex: 1;
+  color: var(--folder-accent, var(--text));
 }
 
 .folder-header:hover .folder-name {
