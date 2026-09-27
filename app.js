@@ -3306,21 +3306,36 @@ document.addEventListener("pointermove", e => {
     : travel <= SWIPE_SKIP_PX ? travel
     : SWIPE_SKIP_PX + (travel - SWIPE_SKIP_PX) * 0.3;
   const progress = s.canSkip ? Math.min(1, travel / SWIPE_SKIP_PX) : 0;
-  s.row.style.transform = "translateX(" + shown + "px)";
+  s.shown = shown;
+  offsetHabitRow(s.row, shown);
   s.row.style.setProperty("--swipe-p", progress);
   s.row.classList.toggle("swipe-armed", progress >= 1);
 });
 
-// Back to rest from wherever the drag left it (`from`, a transform), on the signature curve.
+// The row slides right by `px` but its right side is cut off at the row's resting edge, so it
+// disappears into that edge as it slides rather than being pulled out past the window around
+// it. The clip is in the row's own (moved) coordinates, so insetting it by the same distance
+// holds the cut exactly where the right edge was.
+function offsetHabitRow(row, px) {
+  row.style.transform = px ? "translateX(" + px + "px)" : "";
+  row.style.clipPath = px ? "inset(0 " + px + "px 0 0)" : "";
+}
+
+// Back to rest from wherever the drag left it (`from`, px), on the signature curve, the cut-off
+// side reappearing as it goes.
 function glideHabitRowHome(row, from) {
   row.classList.remove("habit-swiping", "habit-swipe-release");
-  row.style.transform = from;
+  offsetHabitRow(row, from);
   void row.offsetWidth; // commit the starting offset before gliding away from it
   row.classList.add("habit-swipe-release");
   row.classList.remove("swipe-armed");
-  row.style.transform = "";
+  offsetHabitRow(row, 0);
+  row.style.clipPath = "inset(0 0px 0 0)"; // an end the clip can glide to ("none" would cut)
   row.style.removeProperty("--swipe-p");
-  setTimeout(() => row.classList.remove("habit-swipe-release"), SWIPE_RELEASE_MS);
+  setTimeout(() => {
+    row.classList.remove("habit-swipe-release");
+    row.style.clipPath = "";
+  }, SWIPE_RELEASE_MS);
 }
 
 function endHabitSwipe(e) {
@@ -3329,7 +3344,7 @@ function endHabitSwipe(e) {
   habitSwipe = null;
   if (!s.engaged) return;
   swipeClickBlockUntil = e.timeStamp + 400; // the click a mouse drag ends with isn't a click
-  const from = s.row.style.transform;
+  const from = s.shown || 0;
   if (e.type !== "pointerup" || !s.row.classList.contains("swipe-armed")) {
     glideHabitRowHome(s.row, from);
     return;

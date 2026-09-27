@@ -1891,7 +1891,9 @@ html.lenis body {
 
 /* Swipe right to skip a habit (app.js). Sideways moves on a habit row belong to the swipe;
    the page still scrolls vertically and pinch-zooms from it as normal. While dragging the
-   row follows the pointer and the Skip button fills with --swipe-p (0 -> 1); once full it
+   row follows the pointer, its right side vanishing into its resting right edge (an inline
+   clip-path, never pulled out past its window), and the Skip button fills with --swipe-p
+   (0 -> 1); once full it
    takes the pressed look, and letting go there skips. Letting go glides the row (and any
    partial fill) back on the signature curve. */
 .habit-row,
@@ -1919,7 +1921,10 @@ html.lenis body {
   border-color: var(--text);
 }
 
-.habit-swipe-release,
+.habit-swipe-release {
+  transition: transform 0.3s var(--ease), clip-path 0.3s var(--ease);
+}
+
 .habit-swipe-release .btn-skip::before {
   transition: transform 0.3s var(--ease);
 }
