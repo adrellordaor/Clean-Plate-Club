@@ -1876,6 +1876,48 @@ html.lenis body {
   touch-action: manipulation;
 }
 
+/* Swipe right to skip a habit (app.js). Sideways moves on a habit row belong to the swipe;
+   the page still scrolls vertically and pinch-zooms from it as normal. While dragging the
+   row follows the pointer and the Skip button fills with --swipe-p (0 -> 1); once full it
+   takes the pressed look, and letting go there skips. Letting go glides the row (and any
+   partial fill) back on the signature curve. */
+.habit-row,
+.window-habit {
+  touch-action: pan-y pinch-zoom;
+}
+
+.habit-swiping {
+  position: relative;
+  z-index: 1;
+  cursor: grabbing;
+  user-select: none;
+}
+
+.habit-swiping .btn-skip[aria-pressed="false"]::before {
+  transform: scale(var(--swipe-p, 0));
+}
+
+.habit-swiping .btn-skip {
+  transition: color 0.18s var(--ease), border-color 0.18s var(--ease);
+}
+
+.swipe-armed .btn-skip {
+  color: var(--on-accent);
+  border-color: var(--text);
+}
+
+.habit-swipe-release,
+.habit-swipe-release .btn-skip::before {
+  transition: transform 0.3s var(--ease);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .habit-swipe-release,
+  .habit-swipe-release .btn-skip::before {
+    transition: none;
+  }
+}
+
 .task-row:hover {
   background: var(--row-hover);
 }

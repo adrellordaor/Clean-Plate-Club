@@ -3197,6 +3197,112 @@ document.addEventListener("pointerup", e => {
   completeRowFromDoubleTap(e.target);
 });
 
+// ---------- Swipe right to skip a habit ----------
+// A horizontal drag to the right on a habit row (List mode's habit boxes, the Plate/Fridge
+// habit rows) also skips it, alongside its Skip button: one pointer-event gesture that serves
+// a touch swipe and a mouse click-drag alike. The row follows the pointer and the Skip button's
+// fill grows with it; at SWIPE_SKIP_PX it's full ("armed") and letting go skips the habit, the
+// row gliding home. Let go short of that — or drag a habit that's done or already skipped,
+// which only gives a little — and it glides back with nothing changed. A mostly vertical move
+// is left alone to scroll the page. Skip only, like double-tap's complete only: undoing a skip
+// stays with the button.
+const HABIT_SWIPE_SELECTOR = ".habit-row, .window-habit";
+const SWIPE_START_PX = 8;
+const SWIPE_SKIP_PX = 72;
+const SWIPE_RELEASE_MS = 300;
+let habitSwipe = null;
+let swipeClickBlockUntil = 0;
+
+document.addEventListener("pointerdown", e => {
+  if (e.button !== 0 || habitSwipe) return;
+  const row = e.target.closest(HABIT_SWIPE_SELECTOR);
+  if (!row || e.target.closest("input, button, select, textarea, a")) return;
+  const btn = row.querySelector(".btn-skip");
+  const rt = btn && recurringTasks.find(r => r.id === btn.dataset.skipId);
+  if (!rt) return;
+  habitSwipe = {
+    row, rt, pointerId: e.pointerId, x: e.clientX, y: e.clientY, engaged: false,
+    canSkip: !btn.disabled && !isRecurringSkippedNow(rt),
+  };
+});
+
+document.addEventListener("pointermove", e => {
+  const s = habitSwipe;
+  if (!s || e.pointerId !== s.pointerId) return;
+  const dx = e.clientX - s.x;
+  const dy = e.clientY - s.y;
+  if (!s.engaged) {
+    if (Math.abs(dx) < SWIPE_START_PX && Math.abs(dy) < SWIPE_START_PX) return;
+    if (dx < SWIPE_START_PX || Math.abs(dx) < Math.abs(dy) * 1.5) { // leftward, or a scroll
+      habitSwipe = null;
+      return;
+    }
+    s.engaged = true;
+    s.row.classList.add("habit-swiping");
+    try {
+      s.row.setPointerCapture(e.pointerId); // keeps the drag even if the pointer leaves the row
+    } catch (err) { /* pointer already gone: the document-level listeners still see it */ }
+    getSelection().removeAllRanges(); // a mouse drag may have begun selecting the title
+  }
+  const travel = Math.max(0, dx - SWIPE_START_PX);
+  // Rubber band: past the arming point the row follows at a fraction; one that can't be
+  // skipped follows reluctantly the whole way, so it reads as "nothing to do here".
+  const shown = !s.canSkip ? travel * 0.25
+    : travel <= SWIPE_SKIP_PX ? travel
+    : SWIPE_SKIP_PX + (travel - SWIPE_SKIP_PX) * 0.3;
+  const progress = s.canSkip ? Math.min(1, travel / SWIPE_SKIP_PX) : 0;
+  s.row.style.transform = "translateX(" + shown + "px)";
+  s.row.style.setProperty("--swipe-p", progress);
+  s.row.classList.toggle("swipe-armed", progress >= 1);
+});
+
+// Back to rest from wherever the drag left it (`from`, a transform), on the signature curve.
+function glideHabitRowHome(row, from) {
+  row.classList.remove("habit-swiping", "habit-swipe-release");
+  row.style.transform = from;
+  void row.offsetWidth; // commit the starting offset before gliding away from it
+  row.classList.add("habit-swipe-release");
+  row.classList.remove("swipe-armed");
+  row.style.transform = "";
+  row.style.removeProperty("--swipe-p");
+  setTimeout(() => row.classList.remove("habit-swipe-release"), SWIPE_RELEASE_MS);
+}
+
+function endHabitSwipe(e) {
+  const s = habitSwipe;
+  if (!s || e.pointerId !== s.pointerId) return;
+  habitSwipe = null;
+  if (!s.engaged) return;
+  swipeClickBlockUntil = e.timeStamp + 400; // the click a mouse drag ends with isn't a click
+  const from = s.row.style.transform;
+  if (e.type !== "pointerup" || !s.row.classList.contains("swipe-armed")) {
+    glideHabitRowHome(s.row, from);
+    return;
+  }
+  // Skip. That re-renders, replacing the row; its new self picks up the drag's offset and
+  // glides home from there. The Skip button's fill already grew during the drag, and the new
+  // button renders filled, so the fill isn't replayed — only the status badge rolls over.
+  const before = habitStatusBadgeInfo(s.rt);
+  toggleRecurringSkip(s.rt);
+  playHabitStatusRoll(s.rt, before);
+  document.querySelectorAll('.btn-skip[data-skip-id="' + CSS.escape(s.rt.id) + '"]').forEach(btn => {
+    const row = btn.closest(HABIT_SWIPE_SELECTOR);
+    if (row && row.offsetParent !== null) glideHabitRowHome(row, from);
+  });
+}
+
+document.addEventListener("pointerup", endHabitSwipe);
+document.addEventListener("pointercancel", endHabitSwipe);
+
+// A Plate/Fridge habit row is a <label>: without this, the click that ends a mouse drag
+// would reach its checkbox and complete the habit as well.
+document.addEventListener("click", e => {
+  if (e.timeStamp > swipeClickBlockUntil) return;
+  swipeClickBlockUntil = 0;
+  e.preventDefault();
+  e.stopPropagation();
+}, true);
+
 // ---------- Theme toggle ----------
 
 const themeToggleBtn = document.getElementById("theme-toggle-btn");
