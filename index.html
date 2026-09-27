@@ -79,14 +79,17 @@
        a Weekly Accomplishments panel. Read-only, like Overview. -->
   <section id="calendar-view" class="calendar-view" hidden>
     <div class="calendar-toolbar">
-      <div class="calendar-nav">
-        <button type="button" id="calendar-prev-btn" class="btn-icon" aria-label="Previous month">&lsaquo;</button>
-        <h2 id="calendar-month-label" class="calendar-month-label"></h2>
-        <button type="button" id="calendar-next-btn" class="btn-icon" aria-label="Next month">&rsaquo;</button>
+      <!-- Wraps on its own, so the Pace/Capacity toggle keeps the top-right corner at any width. -->
+      <div class="calendar-toolbar-main">
+        <div class="calendar-nav">
+          <button type="button" id="calendar-prev-btn" class="btn-icon" aria-label="Previous month">&lsaquo;</button>
+          <h2 id="calendar-month-label" class="calendar-month-label"></h2>
+          <button type="button" id="calendar-next-btn" class="btn-icon" aria-label="Next month">&rsaquo;</button>
+        </div>
+        <button type="button" id="calendar-today-btn" class="link-btn">Today</button>
+        <div id="calendar-legend" class="calendar-legend"></div>
       </div>
-      <button type="button" id="calendar-today-btn" class="link-btn">Today</button>
       <div id="calendar-mode" class="calendar-mode"></div>
-      <div id="calendar-legend" class="calendar-legend"></div>
     </div>
     <div class="calendar-layout">
       <div class="calendar-main">
@@ -102,6 +105,9 @@
        sections with heat-map rows, the Recurring habit boxes). One is shown at a time. -->
   <div id="list-view">
     <div class="toolbar">
+      <!-- Everything but the Plate/List toggle wraps inside this group, so at any width the
+           toggle keeps the toolbar's top-right corner, as it does in every view. -->
+      <div class="toolbar-main">
       <div id="heatmap-legend" class="heatmap-legend"></div>
       <!-- Flat/Folder: shared by both List display modes, same control, same spot either way. -->
       <div id="list-group-mode" class="list-mode"></div>
@@ -110,6 +116,7 @@
            toggle, right of the legend (item 41) — never right of the toggle itself, that's the
            one control that has to keep the same top-right spot in every List display mode. -->
       <div id="windows-toolbar" class="windows-toolbar" aria-label="Window grouping"></div>
+      </div>
       <div id="list-mode" class="list-mode"></div>
     </div>
 

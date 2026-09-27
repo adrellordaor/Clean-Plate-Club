@@ -1120,13 +1120,24 @@ kbd {
   }
 }
 
+/* View toolbars (List here, .overview-toolbar and .calendar-toolbar below): two parts that never
+   wrap past each other — everything else in a group that wraps within its own width, and the
+   view's display toggle, fixed in the top-right corner, the same spot in every view and at
+   every breakpoint. */
 .toolbar {
   display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  flex-wrap: wrap;
+  align-items: flex-start;
   gap: 0.5rem 1rem;
   margin-bottom: 1.5rem;
+}
+
+.toolbar-main {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
 }
 
 /* Heat-map key: a swatch per quadrant drawn as its pale -> vivid ramp, label in plain text. */
@@ -1161,13 +1172,16 @@ kbd {
   color: var(--text-faint);
 }
 
-/* List display-mode toggle (windows / full): heatmap-legend's margin-right:auto (above) always
-   pushes this — and everything after it (Flat/Folder, the windows-only sort/+Folder controls)
-   — to the far right of the toolbar, same top-right corner the mode toggle sits in on every
-   other view (Overview, Calendar) and in both List display modes alike (item 41: the toggle
-   keeps one fixed screen position, the legend sits top-left in both modes to match). */
+/* Flat/Folder (#list-group-mode) and the Plate/List toggle (#list-mode). heatmap-legend's
+   margin-right:auto (above) pushes the rest of the toolbar group — Flat/Folder, the sort and
+   +Folder — to the right, up against the Plate/List toggle, which sits outside the group in
+   the top-right corner (item 41: one fixed screen position, the legend top-left to match). */
 .list-mode {
   margin-right: 0;
+}
+
+#list-mode {
+  flex: none;
 }
 
 /* ---- Heat-map colour maths ----
@@ -3510,21 +3524,23 @@ html.lenis body {
 /* ---- Overview (scatter / quadrant list, priority panel, digest) ---- */
 .overview-toolbar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.75rem 1.5rem;
-  flex-wrap: wrap;
   margin-bottom: 1.75rem;
 }
 
+/* Wraps its own lines rather than dropping below the toggle (see .toolbar). */
 .matrix-help {
   font-size: 0.88rem;
   color: var(--text-muted);
   margin: 0;
-  flex: 1 1 320px;
+  flex: 1 1 0;
+  min-width: 0;
   max-width: 60ch;
 }
 
 .overview-mode {
+  flex: none;
   margin-left: auto;
 }
 
@@ -4323,16 +4339,26 @@ html.lenis body {
 /* ---- Calendar (monthly grid, day repository, Weekly Accomplishments panel) ---- */
 .calendar-toolbar {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.75rem 1.25rem;
-  flex-wrap: wrap;
   margin-bottom: 1.75rem;
 }
 
-/* Pace/Capacity toggle: at the far right of the month/year row, the same top-right corner the
-   mode toggle sits in on every other view (Overview, List). The legend, which changes size
-   between the two modes, gets a row of its own underneath, so it can never move the toggle. */
+.calendar-toolbar-main {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+}
+
+/* Pace/Capacity toggle: outside the wrapping group, in the same top-right corner the display
+   toggle holds in every view (see .toolbar), level with the month/year row. The legend, which
+   changes size between the two modes, gets a row of its own underneath, so it can never move
+   the toggle. */
 .calendar-mode {
+  flex: none;
   margin-left: auto;
   margin-right: 0;
 }
