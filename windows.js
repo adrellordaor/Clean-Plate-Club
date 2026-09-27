@@ -589,7 +589,9 @@ function renderWindowHabits(win, today) {
   block.appendChild(list);
   // New habit defaults to Daily, editable in the form — the Plate/Fridge windows have no
   // per-cadence boxes the way List mode does, so there's no better default to pick from here.
-  block.appendChild(makeAddIcon("Add a habit", "Add habit", () => openRecurringModal({ cadence: "daily", folder_id: habitFolderPrefill() }), "Habit")); // app.js
+  // A plain "+" icon, not a labeled one (item 44) — every other add control in the app is
+  // icon-only, no text links.
+  block.appendChild(makeAddIcon("Add a habit", "Add habit", () => openRecurringModal({ cadence: "daily", folder_id: habitFolderPrefill() }))); // app.js
   return block;
 }
 
