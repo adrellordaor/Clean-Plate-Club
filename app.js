@@ -1060,13 +1060,13 @@ function renderViewSwitch() {
   // row from the same spot in the header, always shown; the quadrant legend key shows in both
   // List modes (Plate carries the same "hue = quadrant, intensity = priority" reference as
   // full/folder mode); the Overdue callout is a safety signal and stays up in either List mode.
+  // Everything inside #list-view is shown or hidden by the List display mode alone, never by
+  // which view is active: #list-view itself covers that, and leaving Checklist it has to slide
+  // out with its contents still in it, not as an empty frame.
   document.getElementById("folder-tabs").hidden = false;
-  document.getElementById("heatmap-legend").hidden = !isList;
-  document.getElementById("list-group-mode").hidden = !isList;
-  document.getElementById("windows-toolbar").hidden = !isList;
   setShownAnimated(document.getElementById("overdue-callout"), isList);
-  document.getElementById("windows-row").hidden = !(isList && listMode === "windows");
-  document.getElementById("list-full").hidden = !(isList && listMode === "full");
+  document.getElementById("windows-row").hidden = listMode !== "windows";
+  document.getElementById("list-full").hidden = listMode !== "full";
   document.getElementById("overview-view").hidden = activeView !== "overview";
   document.getElementById("calendar-view").hidden = activeView !== "calendar";
 }
