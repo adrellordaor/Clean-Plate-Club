@@ -495,12 +495,21 @@ input[type="checkbox"].uncheck-anim::before {
   transform-origin: center;
 }
 
-.app-logo:hover > g {
+.app-logo.tap-hover > g {
   animation: logo-hop 0.56s var(--ease);
 }
 
-.app-logo:hover > .app-logo-plate { animation-delay: 70ms; }
-.app-logo:hover > .app-logo-knife { animation-delay: 140ms; }
+.app-logo.tap-hover > .app-logo-plate { animation-delay: 70ms; }
+.app-logo.tap-hover > .app-logo-knife { animation-delay: 140ms; }
+
+@media (hover: hover) {
+  .app-logo:hover > g {
+    animation: logo-hop 0.56s var(--ease);
+  }
+
+  .app-logo:hover > .app-logo-plate { animation-delay: 70ms; }
+  .app-logo:hover > .app-logo-knife { animation-delay: 140ms; }
+}
 
 @keyframes logo-hop {
   35% { transform: translateY(-3px) rotate(-12deg); }
@@ -508,7 +517,8 @@ input[type="checkbox"].uncheck-anim::before {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .app-logo:hover > g {
+  .app-logo:hover > g,
+  .app-logo.tap-hover > g {
     animation: none;
   }
 }
@@ -1378,9 +1388,15 @@ kbd {
   left: 0;
 }
 
-:hover > .roll > *,
+.tap-hover > .roll > *,
 :focus-visible > .roll > * {
   transform: translateY(-100%);
+}
+
+@media (hover: hover) {
+  :hover > .roll > * {
+    transform: translateY(-100%);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1440,9 +1456,15 @@ html.lenis body {
   text-decoration: inherit; /* positioned, so it doesn't pick up the label's underline by itself */
 }
 
-:is(button, a):hover .text-roll-face,
+:is(button, a).tap-hover .text-roll-face,
 :is(button, a):focus-visible .text-roll-face {
   transform: translateY(calc(-100% - var(--roll-gap)));
+}
+
+@media (hover: hover) {
+  :is(button, a):hover .text-roll-face {
+    transform: translateY(calc(-100% - var(--roll-gap)));
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1480,7 +1502,7 @@ html.lenis body {
   transition: transform 0.32s var(--ease);
 }
 
-:hover > .icon-plus,
+.tap-hover > .icon-plus,
 :focus-visible > .icon-plus {
   transform: rotate(90deg);
 }
@@ -1493,17 +1515,17 @@ html.lenis body {
   transition: transform 0.32s var(--ease);
 }
 
-:hover > .icon-prev,
+.tap-hover > .icon-prev,
 :focus-visible > .icon-prev {
   transform: translateX(-3px);
 }
 
-:hover > .icon-next,
+.tap-hover > .icon-next,
 :focus-visible > .icon-next {
   transform: translateX(3px);
 }
 
-:hover > .icon-import .icon-import-arrow,
+.tap-hover > .icon-import .icon-import-arrow,
 :focus-visible > .icon-import .icon-import-arrow {
   transform: translateY(3px);
 }
@@ -1513,7 +1535,7 @@ html.lenis body {
   transition: transform 0.32s var(--ease);
 }
 
-:hover > .icon-gear,
+.tap-hover > .icon-gear,
 :focus-visible > .icon-gear {
   transform: rotate(45deg);
 }
@@ -1530,12 +1552,12 @@ html.lenis body {
   transform-origin: center;
 }
 
-:hover > .icon-focus,
+.tap-hover > .icon-focus,
 :focus-visible > .icon-focus {
   transform: scale(1.18);
 }
 
-:hover > .icon-focus .icon-focus-dot,
+.tap-hover > .icon-focus .icon-focus-dot,
 :focus-visible > .icon-focus .icon-focus-dot {
   transform: scale(1.6);
 }
@@ -1561,9 +1583,23 @@ html.lenis body {
   transform: rotateY(180deg);
 }
 
-:hover > .flip,
+.tap-hover > .flip,
 :focus-visible > .flip {
   transform: perspective(60px) rotateY(180deg);
+}
+
+/* The mouse versions of the gestures above. Touch-only devices skip these: a tapped control
+   would otherwise keep its emulated hover (stuck mid-gesture until the next tap elsewhere); the
+   tap plays the gesture through .tap-hover instead (TAP_HOVER_MS in app.js). */
+@media (hover: hover) {
+  :hover > .icon-plus { transform: rotate(90deg); }
+  :hover > .icon-prev { transform: translateX(-3px); }
+  :hover > .icon-next { transform: translateX(3px); }
+  :hover > .icon-import .icon-import-arrow { transform: translateY(3px); }
+  :hover > .icon-gear { transform: rotate(45deg); }
+  :hover > .icon-focus { transform: scale(1.18); }
+  :hover > .icon-focus .icon-focus-dot { transform: scale(1.6); }
+  :hover > .flip { transform: perspective(60px) rotateY(180deg); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2242,9 +2278,15 @@ html.lenis body {
 
 /* Hover the indicator: the pile swells a little. Adding a task (.pile-stoked, about a second)
    does the same plus a glow — the flame flares, the ice frosts. */
-.pile-indicator:hover .pile-icon,
+.pile-indicator.tap-hover .pile-icon,
 .pile-stoked .pile-icon {
   transform: scale(1.14);
+}
+
+@media (hover: hover) {
+  .pile-indicator:hover .pile-icon {
+    transform: scale(1.14);
+  }
 }
 
 .pile-fire .pile-stoked .pile-icon { filter: drop-shadow(0 0 4px var(--flame-glow)); }

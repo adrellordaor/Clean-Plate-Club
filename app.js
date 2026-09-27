@@ -100,6 +100,35 @@ new MutationObserver(mutations => {
   }
 }).observe(document.body, { childList: true, subtree: true });
 
+// Touch: every hover motion (the rolls, the icon gestures, the logo hop, the pile swell) plays
+// on the tap itself, as part of it, never as a preview needing a first tap of its own. A touch
+// marks the tapped element and its ancestors .tap-hover — the same chain :hover would cover —
+// which style.css pairs with each hover motion; long enough for the motion to play, then the
+// mark comes off and it eases back. On a touch-only device those motions' real :hover forms are
+// switched off (@media (hover: hover)), so nothing stays stuck mid-roll after the tap. A touch
+// that turns into a scroll (pointercancel) lets go at once.
+const TAP_HOVER_MS = 700; // the longest hover motion: the logo hop, 0.56s plus its 140ms stagger
+let tapHoverChain = [];
+let tapHoverTimer = null;
+
+function clearTapHover() {
+  clearTimeout(tapHoverTimer);
+  tapHoverChain.forEach(el => el.classList.remove("tap-hover"));
+  tapHoverChain = [];
+}
+
+document.addEventListener("pointerdown", e => {
+  if (e.pointerType !== "touch") return;
+  clearTapHover();
+  for (let el = e.target; el && el !== document.body; el = el.parentElement) {
+    el.classList.add("tap-hover");
+    tapHoverChain.push(el);
+  }
+  tapHoverTimer = setTimeout(clearTapHover, TAP_HOVER_MS);
+}, { capture: true, passive: true });
+
+document.addEventListener("pointercancel", clearTapHover, { capture: true, passive: true });
+
 // Pop-ups (.modal): opening dims the backdrop in while the sheet rises and settles into place
 // (.modal-opening); closing plays the same motion the other way (.modal-closing) — the sheet
 // sinks and fades, the dim lifts — before it's actually taken off screen. "hidden" is still the
