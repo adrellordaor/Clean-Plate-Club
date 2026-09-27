@@ -1076,9 +1076,11 @@ function renderViewSwitch() {
 // above), same two-mode pattern as overview_display_mode and calendar_display_mode: the
 // on-page toggle is its only UI.
 
+// `color`: the view toggle's color for that mode (makeModeToggle) — Plate takes the Daily
+// Plate's red, List the Checklist's own sage.
 const LIST_MODES = [
-  { key: "windows", label: "Plate" },
-  { key: "full", label: "List" },
+  { key: "windows", label: "Plate", color: "var(--fire)" },
+  { key: "full", label: "List", color: "var(--accent-list)" },
 ];
 
 function renderListModeToggle() {
@@ -1101,6 +1103,9 @@ function renderListGroupToggle() {
 // switches to — the same text roll as every other label (applyTextRoll above, fed the
 // destination through data-roll-to) — and clicking switches to it. Each sits in the same spot
 // whichever of its modes is showing.
+// The three view toggles (a view's display mode, not Flat/Folder's grouping) give each mode a
+// color; they get the distinct .view-toggle look in that color, which shifts to the next
+// mode's color along with the roll (--mode-now / --mode-next, style.css).
 function makeModeToggle(modes, activeKey, onPick, groupLabel) {
   const index = Math.max(0, modes.findIndex(mode => mode.key === activeKey));
   const current = modes[index];
@@ -1108,6 +1113,11 @@ function makeModeToggle(modes, activeKey, onPick, groupLabel) {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "mode-toggle";
+  if (current.color) {
+    btn.classList.add("view-toggle");
+    btn.style.setProperty("--mode-now", current.color);
+    btn.style.setProperty("--mode-next", next.color);
+  }
   btn.dataset.rollTo = next.label;
   btn.textContent = current.label;
   btn.title = groupLabel + ": " + current.label + " (click for " + next.label + ")";

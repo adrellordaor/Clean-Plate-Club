@@ -15,9 +15,11 @@
 // to right, importance high -> low from top to bottom.
 const OVERVIEW_CORNERS = [QUADRANTS.q1, QUADRANTS.q2, QUADRANTS.q3, QUADRANTS.q4];
 
+// `color`: the view toggle's color for each mode (makeModeToggle, app.js) — Scatter takes
+// Overview's own lilac, Quadrants the ice blue of the quadrant map.
 const OVERVIEW_MODES = [
-  { key: "scatter", label: "Scatter" },
-  { key: "list", label: "Quadrants" }, // the four-box quadrant-list display mode — named
+  { key: "scatter", label: "Scatter", color: "var(--accent-overview)" },
+  { key: "list", label: "Quadrants", color: "var(--ice)" }, // the four-box quadrant-list display mode — named
   // "Quadrants" (not "List") so it doesn't collide with the header's "Checklist" toggle or
   // List mode's own "Plate"/"List" pair, three separate things that used to share one word.
 ];

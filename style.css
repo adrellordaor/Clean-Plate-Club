@@ -3441,6 +3441,59 @@ html.lenis body {
   border-color: var(--text);
 }
 
+/* View toggles (a view's display mode: Plate/List, Scatter/Quadrants, Pace/Capacity): set
+   apart from every other button, including the plain Flat/Folder toggle, as the one control
+   that changes what the whole view is. Each mode has its own color (the mode lists' `color`,
+   passed in as --mode-now / --mode-next): a heavier box in that color, the label in it over a
+   faint wash of it, and a solid swatch leading the label. Hovering (or tapping) shifts the
+   color to the mode a click switches to, in step with the label rolling to its name — the
+   whole button previews the destination. --mode-c is registered so it can transition. */
+@property --mode-c {
+  syntax: "<color>";
+  inherits: true;
+  initial-value: transparent;
+}
+
+.mode-toggle.view-toggle {
+  --mode-c: var(--mode-now);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1.5px solid var(--mode-c);
+  color: var(--mode-c);
+  background: color-mix(in srgb, var(--mode-c) 14%, transparent);
+  padding: 0.3rem 0.75rem 0.3rem 0.6rem;
+  transition: --mode-c 0.32s var(--ease);
+}
+
+.mode-toggle.view-toggle::before {
+  content: "";
+  flex: none;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 1px;
+  background: var(--mode-c);
+}
+
+.mode-toggle.view-toggle.tap-hover,
+.mode-toggle.view-toggle:focus-visible {
+  --mode-c: var(--mode-next);
+  border-color: var(--mode-c);
+}
+
+@media (hover: hover) {
+  .mode-toggle.view-toggle:hover {
+    --mode-c: var(--mode-next);
+    border-color: var(--mode-c);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mode-toggle.view-toggle {
+    transition: none;
+  }
+}
+
 /* ---- Color tabs: the view tabs (Overview / Checklist / Calendar) and the category tabs ----
    One mechanism for both, in the app's box language (hairline border, small radius, never a
    pill), each tab in its own color (--tab-color: the view's accent, the category's color, ink

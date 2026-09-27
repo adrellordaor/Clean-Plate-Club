@@ -388,9 +388,11 @@ const CALENDAR_WEEKDAY_HEADS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 // "capacity" (effort vs. daily_capacity_points, same two-mode pattern as
 // overview_display_mode / list_display_mode). A per-device display preference (localStorage),
 // same category as sort/grouping/theme/folder-count-style — the on-page toggle is its only UI.
+// `color`: the view toggle's color for each mode (makeModeToggle, app.js) — Pace takes the
+// gold of its big-win days, Capacity its magenta.
 const CALENDAR_MODES = [
-  { key: "pace", label: "Pace" },
-  { key: "capacity", label: "Capacity" },
+  { key: "pace", label: "Pace", color: "var(--gold)" },
+  { key: "capacity", label: "Capacity", color: "var(--capacity-overload)" },
 ];
 let calendarDisplayMode = localStorage.getItem("calendarDisplayMode") === "capacity" ? "capacity" : "pace";
 
