@@ -3560,6 +3560,25 @@ html.lenis body {
   border-top: 2px solid var(--view-accent, var(--text));
   padding: 0.75rem 0.75rem 0.5rem;
   overflow-x: auto; /* on a phone the plot keeps a readable size and scrolls inside its box */
+  overscroll-behavior-x: contain; /* a sideways swipe at the plot's edge never becomes "back" */
+}
+
+/* Phones only (where the plot is wider than its box): a one-line cue that it scrolls sideways,
+   pinned to the box's left edge so it stays put while the plot moves under it. */
+.scatter-scroll-hint {
+  display: none;
+  position: sticky;
+  left: 0;
+  width: max-content;
+  margin: 0 0 0.5rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+@media (max-width: 639.98px) {
+  .scatter-scroll-hint {
+    display: block;
+  }
 }
 
 .scatter-svg {

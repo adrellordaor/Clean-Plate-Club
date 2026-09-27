@@ -24,7 +24,34 @@ const OVERVIEW_MODES = [
 
 // overview_display_mode: a per-device display preference (localStorage), same category as
 // sort/grouping/theme/folder-count-style — the on-page toggle is its only UI.
-let overviewDisplayMode = localStorage.getItem("overviewDisplayMode") === "list" ? "list" : "scatter";
+// Phones (below the 640px tablet breakpoint) keep a preference of their own that defaults to
+// the quadrant list: the scatter needs precise taps on a dense plot and both scroll axes at
+// once, so there it's opt-in through the same toggle (and scrolls sideways inside its box
+// rather than being squeezed). A choice made at phone width never changes the wider default.
+const OVERVIEW_NARROW = matchMedia("(max-width: 639.98px)");
+
+function overviewModeStorageKey() {
+  return OVERVIEW_NARROW.matches ? "overviewDisplayModeNarrow" : "overviewDisplayMode";
+}
+
+function savedOverviewDisplayMode() {
+  const saved = localStorage.getItem(overviewModeStorageKey());
+  if (saved === "list" || saved === "scatter") return saved;
+  return OVERVIEW_NARROW.matches ? "list" : "scatter";
+}
+
+let overviewDisplayMode = savedOverviewDisplayMode();
+
+// Crossing the breakpoint (rotating a tablet, resizing a window) swaps to that width's mode
+// with the usual row fall and rise rather than a cut.
+OVERVIEW_NARROW.addEventListener("change", () => {
+  const mode = savedOverviewDisplayMode();
+  if (mode === overviewDisplayMode) return;
+  changeWithRowRise(() => { // app.js
+    overviewDisplayMode = mode;
+    render();
+  }, { frames: true, scroll: false });
+});
 
 function renderOverview() {
   if (activeView !== "overview") return; // nothing visible to draw; skip the work
@@ -81,7 +108,7 @@ function setOverviewDisplayMode(mode) {
   if (overviewDisplayMode === mode) return;
   changeWithRowRise(() => { // app.js
     overviewDisplayMode = mode;
-    localStorage.setItem("overviewDisplayMode", mode);
+    localStorage.setItem(overviewModeStorageKey(), mode);
     render();
   }, { frames: true });
 }
@@ -119,6 +146,11 @@ function svgEl(name, attrs, text) {
 function renderScatter(ranked, summaryIds) {
   const container = document.getElementById("overview-scatter");
   container.innerHTML = "";
+
+  const hint = document.createElement("p");
+  hint.className = "scatter-scroll-hint"; // shown at phone width only, see style.css
+  hint.textContent = "Swipe sideways to see the whole plot →";
+  container.appendChild(hint);
 
   const { width, height, margin, inset } = SCATTER;
   const plotW = width - margin.left - margin.right;
