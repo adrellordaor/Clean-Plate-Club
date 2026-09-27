@@ -35,6 +35,9 @@
       <button type="button" class="view-switch-btn color-tab" data-view="calendar" role="tab">Calendar</button>
     </div>
     <div class="header-actions">
+      <!-- Bulk import leads the row: the one content action here, nearest the tabs; help,
+           settings and theme after it are app-level. Always shown, in every view. -->
+      <button id="bulk-import-btn" class="theme-toggle" type="button" aria-label="Bulk import tasks" title="Bulk import: paste multiple lines, one task per line"></button>
       <button id="shortcuts-btn" class="theme-toggle" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts (?)">?</button>
       <button id="settings-btn" class="theme-toggle" type="button" aria-label="Settings" title="Settings"></button>
       <button id="theme-toggle-btn" class="theme-toggle" type="button" aria-label="Toggle dark mode"></button>
@@ -108,7 +111,6 @@
            one control that has to keep the same top-right spot in every List display mode. -->
       <div id="windows-toolbar" class="windows-toolbar" aria-label="Window grouping"></div>
       <div id="list-mode" class="list-mode"></div>
-      <button type="button" id="bulk-import-btn" class="btn-icon" aria-label="Bulk import tasks" title="Bulk import: paste multiple lines, one task per line"></button>
     </div>
 
     <!-- "windows": Now (live union: do_date == today OR quadrant Do/Clear, plus today's habits)

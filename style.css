@@ -528,7 +528,7 @@ input[type="checkbox"].uncheck-anim::before {
   gap: 0.15rem;
 }
 
-/* Header icon buttons (shortcuts, settings, theme): bare icons with a square hit area. */
+/* Header icon buttons (bulk import, shortcuts, settings, theme): bare icons with a square hit area. */
 .theme-toggle {
   display: flex;
   align-items: center;
