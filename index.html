@@ -49,6 +49,9 @@
 </header>
 
 <main class="app-main">
+  <!-- The three views share this one column: the tab-switch slide happens inside it (see
+       slideViews in app.js), leaving the habits rail beside it untouched. -->
+  <div class="app-views">
   <!-- Overview: read-only orientation. Regular Tasks only, nothing to tick off. -->
   <section id="overview-view" class="overview-view" hidden>
     <div class="overview-toolbar">
@@ -130,6 +133,12 @@
       </aside>
     </div>
   </div>
+  </div>
+
+  <!-- Ultra-wide only (>1800px): the habit boxes above move out here, a rail beside Overview,
+       Calendar and List mode alike (not Plate, whose Now window already carries today's
+       habits). Hidden at every narrower width. See renderHabitsRail in app.js. -->
+  <aside id="habits-rail" class="habits-rail" aria-label="Habits"></aside>
 </main>
 
 <!-- Task add/edit modal -->

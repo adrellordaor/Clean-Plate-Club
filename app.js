@@ -726,6 +726,10 @@ function rowRiseTargets(frames = false) {
     selector = "#folder-list .folder-header, #folder-list .task-list > li, #folder-list > .btn-icon, #folder-list > .empty-hint, .recurring-box"
       + (frames ? ", #heatmap-legend" : "");
   }
+  // The ultra-wide habits rail sits beside every view; its boxes re-render with a category
+  // change like everything else, so they fall and rise with the rows (List mode already
+  // lists them, wherever they're sitting). A layout swap within the view leaves them be.
+  if (activeView !== "list" && !frames) selector += ", #habits-rail .recurring-box";
   return [...document.querySelectorAll(selector)].filter(el => el.offsetParent !== null);
 }
 
@@ -975,7 +979,7 @@ function slideViews(prev, next, onDone) {
     return;
   }
 
-  const main = document.querySelector(".app-main");
+  const main = document.querySelector(".app-views");
   const oldEl = document.getElementById(VIEW_ELEMENT_IDS[prev]);
   const newEl = document.getElementById(VIEW_ELEMENT_IDS[next]);
   const dir = VIEW_ORDER.indexOf(next) > VIEW_ORDER.indexOf(prev) ? 1 : -1;
@@ -1964,10 +1968,36 @@ function renderSubtaskProgress(subtasks) {
 // windows.js); these boxes always show everything.
 
 function renderRecurringSidebar() {
+  renderHabitsRail();
   renderRecurringBox("monthly", "recurring-monthly", "Monthly");
   renderRecurringBox("weekly", "recurring-weekly", "Weekly");
   renderRecurringBox("daily", "recurring-daily", "Daily");
 }
+
+// Ultra-wide (>1800px, spec: Responsive breakpoints): the one set of habit boxes moves out of
+// List mode into the rail beside every view (#habits-rail, style.css), and back again below
+// that width. Open everywhere except Plate mode, where the Now window already shows today's
+// habits. The rail opens and shuts by animating its width; on the first render it's simply
+// placed, so a page loaded at this width doesn't open with a flourish.
+const ULTRA_WIDE = matchMedia("(min-width: 1800.02px)");
+const habitsColumn = document.querySelector(".recurring-column");
+
+function renderHabitsRail() {
+  const rail = document.getElementById("habits-rail");
+  const home = ULTRA_WIDE.matches ? rail : document.getElementById("list-full");
+  if (habitsColumn.parentElement !== home) home.appendChild(habitsColumn);
+
+  const open = ULTRA_WIDE.matches && !(activeView === "list" && listDisplayMode === "windows");
+  const main = document.querySelector(".app-main");
+  if (!firstRenderDone) {
+    main.classList.add("rail-instant");
+    requestAnimationFrame(() => requestAnimationFrame(() => main.classList.remove("rail-instant")));
+  }
+  main.classList.toggle("rail-open", open);
+  rail.inert = !open;
+}
+
+ULTRA_WIDE.addEventListener("change", () => render());
 
 // "Mon" for a weekly habit, "Day 15" / "Month end" for a monthly one, nothing for daily.
 function recurringScheduleLabel(rt) {

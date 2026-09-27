@@ -857,6 +857,60 @@ kbd {
   padding: 2rem 2rem;
 }
 
+.habits-rail {
+  display: none;
+}
+
+/* ---- Ultra-wide (>1800px) ----
+   Rather than centring the desktop-width column in a sea of empty margin, the content runs
+   much wider (still short of edge to edge), and the width that frees up goes to the habit
+   boxes: they move out of List mode into a rail of their own (renderHabitsRail in app.js) that
+   stays beside Overview and Calendar too. The rail grows open from zero width and shuts the
+   same way, e.g. switching into Plate mode, whose Now window already shows today's habits;
+   the views column gives up and takes back the room in step, on the same curve. */
+@media (min-width: 1800.02px) {
+  .app-main {
+    max-width: min(88vw, 2200px);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 0px;
+    align-items: start;
+    transition: grid-template-columns 0.45s var(--ease);
+  }
+
+  .app-main.rail-open {
+    grid-template-columns: minmax(0, 1fr) calc(280px + 3rem);
+  }
+
+  .app-main.rail-instant {
+    transition: none;
+  }
+
+  .app-views {
+    grid-area: 1 / 1;
+    min-width: 0;
+  }
+
+  .habits-rail {
+    display: flex;
+    justify-content: flex-end; /* anchored right, so opening reads as sliding in from the edge */
+    grid-area: 1 / 2;
+    min-width: 0;
+    overflow: clip;
+    visibility: hidden;
+    transition: visibility 0s linear 0.45s; /* stays visible until the rail has shut */
+  }
+
+  .rail-open .habits-rail {
+    visibility: visible;
+    transition-delay: 0s;
+  }
+
+  .habits-rail > .recurring-column {
+    width: 280px;
+    margin-left: 3rem;
+  }
+}
+
 /* ---- Theme switch (the theme toggle in app.js) ----
    Light and dark crossfade over the whole page instead of cutting, on the signature curve. */
 ::view-transition-old(root),
@@ -976,11 +1030,11 @@ kbd {
   overflow-x: clip;
 }
 
-.app-main.view-sliding {
+.app-views.view-sliding {
   display: grid;
 }
 
-.app-main.view-sliding > * {
+.app-views.view-sliding > * {
   grid-area: 1 / 1;
   min-width: 0;
 }
