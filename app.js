@@ -1895,23 +1895,35 @@ function appendHabitStatusBadge(el, rt) {
 
 // Plays the roll from `fromText` (the status this habit showed just before the Skip click that
 // triggered this) to whatever appendHabitStatusBadge already rendered as its current text.
-// Re-render replaces the badge element outright, so this runs a frame later, after paint,
-// against whichever badge now carries the same data-habit-status-id (the same pattern
-// playSkipAnimation and the checkbox's playCheckAnimation both use).
+// Re-render replaces the badge element outright with its final text/width already in place, so
+// this runs right away (synchronously, before the browser gets a chance to paint that frame at
+// all — a requestAnimationFrame round-trip here would let the new, narrower width paint first
+// and then jump back to stage the roll, a visible double-snap) against whichever badge now
+// carries the same data-habit-status-id. The wrapping .text-roll's own width is animated right
+// alongside the text-slide, so the badge eases from one width to the other instead of snapping.
 function playHabitStatusRoll(id, fromText) {
   if (!fromText) return;
-  requestAnimationFrame(() => {
-    document.querySelectorAll('[data-habit-status-id="' + CSS.escape(id) + '"] .text-roll-face').forEach(face => {
-      const toText = face.dataset.text;
-      if (fromText === toText) return;
-      face.textContent = fromText;
-      void face.offsetWidth;
-      face.classList.add("roll-now");
-      setTimeout(() => {
-        face.classList.remove("roll-now");
-        face.textContent = toText;
-      }, 340);
-    });
+  document.querySelectorAll('[data-habit-status-id="' + CSS.escape(id) + '"]').forEach(badge => {
+    if (badge.offsetParent === null) return; // hidden (e.g. the other List display mode's copy)
+    const roll = badge.querySelector(".text-roll");
+    const face = badge.querySelector(".text-roll-face");
+    if (!roll || !face) return;
+    const toText = face.dataset.text;
+    if (fromText === toText) return;
+    const toWidth = roll.getBoundingClientRect().width;
+    face.textContent = fromText;
+    const fromWidth = roll.getBoundingClientRect().width;
+    roll.style.width = fromWidth + "px";
+    void roll.offsetWidth; // commit the starting width before animating away from it
+    roll.style.transition = "width 0.32s var(--ease)";
+    roll.style.width = toWidth + "px";
+    face.classList.add("roll-now");
+    setTimeout(() => {
+      roll.style.transition = "";
+      roll.style.width = "";
+      face.classList.remove("roll-now");
+      face.textContent = toText;
+    }, 320);
   });
 }
 
