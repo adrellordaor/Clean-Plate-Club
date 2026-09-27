@@ -1896,11 +1896,11 @@ const MISSED_LABELS = Object.freeze({ daily: "Missed yesterday", weekly: "Missed
 
 // One status slot per habit, same "most relevant single message" pattern as the task escalating
 // tag: currently skipped wins over a missed-last-period nudge (isRecurringDoneNow takes visual
-// priority over both — completing supersedes a skip). Skip's own label is just "Skip", not
+// priority over both — completing supersedes a skip). Skip's own label is just "Skipped", not
 // "Skipped today/this week/this month" — the badge already sits right next to the habit whose
 // period it's for, the repetition wasn't adding anything.
 function habitStatusBadgeInfo(rt) {
-  if (!isRecurringDoneNow(rt) && isRecurringSkippedNow(rt)) return { text: "Skip", cls: "badge-skipped" };
+  if (!isRecurringDoneNow(rt) && isRecurringSkippedNow(rt)) return { text: "Skipped", cls: "badge-skipped" };
   if (rt.missed_last_period && MISSED_LABELS[rt.cadence]) return { text: MISSED_LABELS[rt.cadence], cls: "badge-missed" };
   return null;
 }
@@ -1938,7 +1938,7 @@ function captureHabitStatus(rt) {
 // first frame, so the row is already laid out as it will end up and swapping the real badge
 // back in at the end changes nothing. (Sizing the stand-in to the wider of the two badges, as
 // before, laid the row out around the old badge for the length of the roll: a wide "Missed
-// yesterday" could wrap onto a line of its own and the narrow "Skip" then jumped back up beside
+// yesterday" could wrap onto a line of its own and the narrower "Skipped" then jumped back up beside
 // the title at the end, or the flexible title reflowed and the badge shifted sideways.) The
 // track clips only top and bottom, so a wider outgoing badge overhangs sideways as it rolls
 // away rather than being cut short. Where the old badge sat somewhere else, the track also
