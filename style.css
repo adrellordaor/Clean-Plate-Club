@@ -1520,6 +1520,76 @@ html.lenis body {
   flex-shrink: 0;
 }
 
+/* Skip (btn-skip): a filled square grows from center behind the icon, the same "fill" feel the
+   completion checkbox's own has, but a plain neutral tint rather than var(--text) — the icon
+   here doesn't invert color the way the checkbox's tick does, so a strong fill would swallow it
+   before it's grown in. Persists (aria-pressed) once skipped; the transient .skip-anim /
+   .unskip-anim classes (playSkipAnimation, app.js) additionally push the icon once in its own
+   arrow direction as the fill plays, distinct from both the checkbox's flourish and a fold. */
+.btn-skip {
+  position: relative;
+  isolation: isolate;
+}
+
+.btn-skip::before {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: var(--radius);
+  background: var(--border-strong);
+  transform: scale(0);
+  z-index: -1;
+}
+
+.btn-skip[aria-pressed="true"] {
+  color: var(--text);
+}
+
+.btn-skip[aria-pressed="true"]::before {
+  transform: scale(1);
+}
+
+.btn-skip.skip-anim svg {
+  animation: skip-push 260ms var(--ease);
+}
+
+.btn-skip.skip-anim::before {
+  animation: skip-fill 220ms var(--ease);
+}
+
+.btn-skip.unskip-anim svg {
+  animation: skip-push-back 260ms var(--ease);
+}
+
+.btn-skip.unskip-anim::before {
+  animation: skip-unfill 220ms var(--ease);
+}
+
+@keyframes skip-push {
+  45% { transform: translateX(3px); }
+}
+
+@keyframes skip-push-back {
+  45% { transform: translateX(-3px); }
+}
+
+@keyframes skip-fill {
+  from { transform: scale(0); }
+}
+
+@keyframes skip-unfill {
+  to { transform: scale(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-skip.skip-anim svg,
+  .btn-skip.unskip-anim svg,
+  .btn-skip.skip-anim::before,
+  .btn-skip.unskip-anim::before {
+    animation: none;
+  }
+}
+
 /* ---- Folder list (List mode) ----
    Open sections, not boxes: a rule, the folder name set as a section label, the rows. */
 .folder-list {

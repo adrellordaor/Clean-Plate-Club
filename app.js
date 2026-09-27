@@ -38,8 +38,8 @@ const ICONS = {
   focus: `<svg class="icon-focus" ${SVG_ATTRS}><circle cx="12" cy="12" r="8"/><circle class="icon-focus-dot" cx="12" cy="12" r="2.5"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/></svg>`,
   close: `<svg ${SVG_ATTRS}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`,
   plus: `<svg class="icon-plus" ${SVG_ATTRS}><path d="M12 5v14"/><path d="M5 12h14"/></svg>`,
-  // Skip: double-chevron "skip forward," distinct from the checkbox and from edit/delete.
-  skip: `<svg ${SVG_ATTRS}><path d="m5 4 6 8-6 8"/><path d="m13 4 6 8-6 8"/></svg>`,
+  // Skip: single chevron, the direction its own push animation nudges in (playSkipAnimation).
+  skip: `<svg ${SVG_ATTRS}><path d="m9 5 7 7-7 7"/></svg>`,
   // Bite-size marker: a small apple with a bite out of it, drawn at 12px on cards.
   bite: `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6c-1.5-1.5-4.5-1.5-6 1-2 3-1 8 1.5 11 1.2 1.5 3 1.5 4.5.5 1.5 1 3.3 1 4.5-.5a10 10 0 0 0 2.2-4.5c-2.5-.2-4.2-2.3-3.7-4.8-1-.3-2-1.5-3-2.7Z"/><path d="M12 6c0-2 1-3 3-3.5"/></svg>`,
   // Bulk import: an arrow dropping into a tray.
@@ -2055,7 +2055,12 @@ function makeSkipButton(rt) {
   btn.disabled = done;
   btn.title = skipped ? "Undo skip" : "Skip for " + period;
   btn.setAttribute("aria-label", (skipped ? "Undo skip: " : "Skip: ") + rt.title);
-  btn.addEventListener("click", () => toggleRecurringSkip(rt));
+  btn.dataset.skipId = rt.id;
+  btn.addEventListener("click", () => {
+    const willSkip = !skipped;
+    toggleRecurringSkip(rt);
+    playSkipAnimation(rt.id, willSkip);
+  });
   return btn;
 }
 
@@ -2978,6 +2983,26 @@ function playCheckAnimation(box, checked = true) {
   void box.offsetWidth; // restart cleanly on a quick uncheck/recheck
   box.classList.add(cls);
   setTimeout(() => box.classList.remove(cls), 450);
+}
+
+// ---------- Skip animation ----------
+// A push in the icon's own arrow direction, paired with a background fill styled like the
+// checkbox's own (scale 0 -> 1 from center) but a plain neutral tint rather than var(--text) —
+// the icon doesn't invert color the way the checkbox's tick does, so a strong fill would
+// swallow it before it's grown in. Undoing a skip plays it in reverse (push back, fill shrinks
+// away). Distinct from both the checkbox's flourish and a fold. toggleRecurringSkip re-renders
+// synchronously and replaces the button, so this runs a frame later, after paint, against
+// whichever button now carries the same data-skip-id.
+function playSkipAnimation(id, skipped) {
+  requestAnimationFrame(() => {
+    const cls = skipped ? "skip-anim" : "unskip-anim";
+    document.querySelectorAll('[data-skip-id="' + CSS.escape(id) + '"]').forEach(btn => {
+      btn.classList.remove("skip-anim", "unskip-anim");
+      void btn.offsetWidth; // restart cleanly on a quick re-click
+      btn.classList.add(cls);
+      setTimeout(() => btn.classList.remove(cls), 450);
+    });
+  });
 }
 
 function wireCheckAnimation() {
