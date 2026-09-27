@@ -1917,8 +1917,8 @@ function appendHabitStatusBadge(el, rt) {
 
 // Where each on-screen copy of a habit's status badge sits right now, keyed by the nearest
 // ancestor with an id (a List-mode habit box, the Now or Fridge window, Focus mode), plus what
-// it says. Taken just before a Skip change, so playHabitStatusRoll can start the roll exactly
-// where the old badge was.
+// it says. Taken just before a Skip change, so playHabitStatusRoll knows what to roll away
+// from, and where a badge that's going away for good stood.
 function captureHabitStatus(rt) {
   const spots = new Map();
   document.querySelectorAll('[data-habit-status-id="' + CSS.escape(rt.id) + '"]').forEach(badge => {
@@ -1931,20 +1931,21 @@ function captureHabitStatus(rt) {
 
 // Rolls a habit's status badge from what it said before a Skip change (`before`, from
 // captureHabitStatus) to what render() has just put in its slot: the whole pill, color and all,
-// rolls up and away while the new one rolls up into place — or in from nothing, or out to
-// nothing, when a status appears or goes away.
+// rolls up and away while the new one rolls straight up into its final place — or in from
+// nothing, or out to nothing, when a status appears or goes away.
 //
 // The stand-in for the slot (the track) takes up exactly the FINAL badge's footprint from the
 // first frame, so the row is already laid out as it will end up and swapping the real badge
 // back in at the end changes nothing. (Sizing the stand-in to the wider of the two badges, as
 // before, laid the row out around the old badge for the length of the roll: a wide "Missed
-// yesterday" could wrap onto a line of its own and the narrower "Skipped" then jumped back up beside
-// the title at the end, or the flexible title reflowed and the badge shifted sideways.) The
-// track clips only top and bottom, so a wider outgoing badge overhangs sideways as it rolls
-// away rather than being cut short. Where the old badge sat somewhere else, the track also
-// glides from there to the final spot as it rolls, so nothing ever jumps. Two separate
-// elements do the two jobs: the track (the clipping window) moves only for that glide; the
-// inner stack is what rolls past it.
+// yesterday" could wrap onto a line of its own and the narrower "Skipped" then jumped back up
+// beside the title at the end, or the flexible title reflowed and the badge shifted sideways.)
+// The incoming badge never travels sideways or diagonally: it rises into the spot it ends in.
+// The two faces are right-aligned — the badge's right edge is the one that holds still (in
+// Plate it's pinned against the folder/schedule line), so a wider outgoing badge overhangs to
+// the left, fading out past the footprint rather than printing over the title. The track
+// clips only top and bottom, which is what lets it overhang. Two separate elements do the two
+// jobs: the track is the clipping window, the inner stack is what rolls past it.
 function playHabitStatusRoll(rt, before) {
   if (!before || reducedMotion) return;
   const fromInfo = before.info;
@@ -1959,12 +1960,11 @@ function playHabitStatusRoll(rt, before) {
     const h = final ? final.height : spot.height;
 
     const track = document.createElement("span");
-    track.className = "habit-status-roll-track";
+    track.className = "habit-status-roll-track" + (final ? "" : " habit-status-roll-out");
     track.style.width = (final ? final.width : 0) + "px";
     track.style.height = h + "px";
-    // Rolling out to nothing, the track is a zero-width stand-in where the badge began; cancel
-    // the flex gap it would otherwise add after itself, so the row is laid out exactly as it is
-    // without a badge.
+    // Rolling out to nothing, the track is a zero-width stand-in; cancel the flex gap it would
+    // otherwise add after itself, so the row is laid out exactly as it is without a badge.
     if (!final) track.style.marginInlineEnd = -(parseFloat(getComputedStyle(parent).columnGap) || 0) + "px";
 
     // The empty face (rolling in from, or out to, nothing) is an invisible badge rather than a
@@ -1976,11 +1976,8 @@ function playHabitStatusRoll(rt, before) {
       return el;
     };
     const outgoing = face(fromInfo);
-    // A wider outgoing badge overhangs the final footprint, possibly over a neighbor that the
-    // row's new layout has already moved in beside it: past the footprint, it fades away over
-    // a short run instead of printing over that neighbor.
     if (final) {
-      const fade = "linear-gradient(to right, #000 " + final.width + "px, transparent " + (final.width + 16) + "px)";
+      const fade = "linear-gradient(to left, #000 " + final.width + "px, transparent " + (final.width + 16) + "px)";
       outgoing.style.webkitMaskImage = outgoing.style.maskImage = fade;
     }
     const inner = document.createElement("span");
@@ -1993,17 +1990,14 @@ function playHabitStatusRoll(rt, before) {
     // Sideways overhang stays inside the row, never widening a scroll area around it.
     const row = parent.closest(".habit-row, .window-habit");
     if (row) row.classList.add("habit-status-rolling");
-    let dx = 0;
-    if (spot) {
+    // A badge going away has no final spot: it rolls out right where it stood, held there
+    // (the row around it has already reflowed as if it were gone).
+    if (!final) {
       const at = track.getBoundingClientRect();
-      dx = spot.left - at.left;
-      track.style.transform = "translate(" + dx + "px, " + (spot.top - at.top) + "px)";
+      track.style.transform = "translate(" + (spot.left - at.left) + "px, " + (spot.top - at.top) + "px)";
     }
-    void track.offsetWidth; // commit the starting position before animating away from it
-    track.style.transition = inner.style.transition = "transform 0.32s var(--ease)";
-    // A badge going away rolls out where it stood rather than drifting toward the spot the
-    // reflowed row leaves for it (the title's end), which nothing will occupy afterwards.
-    track.style.transform = final ? "" : "translateX(" + dx + "px)";
+    void inner.offsetWidth; // commit the starting position before animating away from it
+    inner.style.transition = "transform 0.32s var(--ease)";
     inner.style.transform = "translateY(-50%)"; // exactly one face: the stack is two equal faces tall
     setTimeout(() => {
       if (track.parentNode === parent) parent.replaceChild(slot, track);

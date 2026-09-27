@@ -1480,24 +1480,32 @@ html.lenis body {
   }
 }
 
-/* Habit status badge (Missed/Skip, playHabitStatusRoll in app.js): a temporary two-face stack
+/* Habit status badge (Missed/Skipped, playHabitStatusRoll in app.js): a temporary two-face stack
    standing in for the real badge while it rolls, the whole pill moving as one piece. The track
    (the clipping window) is sized inline to exactly the final badge's box, so the row around it
    is laid out as it will end up; it clips top and bottom only (clip, unlike hidden, allows
    that), letting a wider outgoing badge overhang sideways as it rolls away. Being a clip, not a
    scroll container, it also keeps the badge's own text baseline, so it lines up in a
    baseline-aligned title line exactly where the real badge does. The inner stack is what rolls;
-   it keeps its full width even though the track is narrower. */
+   it keeps its full width even though the track is narrower, right-aligned so the faces share
+   the badge's right edge and a wider one overhangs to the left. Rolling out to nothing
+   (.habit-status-roll-out) the track has no width and is held at the old badge's left edge, so
+   the stack hangs from there instead. */
 .habit-status-roll-track {
   display: inline-flex;
+  justify-content: flex-end;
   overflow-x: visible;
   overflow-y: clip;
+}
+
+.habit-status-roll-out {
+  justify-content: flex-start;
 }
 
 .habit-status-roll-inner {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: flex-end;
   align-self: flex-start; /* both faces tall, not stretched to the track: the roll is -50% */
   flex-shrink: 0;
   transform: translateY(0);
