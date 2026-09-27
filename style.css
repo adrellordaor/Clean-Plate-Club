@@ -1035,13 +1035,20 @@ kbd {
    outgoing one travels a full width off to one side while the incoming one arrives from the
    other (--slide-dir: 1 = moving right in tab order, -1 = left). A bit longer than the small
    UI motions given how much is moving, same signature curve. The page clips sideways overflow
-   meanwhile so no horizontal scrollbar flashes. */
+   meanwhile so no horizontal scrollbar flashes.
+   The views column itself clips sideways too, at its own edges: a view only travels its own
+   width, so without this its trailing edge would come to rest in the page gutter (and, wider
+   up, the empty margin beside the column) and linger there as a ghost strip of the previous
+   tab until the slide ended. Clipped, each view passes cleanly out of (and into) the column,
+   and never across the ultra-wide habits rail beside it. Sideways only (clip, unlike hidden,
+   allows that), so nothing hanging below the views is cut off. */
 :root.view-sliding body {
   overflow-x: clip;
 }
 
 .app-views.view-sliding {
   display: grid;
+  overflow-x: clip;
 }
 
 .app-views.view-sliding > * {
