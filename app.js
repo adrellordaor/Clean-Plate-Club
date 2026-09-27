@@ -2244,8 +2244,8 @@ function renderRecurringRow(rt) {
 
   const row = document.createElement("div");
   const done = isRecurringDoneNow(rt);
-  // task-row for the shared row styling; habit-row marks it as a habit for the row gestures
-  // (double-tap completes tasks only; a swipe right skips a habit).
+  // task-row for the shared row styling (and double-tap to complete); habit-row marks it as a
+  // habit for the swipe right to skip.
   row.className = "task-row habit-row" + (isRecurringResolvedNow(rt) ? " done" : "");
 
   const spacer = document.createElement("span");
@@ -3202,7 +3202,9 @@ wireCheckAnimation();
 
 // ---------- Double-tap to complete ----------
 // Double-clicking (pointer) or double-tapping (touch) anywhere on a task row also completes
-// it, alongside its checkbox: List rows, Plate/Fridge cards and their subtasks. It simply
+// it, alongside its checkbox: List rows (the habit rows in the List-mode boxes included),
+// Plate/Fridge cards and their subtasks. (A Plate/Fridge habit row is a <label>, so a single
+// tap anywhere on it already ticks it; a double-tap there would tick and untick.) It simply
 // ticks the row's own box, so the tick-draw, the strike-through and the grace period to
 // change your mind are exactly the checkbox's. Complete only: a double-tap on a done row does
 // nothing. Controls inside the row (the box itself, buttons, links) keep their own behavior.
@@ -3220,7 +3222,6 @@ function rowCheckbox(row) {
 function completeRowFromDoubleTap(target) {
   if (target.closest("input, button, select, textarea, a, label")) return;
   const row = target.closest(DOUBLE_TAP_ROW_SELECTOR);
-  if (row && row.matches(".habit-row")) return; // habits share .task-row's look, not this gesture
   const box = row && rowCheckbox(row);
   if (!box || box.checked || box.disabled) return;
   box.click(); // fires the box's own change handler, and the check animation with it
