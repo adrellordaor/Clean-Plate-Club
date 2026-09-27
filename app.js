@@ -735,9 +735,10 @@ let rowChangeApply = null;
 
 // What counts as a row, per view: everything a filter or mode change swaps out, and nothing
 // that stays put. `frames`: the change swaps the layout itself (Plate/List, Scatter/Quadrants),
-// so the frames and toolbars that belong to one layout only — the Plate/Fridge windows and
-// their toolbar, the List legend, the quadrant boxes — fall and rise along with their rows.
-// For a change within one layout (a category, the sort, Flat/Folder) they stay put.
+// so the frames that belong to one layout only — the Plate/Fridge windows, the quadrant boxes —
+// fall and rise along with their rows. The Checklist toolbar (the quadrant key, the sort,
+// +Folder, Flat/Folder) is shared by both List modes, so it stays put through a Plate/List
+// switch. For a change within one layout (a category, the sort, Flat/Folder) frames stay put.
 function rowRiseTargets(frames = false) {
   let selector;
   if (activeView === "overview") {
@@ -750,10 +751,9 @@ function rowRiseTargets(frames = false) {
     selector = "#calendar-legend, #calendar-grid > *";
   } else if (listDisplayMode === "windows") {
     selector = "#windows-row .window-bucket > *, #windows-row .window-body > :not(.window-bucket), #windows-row .window-completed"
-      + (frames ? ", #windows-toolbar, #windows-row .window-panel" : "");
+      + (frames ? ", #windows-row .window-panel" : "");
   } else {
-    selector = "#folder-list .folder-header, #folder-list .task-list > li, #folder-list > .btn-icon, #folder-list > .empty-hint, .recurring-box"
-      + (frames ? ", #heatmap-legend" : "");
+    selector = "#folder-list .folder-header, #folder-list .task-list > li, #folder-list > .btn-icon, #folder-list > .empty-hint, .recurring-box";
   }
   // The ultra-wide habits rail sits beside every view; its boxes re-render with a category
   // change like everything else, so they fall and rise with the rows (List mode already
