@@ -1048,6 +1048,13 @@ document.querySelectorAll("#view-switch .view-switch-btn").forEach(btn => {
 function renderViewSwitch() {
   // Drives the per-view accent (--view-accent in style.css) on the view's framing and type.
   document.documentElement.dataset.view = activeView;
+  // Each view's main divider takes the color of the display mode it's in (the mode lists'
+  // `color`, the same as its view toggle), set on the view itself so one sliding out keeps its
+  // own. style.css eases the divider between colors when the mode changes.
+  const modeColor = (modes, key) => (modes.find(mode => mode.key === key) || modes[0]).color;
+  document.getElementById("overview-view").style.setProperty("--mode-accent", modeColor(OVERVIEW_MODES, overviewDisplayMode)); // overview.js
+  document.getElementById("list-view").style.setProperty("--mode-accent", modeColor(LIST_MODES, listDisplayMode));
+  document.getElementById("calendar-view").style.setProperty("--mode-accent", modeColor(CALENDAR_MODES, calendarDisplayMode)); // calendar.js
   document.querySelectorAll("#view-switch .view-switch-btn").forEach(btn => {
     const isActive = btn.dataset.view === activeView;
     btn.classList.toggle("active", isActive);
@@ -1076,11 +1083,12 @@ function renderViewSwitch() {
 // above), same two-mode pattern as overview_display_mode and calendar_display_mode: the
 // on-page toggle is its only UI.
 
-// `color`: the view toggle's color for that mode (makeModeToggle) — Plate takes the Daily
-// Plate's red, List the Checklist's own sage.
+// `color`: the view toggle's color for that mode (makeModeToggle), and the view's main divider
+// while it shows (renderViewSwitch) — Plate, Checklist's main view, takes the Daily Plate's
+// red, the Checklist tab's own color too; List takes sage.
 const LIST_MODES = [
-  { key: "windows", label: "Plate", color: "var(--fire)" },
-  { key: "full", label: "List", color: "var(--accent-list)" },
+  { key: "windows", label: "Plate", color: "var(--accent-list)" },
+  { key: "full", label: "List", color: "var(--sage)" },
 ];
 
 function renderListModeToggle() {

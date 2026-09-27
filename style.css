@@ -140,8 +140,9 @@
      rules, active-tab underline, mode-toggle underline) — never fills, never state. Hues
      picked away from what each view already uses for meaning. */
   --accent-overview: hsl(262 34% 74%);   /* lilac: Overview shows no habits (violet) */
-  --accent-list: hsl(148 24% 63%);       /* sage */
+  --accent-list: var(--fire);            /* Daily Plate red: Checklist's main view is Plate */
   --accent-calendar: hsl(34 34% 66%);    /* sand */
+  --sage: hsl(148 24% 63%);              /* List mode's own color (the view toggle, app.js) */
 
   /* Category colors (assigned per category, CATEGORY_COLORS in app.js): a muted set for small
      dots only — identity, not state — kept low-chroma so none reads as Fire, Ice, gold or a
@@ -247,8 +248,9 @@
   --habit-wash-s: 45%; --habit-wash-l: 95.5%;
 
   --accent-overview: hsl(262 26% 48%);
-  --accent-list: hsl(145 20% 34%);
+  --accent-list: var(--fire);
   --accent-calendar: hsl(30 28% 38%);
+  --sage: hsl(145 20% 34%);
 
   --cat-slate: hsl(214 26% 45%);
   --cat-moss: hsl(96 30% 38%);
@@ -1790,10 +1792,10 @@ html.lenis body {
 /* Folders directly in the list (a single category tab) or nested one level under a category
    section ("All" tab, item 38): the divider carries the folder's own category color
    (--folder-accent, set inline per section, app.js) rather than a hardcoded green or the view
-   accent — a folder with no category yet (or no color assigned) falls back to the view accent,
-   same as before. */
+   accent — a folder with no category yet (or no color assigned) falls back to List mode's own
+   color (--mode-accent, renderViewSwitch). */
 #folder-list .folder-section {
-  border-top-color: var(--folder-accent, var(--view-accent, var(--border-strong)));
+  border-top-color: var(--folder-accent, var(--mode-accent, var(--border-strong)));
 }
 
 .folder-header {
@@ -3603,9 +3605,19 @@ html.lenis body {
   align-items: flex-start;
 }
 
+/* The task map's main divider sits on the container both display modes share, so it stays put
+   through a Scatter/Quadrants switch (persistent chrome) while only the map under it falls and
+   rises, and eases from one mode's color to the other's (--mode-accent, renderViewSwitch). The
+   scatter box sits flush under it; the quadrant list gets the usual gap below a rule. */
 .overview-main {
   flex: 1;
   min-width: 0;
+  border-top: 2px solid var(--mode-accent, var(--view-accent, var(--text)));
+  transition: border-color 0.3s var(--ease);
+}
+
+.overview-main > .matrix-grid {
+  padding-top: 0.9rem;
 }
 
 .overview-sidebar {
@@ -3815,7 +3827,7 @@ html.lenis body {
 .scatter {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-top: 2px solid var(--view-accent, var(--text));
+  border-top: none; /* the main divider above it (.overview-main) is its top edge */
   padding: 0.75rem 0.75rem 0.5rem;
   overflow-x: auto; /* on a phone the plot keeps a readable size and scrolls inside its box */
   overscroll-behavior-x: contain; /* a sideways swipe at the plot's edge never becomes "back" */
@@ -4473,13 +4485,15 @@ html.lenis body {
   align-items: flex-start;
 }
 
-/* The grid's own framing rule takes the Calendar's view accent, level with the weekly
-   panel's violet rule beside it. */
+/* The grid's own framing rule, level with the weekly panel's violet rule beside it, takes the
+   display mode's color (--mode-accent, renderViewSwitch: Pace sand, Capacity magenta) and eases
+   between them on a Pace/Capacity switch. */
 .calendar-main {
   flex: 1;
   min-width: 0;
-  border-top: 2px solid var(--view-accent, var(--text));
+  border-top: 2px solid var(--mode-accent, var(--view-accent, var(--text)));
   padding-top: 0.9rem;
+  transition: border-color 0.3s var(--ease);
 }
 
 .calendar-grid {
