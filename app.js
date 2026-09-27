@@ -1897,10 +1897,17 @@ function appendHabitStatusBadge(el, rt) {
 // triggered this) to whatever appendHabitStatusBadge already rendered as its current text.
 // Re-render replaces the badge element outright with its final text/width already in place, so
 // this runs right away (synchronously, before the browser gets a chance to paint that frame at
-// all — a requestAnimationFrame round-trip here would let the new, narrower width paint first
-// and then jump back to stage the roll, a visible double-snap) against whichever badge now
-// carries the same data-habit-status-id. The wrapping .text-roll's own width is animated right
-// alongside the text-slide, so the badge eases from one width to the other instead of snapping.
+// all — a requestAnimationFrame round-trip here would let the new width paint first and then
+// jump back to stage the roll, a visible double-snap) against whichever badge now carries the
+// same data-habit-status-id.
+//
+// The wrapping .text-roll is held at the WIDER of the two texts' widths for the whole roll,
+// not animated in step with it — narrowing the box while the wider text is still sliding
+// clips that text against the shrinking edge (blank-looking frames partway through). Once the
+// real text has landed on its final value, the box eases the rest of the way to its own
+// natural width, a plain resize around already-settled, unclipped text rather than a mid-roll
+// squeeze.
+//
 // .text-roll-face carries a permanent `transition: transform` (for its hover-preview roll
 // elsewhere), so simply removing "roll-now" at the end would itself transition back down —
 // a second, reverse roll of the text that's already landed. Cleanup turns that transition off
@@ -1917,19 +1924,20 @@ function playHabitStatusRoll(id, fromText) {
     const toWidth = roll.getBoundingClientRect().width;
     face.textContent = fromText;
     const fromWidth = roll.getBoundingClientRect().width;
-    roll.style.width = fromWidth + "px";
-    void roll.offsetWidth; // commit the starting width before animating away from it
-    roll.style.transition = "width 0.32s var(--ease)";
-    roll.style.width = toWidth + "px";
+    roll.style.width = Math.max(fromWidth, toWidth) + "px"; // room for both, no clipping mid-roll
     face.classList.add("roll-now");
     setTimeout(() => {
-      roll.style.transition = "";
-      roll.style.width = "";
       face.style.transition = "none";
       face.classList.remove("roll-now");
       face.textContent = toText;
       void face.offsetWidth; // commit the instant snap before transitions come back on
       face.style.transition = "";
+      roll.style.transition = "width 0.2s var(--ease)";
+      roll.style.width = toWidth + "px";
+      setTimeout(() => {
+        roll.style.transition = "";
+        roll.style.width = "";
+      }, 200);
     }, 320);
   });
 }
