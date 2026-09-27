@@ -1861,18 +1861,58 @@ function appendRolloverBadge(el, task) {
 // "Missed yesterday / last week / last month": the habit's missed_last_period nudge.
 const MISSED_LABELS = Object.freeze({ daily: "Missed yesterday", weekly: "Missed last week", monthly: "Missed last month" });
 
-function appendMissedBadge(el, rt) {
-  if (rt.missed_last_period && MISSED_LABELS[rt.cadence]) el.appendChild(makeBadge(MISSED_LABELS[rt.cadence], "badge-missed"));
+// One status slot per habit, same "most relevant single message" pattern as the task escalating
+// tag: currently skipped wins over a missed-last-period nudge (isRecurringDoneNow takes visual
+// priority over both — completing supersedes a skip). Skip's own label is just "Skip", not
+// "Skipped today/this week/this month" — the badge already sits right next to the habit whose
+// period it's for, the repetition wasn't adding anything.
+function habitStatusBadgeInfo(rt) {
+  if (!isRecurringDoneNow(rt) && isRecurringSkippedNow(rt)) return { text: "Skip", cls: "badge-skipped" };
+  if (rt.missed_last_period && MISSED_LABELS[rt.cadence]) return { text: MISSED_LABELS[rt.cadence], cls: "badge-missed" };
+  return null;
 }
 
-// "Skipped today / this week / this month": shown only while the skip is actually in effect
-// and hasn't been superseded by a completion (isRecurringDoneNow takes visual priority).
-const SKIPPED_LABELS = Object.freeze({ daily: "Skipped today", weekly: "Skipped this week", monthly: "Skipped this month" });
+// Rendered as a text-roll (the same clipped-track mechanism tabs/toggles use for their hover
+// preview, applyTextRoll above) so that when Skip changes which message applies, the badge can
+// roll from the old text to the new one (playHabitStatusRoll, wired into the Skip click
+// handlers) instead of the plain re-render simply swapping it out with no transition at all.
+function appendHabitStatusBadge(el, rt) {
+  const info = habitStatusBadgeInfo(rt);
+  if (!info) return;
+  const badge = document.createElement("span");
+  badge.className = "task-badge " + info.cls;
+  badge.dataset.habitStatusId = rt.id;
+  const roll = document.createElement("span");
+  roll.className = "text-roll";
+  const face = document.createElement("span");
+  face.className = "text-roll-face";
+  face.textContent = info.text;
+  face.dataset.text = info.text;
+  roll.appendChild(face);
+  badge.appendChild(roll);
+  el.appendChild(badge);
+}
 
-function appendSkippedBadge(el, rt) {
-  if (!isRecurringDoneNow(rt) && isRecurringSkippedNow(rt) && SKIPPED_LABELS[rt.cadence]) {
-    el.appendChild(makeBadge(SKIPPED_LABELS[rt.cadence], "badge-skipped"));
-  }
+// Plays the roll from `fromText` (the status this habit showed just before the Skip click that
+// triggered this) to whatever appendHabitStatusBadge already rendered as its current text.
+// Re-render replaces the badge element outright, so this runs a frame later, after paint,
+// against whichever badge now carries the same data-habit-status-id (the same pattern
+// playSkipAnimation and the checkbox's playCheckAnimation both use).
+function playHabitStatusRoll(id, fromText) {
+  if (!fromText) return;
+  requestAnimationFrame(() => {
+    document.querySelectorAll('[data-habit-status-id="' + CSS.escape(id) + '"] .text-roll-face').forEach(face => {
+      const toText = face.dataset.text;
+      if (fromText === toText) return;
+      face.textContent = fromText;
+      void face.offsetWidth;
+      face.classList.add("roll-now");
+      setTimeout(() => {
+        face.classList.remove("roll-now");
+        face.textContent = toText;
+      }, 340);
+    });
+  });
 }
 
 // One line under the title showing just the quadrant label; the numbers behind it
@@ -2068,8 +2108,10 @@ function makeSkipButton(rt) {
   btn.dataset.skipId = rt.id;
   btn.addEventListener("click", () => {
     const willSkip = !skipped;
+    const before = habitStatusBadgeInfo(rt);
     toggleRecurringSkip(rt);
     playSkipAnimation(rt.id, willSkip);
+    playHabitStatusRoll(rt.id, before && before.text);
   });
   return btn;
 }
@@ -2107,8 +2149,7 @@ function renderRecurringRow(rt) {
 
   const schedule = recurringScheduleLabel(rt);
   if (schedule) titleLine.appendChild(makeBadge(schedule, "badge-recurring"));
-  appendMissedBadge(titleLine, rt);
-  appendSkippedBadge(titleLine, rt);
+  appendHabitStatusBadge(titleLine, rt);
 
   main.appendChild(titleLine);
   row.appendChild(main);

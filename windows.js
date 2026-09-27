@@ -56,7 +56,7 @@
 // theme. Reads app.js state (tasks, folders, recurringTasks, settings, activeView,
 // todayISODate, persist, render, openTaskModal, toggleTaskDone, defaultNowDeadline,
 // applyDeadlineDefault, isDeadlineViolator, showBackfillIfNeeded, appendTagBadge,
-// appendRolloverBadge, appendMissedBadge, recurringScheduleLabel, ICONS), calendar.js
+// appendRolloverBadge, appendHabitStatusBadge, recurringScheduleLabel, ICONS), calendar.js
 // (addDaysISODate) and overview.js (rankActiveTasks, taskContextLabel) only from inside
 // functions that run after every script has loaded.
 
@@ -628,8 +628,7 @@ function renderWindowHabitRow(rt, today) {
   title.textContent = rt.title;
   row.appendChild(title);
 
-  appendMissedBadge(row, rt);
-  appendSkippedBadge(row, rt);
+  appendHabitStatusBadge(row, rt);
 
   const folder = folders.find(f => f.id === rt.folder_id);
   const meta = document.createElement("span");
@@ -660,8 +659,10 @@ function makeWindowSkipButton(rt) {
     e.preventDefault();
     e.stopPropagation();
     const willSkip = !skipped;
-    toggleRecurringSkip(rt); // app.js
+    const before = habitStatusBadgeInfo(rt); // app.js
+    toggleRecurringSkip(rt);
     playSkipAnimation(rt.id, willSkip);
+    playHabitStatusRoll(rt.id, before && before.text);
   });
   return btn;
 }

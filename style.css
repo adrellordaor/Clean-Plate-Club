@@ -1370,13 +1370,18 @@ html.lenis body {
 }
 
 :is(button, a):hover .text-roll-face,
-:is(button, a):focus-visible .text-roll-face {
+:is(button, a):focus-visible .text-roll-face,
+.text-roll-face.roll-now {
   transform: translateY(calc(-100% - var(--roll-gap)));
 }
 
 @media (prefers-reduced-motion: reduce) {
   .text-roll-face {
     transition: none;
+  }
+
+  .text-roll-face.roll-now {
+    transform: none;
   }
 }
 
@@ -1490,7 +1495,11 @@ html.lenis body {
 /* Skip action: always visible next to the checkbox (unlike the hover-only edit/delete pair in
    .task-actions), so it reads as an equally-primary alternative to checking off — a round
    outline where the checkbox is a square, so the two can't be confused. Pressed
-   (aria-pressed) fills it with ink: the skip is currently in effect. */
+   (aria-pressed) fills it with ink: the skip is currently in effect. Skipping (or undoing it)
+   plays that same fill as a genuine grow/shrink (.skip-anim / .unskip-anim, driven by
+   playSkipAnimation in app.js) instead of the instant snap a plain aria-pressed selector alone
+   would give it, paired with the icon pushing once in its own arrow direction — distinct from
+   both the checkbox's tick-draw flourish and a fold. */
 .btn-skip {
   width: 22px;
   height: 22px;
@@ -1498,6 +1507,7 @@ html.lenis body {
   border-radius: 50%;
   border: 1px solid var(--border-strong);
   flex-shrink: 0;
+  background: transparent;
 }
 
 .btn-skip svg {
@@ -1520,49 +1530,28 @@ html.lenis body {
   flex-shrink: 0;
 }
 
-/* Skip (btn-skip): a filled square grows from center behind the icon, the same "fill" feel the
-   completion checkbox's own has, but a plain neutral tint rather than var(--text) — the icon
-   here doesn't invert color the way the checkbox's tick does, so a strong fill would swallow it
-   before it's grown in. Persists (aria-pressed) once skipped; the transient .skip-anim /
-   .unskip-anim classes (playSkipAnimation, app.js) additionally push the icon once in its own
-   arrow direction as the fill plays, distinct from both the checkbox's flourish and a fold. */
-.btn-skip {
-  position: relative;
-  isolation: isolate;
-}
-
-.btn-skip::before {
-  content: "";
-  position: absolute;
-  inset: 1px;
-  border-radius: var(--radius);
-  background: var(--border-strong);
-  transform: scale(0);
-  z-index: -1;
-}
-
-.btn-skip[aria-pressed="true"] {
-  color: var(--text);
-}
-
-.btn-skip[aria-pressed="true"]::before {
-  transform: scale(1);
+.btn-skip.skip-anim {
+  animation: skip-fill 220ms var(--ease) forwards;
 }
 
 .btn-skip.skip-anim svg {
   animation: skip-push 260ms var(--ease);
 }
 
-.btn-skip.skip-anim::before {
-  animation: skip-fill 220ms var(--ease);
+.btn-skip.unskip-anim {
+  animation: skip-unfill 220ms var(--ease) forwards;
 }
 
 .btn-skip.unskip-anim svg {
   animation: skip-push-back 260ms var(--ease);
 }
 
-.btn-skip.unskip-anim::before {
-  animation: skip-unfill 220ms var(--ease);
+@keyframes skip-fill {
+  from { background-color: transparent; border-color: var(--border-strong); color: var(--text-muted); }
+}
+
+@keyframes skip-unfill {
+  from { background-color: var(--text); border-color: var(--text); color: var(--on-accent); }
 }
 
 @keyframes skip-push {
@@ -1573,19 +1562,11 @@ html.lenis body {
   45% { transform: translateX(-3px); }
 }
 
-@keyframes skip-fill {
-  from { transform: scale(0); }
-}
-
-@keyframes skip-unfill {
-  to { transform: scale(0); }
-}
-
 @media (prefers-reduced-motion: reduce) {
+  .btn-skip.skip-anim,
+  .btn-skip.unskip-anim,
   .btn-skip.skip-anim svg,
-  .btn-skip.unskip-anim svg,
-  .btn-skip.skip-anim::before,
-  .btn-skip.unskip-anim::before {
+  .btn-skip.unskip-anim svg {
     animation: none;
   }
 }
