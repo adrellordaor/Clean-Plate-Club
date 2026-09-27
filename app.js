@@ -1905,55 +1905,109 @@ function habitStatusBadgeInfo(rt) {
   return null;
 }
 
+// Always leaves the badge's slot in place, empty and hidden when there's no status, so a status
+// that appears or goes away still has a spot to roll in at or out of (playHabitStatusRoll).
 function appendHabitStatusBadge(el, rt) {
   const info = habitStatusBadgeInfo(rt);
-  if (!info) return;
-  const badge = makeBadge(info.text, info.cls);
+  const badge = info ? makeBadge(info.text, info.cls) : document.createElement("span");
+  badge.hidden = !info;
   badge.dataset.habitStatusId = rt.id;
   el.appendChild(badge);
 }
 
-// Plays the whole badge box rolling from `fromInfo` (the status this habit showed just before
-// the Skip click that triggered this) up to whatever appendHabitStatusBadge already rendered —
-// the entire pill (its color included, not just the text inside a fixed badge) moves as one
-// piece, the smaller/larger box revealing as the outgoing one rolls up and away, rather than
-// rolling text within a box that's also separately resizing (which, tried first, meant a
-// shrinking box could clip the wider text still mid-slide — blank-looking frames partway
-// through). Builds a temporary two-item stack (a plain copy of the old badge on top of a copy
-// of the new one) in place of the real badge, animates the stack up by exactly one badge's
-// height, then swaps the real badge (already sitting in the DOM in its final state, untouched)
-// back in. Runs right away, synchronously — re-render already gave the real badge its final
-// text/color before this ever runs, so there's no later step for a requestAnimationFrame to
-// wait out here.
-function playHabitStatusRoll(rt, fromInfo) {
-  if (!fromInfo || reducedMotion) return;
+// Where each on-screen copy of a habit's status badge sits right now, keyed by the nearest
+// ancestor with an id (a List-mode habit box, the Now or Fridge window, Focus mode), plus what
+// it says. Taken just before a Skip change, so playHabitStatusRoll can start the roll exactly
+// where the old badge was.
+function captureHabitStatus(rt) {
+  const spots = new Map();
+  document.querySelectorAll('[data-habit-status-id="' + CSS.escape(rt.id) + '"]').forEach(badge => {
+    if (badge.hidden || badge.offsetParent === null) return;
+    const rect = badge.getBoundingClientRect();
+    spots.set(badge.parentElement.closest("[id]").id, { left: rect.left, top: rect.top, height: rect.height });
+  });
+  return { info: habitStatusBadgeInfo(rt), spots };
+}
+
+// Rolls a habit's status badge from what it said before a Skip change (`before`, from
+// captureHabitStatus) to what render() has just put in its slot: the whole pill, color and all,
+// rolls up and away while the new one rolls up into place — or in from nothing, or out to
+// nothing, when a status appears or goes away.
+//
+// The stand-in for the slot (the track) takes up exactly the FINAL badge's footprint from the
+// first frame, so the row is already laid out as it will end up and swapping the real badge
+// back in at the end changes nothing. (Sizing the stand-in to the wider of the two badges, as
+// before, laid the row out around the old badge for the length of the roll: a wide "Missed
+// yesterday" could wrap onto a line of its own and the narrow "Skip" then jumped back up beside
+// the title at the end, or the flexible title reflowed and the badge shifted sideways.) The
+// track clips only top and bottom, so a wider outgoing badge overhangs sideways as it rolls
+// away rather than being cut short. Where the old badge sat somewhere else, the track also
+// glides from there to the final spot as it rolls, so nothing ever jumps. Two separate
+// elements do the two jobs: the track (the clipping window) moves only for that glide; the
+// inner stack is what rolls past it.
+function playHabitStatusRoll(rt, before) {
+  if (!before || reducedMotion) return;
+  const fromInfo = before.info;
   const toInfo = habitStatusBadgeInfo(rt);
-  if (!toInfo || toInfo.text === fromInfo.text) return;
-  document.querySelectorAll('[data-habit-status-id="' + CSS.escape(rt.id) + '"]').forEach(newBadge => {
-    if (newBadge.offsetParent === null) return; // hidden (e.g. the other List display mode's copy)
-    const parent = newBadge.parentNode;
-    if (!parent) return;
-    const h = newBadge.getBoundingClientRect().height;
+  if ((fromInfo && fromInfo.text) === (toInfo && toInfo.text)) return;
+  document.querySelectorAll('[data-habit-status-id="' + CSS.escape(rt.id) + '"]').forEach(slot => {
+    const parent = slot.parentElement;
+    if (!parent || parent.offsetParent === null) return; // a copy in a view that isn't showing
+    const spot = before.spots.get(parent.closest("[id]").id);
+    if (!toInfo && !spot) return; // nothing showed here before, and nothing will
+    const final = toInfo ? slot.getBoundingClientRect() : null;
+    const h = final ? final.height : spot.height;
 
     const track = document.createElement("span");
     track.className = "habit-status-roll-track";
+    track.style.width = (final ? final.width : 0) + "px";
     track.style.height = h + "px";
+    // Rolling out to nothing, the track is a zero-width stand-in where the badge began; cancel
+    // the flex gap it would otherwise add after itself, so the row is laid out exactly as it is
+    // without a badge.
+    if (!final) track.style.marginInlineEnd = -(parseFloat(getComputedStyle(parent).columnGap) || 0) + "px";
 
-    // The clipping window (track: fixed height, overflow hidden) has to stay put — the
-    // transform goes on a separate inner stack instead, so it's content sliding past a
-    // static window, not the window itself sliding away.
+    // The empty face (rolling in from, or out to, nothing) is an invisible badge rather than a
+    // bare box: in a baseline-aligned title line the stack lines up by its first face's text
+    // baseline, and a box with no text would sit a descent's height too high.
+    const face = info => {
+      const el = makeBadge(info ? info.text : "​", info ? info.cls : "");
+      if (!info) el.style.visibility = "hidden";
+      return el;
+    };
+    const outgoing = face(fromInfo);
+    // A wider outgoing badge overhangs the final footprint, possibly over a neighbor that the
+    // row's new layout has already moved in beside it: past the footprint, it fades away over
+    // a short run instead of printing over that neighbor.
+    if (final) {
+      const fade = "linear-gradient(to right, #000 " + final.width + "px, transparent " + (final.width + 16) + "px)";
+      outgoing.style.webkitMaskImage = outgoing.style.maskImage = fade;
+    }
     const inner = document.createElement("span");
     inner.className = "habit-status-roll-inner";
-    inner.appendChild(makeBadge(fromInfo.text, fromInfo.cls));
-    inner.appendChild(makeBadge(toInfo.text, toInfo.cls));
+    inner.appendChild(outgoing);
+    inner.appendChild(face(toInfo));
     track.appendChild(inner);
+    parent.replaceChild(track, slot);
 
-    parent.replaceChild(track, newBadge);
+    // Sideways overhang stays inside the row, never widening a scroll area around it.
+    const row = parent.closest(".habit-row, .window-habit");
+    if (row) row.classList.add("habit-status-rolling");
+    let dx = 0;
+    if (spot) {
+      const at = track.getBoundingClientRect();
+      dx = spot.left - at.left;
+      track.style.transform = "translate(" + dx + "px, " + (spot.top - at.top) + "px)";
+    }
     void track.offsetWidth; // commit the starting position before animating away from it
-    inner.style.transition = "transform 0.32s var(--ease)";
-    inner.style.transform = "translateY(-" + h + "px)";
+    track.style.transition = inner.style.transition = "transform 0.32s var(--ease)";
+    // A badge going away rolls out where it stood rather than drifting toward the spot the
+    // reflowed row leaves for it (the title's end), which nothing will occupy afterwards.
+    track.style.transform = final ? "" : "translateX(" + dx + "px)";
+    inner.style.transform = "translateY(-50%)"; // exactly one face: the stack is two equal faces tall
     setTimeout(() => {
-      if (track.parentNode === parent) parent.replaceChild(newBadge, track);
+      if (track.parentNode === parent) parent.replaceChild(slot, track);
+      if (row) row.classList.remove("habit-status-rolling");
     }, 320);
   });
 }
@@ -2177,7 +2231,7 @@ function makeSkipButton(rt) {
   btn.dataset.skipId = rt.id;
   btn.addEventListener("click", () => {
     const willSkip = !skipped;
-    const before = habitStatusBadgeInfo(rt);
+    const before = captureHabitStatus(rt);
     toggleRecurringSkip(rt);
     playSkipAnimation(rt.id, willSkip);
     playHabitStatusRoll(rt, before);
@@ -3282,7 +3336,7 @@ function endHabitSwipe(e) {
   // Skip. That re-renders, replacing the row; its new self picks up the drag's offset and
   // glides home from there. The Skip button's fill already grew during the drag, and the new
   // button renders filled, so the fill isn't replayed — only the status badge rolls over.
-  const before = habitStatusBadgeInfo(s.rt);
+  const before = captureHabitStatus(s.rt);
   toggleRecurringSkip(s.rt);
   playHabitStatusRoll(s.rt, before);
   document.querySelectorAll('.btn-skip[data-skip-id="' + CSS.escape(s.rt.id) + '"]').forEach(btn => {

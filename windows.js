@@ -659,7 +659,7 @@ function makeWindowSkipButton(rt) {
     e.preventDefault();
     e.stopPropagation();
     const willSkip = !skipped;
-    const before = habitStatusBadgeInfo(rt); // app.js
+    const before = captureHabitStatus(rt); // app.js
     toggleRecurringSkip(rt);
     playSkipAnimation(rt.id, willSkip);
     playHabitStatusRoll(rt, before); // app.js
