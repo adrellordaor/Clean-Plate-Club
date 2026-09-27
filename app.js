@@ -1901,6 +1901,10 @@ function appendHabitStatusBadge(el, rt) {
 // and then jump back to stage the roll, a visible double-snap) against whichever badge now
 // carries the same data-habit-status-id. The wrapping .text-roll's own width is animated right
 // alongside the text-slide, so the badge eases from one width to the other instead of snapping.
+// .text-roll-face carries a permanent `transition: transform` (for its hover-preview roll
+// elsewhere), so simply removing "roll-now" at the end would itself transition back down —
+// a second, reverse roll of the text that's already landed. Cleanup turns that transition off
+// for the one frame it takes to settle the class and the real text together, then restores it.
 function playHabitStatusRoll(id, fromText) {
   if (!fromText) return;
   document.querySelectorAll('[data-habit-status-id="' + CSS.escape(id) + '"]').forEach(badge => {
@@ -1921,8 +1925,11 @@ function playHabitStatusRoll(id, fromText) {
     setTimeout(() => {
       roll.style.transition = "";
       roll.style.width = "";
+      face.style.transition = "none";
       face.classList.remove("roll-now");
       face.textContent = toText;
+      void face.offsetWidth; // commit the instant snap before transitions come back on
+      face.style.transition = "";
     }, 320);
   });
 }
