@@ -2635,6 +2635,13 @@ html.lenis body {
   gap: 3px;
 }
 
+/* The "+" sits after the list as a plain sibling, not one of its flex items, so it doesn't
+   inherit the list's own 3px row gap — added back here to match every other add icon's
+   distance from the last card above it. */
+.window-habits > .window-bucket-add {
+  margin-top: 3px;
+}
+
 .window-habit {
   display: flex;
   flex-wrap: wrap;
