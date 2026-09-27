@@ -1384,13 +1384,20 @@ html.lenis body {
    standing in for the real badge while it rolls — the whole pill moves as one piece, not just
    text inside a separately-resizing box, so neither the outgoing nor incoming badge's own
    width ever has to fight the other's. Height and the roll distance are set inline in px
-   (measured from the real badge) rather than guessed in CSS, so they line up exactly. */
+   (measured from the real badge) rather than guessed in CSS, so they line up exactly. The
+   clipping window (this) and the sliding content (.habit-status-roll-inner) are two separate
+   elements — putting both jobs on one element made the whole window slide away instead of its
+   content rolling past a window that stays put. */
 .habit-status-roll-track {
   display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
   overflow: hidden;
   vertical-align: middle;
+}
+
+.habit-status-roll-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   transform: translateY(0);
 }
 

@@ -1905,13 +1905,20 @@ function playHabitStatusRoll(rt, fromInfo) {
     const track = document.createElement("span");
     track.className = "habit-status-roll-track";
     track.style.height = h + "px";
-    track.appendChild(makeBadge(fromInfo.text, fromInfo.cls));
-    track.appendChild(makeBadge(toInfo.text, toInfo.cls));
+
+    // The clipping window (track: fixed height, overflow hidden) has to stay put — the
+    // transform goes on a separate inner stack instead, so it's content sliding past a
+    // static window, not the window itself sliding away.
+    const inner = document.createElement("span");
+    inner.className = "habit-status-roll-inner";
+    inner.appendChild(makeBadge(fromInfo.text, fromInfo.cls));
+    inner.appendChild(makeBadge(toInfo.text, toInfo.cls));
+    track.appendChild(inner);
 
     parent.replaceChild(track, newBadge);
     void track.offsetWidth; // commit the starting position before animating away from it
-    track.style.transition = "transform 0.32s var(--ease)";
-    track.style.transform = "translateY(-" + h + "px)";
+    inner.style.transition = "transform 0.32s var(--ease)";
+    inner.style.transform = "translateY(-" + h + "px)";
     setTimeout(() => {
       if (track.parentNode === parent) parent.replaceChild(newBadge, track);
     }, 320);
