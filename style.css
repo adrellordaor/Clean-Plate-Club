@@ -1868,6 +1868,14 @@ html.lenis body {
   margin-bottom: 2px;
 }
 
+/* Double-tapping a task row completes it (app.js), so a double-tap here must never be taken
+   as the browser's zoom gesture. Scrolling and pinch-zoom still work as normal. */
+.task-row,
+.window-card,
+.window-subtask {
+  touch-action: manipulation;
+}
+
 .task-row:hover {
   background: var(--row-hover);
 }

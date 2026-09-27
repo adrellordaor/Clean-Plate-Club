@@ -3144,6 +3144,56 @@ function wireCheckAnimation() {
 
 wireCheckAnimation();
 
+// ---------- Double-tap to complete ----------
+// Double-clicking (pointer) or double-tapping (touch) anywhere on a task row also completes
+// it, alongside its checkbox: List rows, Plate/Fridge cards and their subtasks. It simply
+// ticks the row's own box, so the tick-draw, the strike-through and the grace period to
+// change your mind are exactly the checkbox's. Complete only: a double-tap on a done row does
+// nothing. Controls inside the row (the box itself, buttons, links) keep their own behavior.
+// Touch taps are paired up here rather than left to the browser's dblclick, which some
+// mobile browsers never send; the mouse's own dblclick is used as-is.
+const DOUBLE_TAP_ROW_SELECTOR = ".task-row, .window-subtask, .window-card";
+const DOUBLE_TAP_MS = 350;
+const DOUBLE_TAP_SLOP_PX = 24;
+let lastRowTap = null;
+
+function rowCheckbox(row) {
+  return row.querySelector(":scope > input[type=checkbox], :scope > .window-subtask-head > input[type=checkbox]");
+}
+
+function completeRowFromDoubleTap(target) {
+  if (target.closest("input, button, select, textarea, a, label")) return;
+  const row = target.closest(DOUBLE_TAP_ROW_SELECTOR);
+  const box = row && rowCheckbox(row);
+  if (!box || box.checked || box.disabled) return;
+  box.click(); // fires the box's own change handler, and the check animation with it
+}
+
+document.addEventListener("dblclick", e => {
+  if (lastRowTap && lastRowTap.touch) return; // already handled as a touch double-tap
+  completeRowFromDoubleTap(e.target);
+});
+
+// A double-click would otherwise also select the word under the pointer.
+document.addEventListener("mousedown", e => {
+  if (e.detail > 1 && e.target.closest(DOUBLE_TAP_ROW_SELECTOR) && !e.target.closest("input, textarea, select")) e.preventDefault();
+});
+
+document.addEventListener("pointerup", e => {
+  if (e.pointerType !== "touch") {
+    lastRowTap = null;
+    return;
+  }
+  const row = e.target.closest(DOUBLE_TAP_ROW_SELECTOR);
+  const prev = lastRowTap;
+  lastRowTap = row ? { touch: true, row, time: e.timeStamp, x: e.clientX, y: e.clientY } : null;
+  if (!row || !prev || prev.row !== row) return;
+  if (e.timeStamp - prev.time > DOUBLE_TAP_MS) return;
+  if (Math.hypot(e.clientX - prev.x, e.clientY - prev.y) > DOUBLE_TAP_SLOP_PX) return;
+  lastRowTap = { touch: true, row: null, time: e.timeStamp, x: e.clientX, y: e.clientY }; // a third tap starts over
+  completeRowFromDoubleTap(e.target);
+});
+
 // ---------- Theme toggle ----------
 
 const themeToggleBtn = document.getElementById("theme-toggle-btn");
