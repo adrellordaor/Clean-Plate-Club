@@ -662,7 +662,7 @@ function makeWindowSkipButton(rt) {
     const before = habitStatusBadgeInfo(rt); // app.js
     toggleRecurringSkip(rt);
     playSkipAnimation(rt.id, willSkip);
-    playHabitStatusRoll(rt.id, before && before.text);
+    playHabitStatusRoll(rt, before); // app.js
   });
   return btn;
 }

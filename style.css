@@ -1370,8 +1370,7 @@ html.lenis body {
 }
 
 :is(button, a):hover .text-roll-face,
-:is(button, a):focus-visible .text-roll-face,
-.text-roll-face.roll-now {
+:is(button, a):focus-visible .text-roll-face {
   transform: translateY(calc(-100% - var(--roll-gap)));
 }
 
@@ -1379,10 +1378,20 @@ html.lenis body {
   .text-roll-face {
     transition: none;
   }
+}
 
-  .text-roll-face.roll-now {
-    transform: none;
-  }
+/* Habit status badge (Missed/Skip, playHabitStatusRoll in app.js): a temporary two-item stack
+   standing in for the real badge while it rolls — the whole pill moves as one piece, not just
+   text inside a separately-resizing box, so neither the outgoing nor incoming badge's own
+   width ever has to fight the other's. Height and the roll distance are set inline in px
+   (measured from the real badge) rather than guessed in CSS, so they line up exactly. */
+.habit-status-roll-track {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  overflow: hidden;
+  vertical-align: middle;
+  transform: translateY(0);
 }
 
 /* ---- Shape gestures: icons whose shape suggests its own hover motion ----

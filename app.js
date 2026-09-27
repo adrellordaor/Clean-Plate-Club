@@ -1872,72 +1872,48 @@ function habitStatusBadgeInfo(rt) {
   return null;
 }
 
-// Rendered as a text-roll (the same clipped-track mechanism tabs/toggles use for their hover
-// preview, applyTextRoll above) so that when Skip changes which message applies, the badge can
-// roll from the old text to the new one (playHabitStatusRoll, wired into the Skip click
-// handlers) instead of the plain re-render simply swapping it out with no transition at all.
 function appendHabitStatusBadge(el, rt) {
   const info = habitStatusBadgeInfo(rt);
   if (!info) return;
-  const badge = document.createElement("span");
-  badge.className = "task-badge " + info.cls;
+  const badge = makeBadge(info.text, info.cls);
   badge.dataset.habitStatusId = rt.id;
-  const roll = document.createElement("span");
-  roll.className = "text-roll";
-  const face = document.createElement("span");
-  face.className = "text-roll-face";
-  face.textContent = info.text;
-  face.dataset.text = info.text;
-  roll.appendChild(face);
-  badge.appendChild(roll);
   el.appendChild(badge);
 }
 
-// Plays the roll from `fromText` (the status this habit showed just before the Skip click that
-// triggered this) to whatever appendHabitStatusBadge already rendered as its current text.
-// Re-render replaces the badge element outright with its final text/width already in place, so
-// this runs right away (synchronously, before the browser gets a chance to paint that frame at
-// all — a requestAnimationFrame round-trip here would let the new width paint first and then
-// jump back to stage the roll, a visible double-snap) against whichever badge now carries the
-// same data-habit-status-id.
-//
-// The wrapping .text-roll is held at the WIDER of the two texts' widths for the whole roll,
-// not animated in step with it — narrowing the box while the wider text is still sliding
-// clips that text against the shrinking edge (blank-looking frames partway through). Once the
-// real text has landed on its final value, the box eases the rest of the way to its own
-// natural width, a plain resize around already-settled, unclipped text rather than a mid-roll
-// squeeze.
-//
-// .text-roll-face carries a permanent `transition: transform` (for its hover-preview roll
-// elsewhere), so simply removing "roll-now" at the end would itself transition back down —
-// a second, reverse roll of the text that's already landed. Cleanup turns that transition off
-// for the one frame it takes to settle the class and the real text together, then restores it.
-function playHabitStatusRoll(id, fromText) {
-  if (!fromText) return;
-  document.querySelectorAll('[data-habit-status-id="' + CSS.escape(id) + '"]').forEach(badge => {
-    if (badge.offsetParent === null) return; // hidden (e.g. the other List display mode's copy)
-    const roll = badge.querySelector(".text-roll");
-    const face = badge.querySelector(".text-roll-face");
-    if (!roll || !face) return;
-    const toText = face.dataset.text;
-    if (fromText === toText) return;
-    const toWidth = roll.getBoundingClientRect().width;
-    face.textContent = fromText;
-    const fromWidth = roll.getBoundingClientRect().width;
-    roll.style.width = Math.max(fromWidth, toWidth) + "px"; // room for both, no clipping mid-roll
-    face.classList.add("roll-now");
+// Plays the whole badge box rolling from `fromInfo` (the status this habit showed just before
+// the Skip click that triggered this) up to whatever appendHabitStatusBadge already rendered —
+// the entire pill (its color included, not just the text inside a fixed badge) moves as one
+// piece, the smaller/larger box revealing as the outgoing one rolls up and away, rather than
+// rolling text within a box that's also separately resizing (which, tried first, meant a
+// shrinking box could clip the wider text still mid-slide — blank-looking frames partway
+// through). Builds a temporary two-item stack (a plain copy of the old badge on top of a copy
+// of the new one) in place of the real badge, animates the stack up by exactly one badge's
+// height, then swaps the real badge (already sitting in the DOM in its final state, untouched)
+// back in. Runs right away, synchronously — re-render already gave the real badge its final
+// text/color before this ever runs, so there's no later step for a requestAnimationFrame to
+// wait out here.
+function playHabitStatusRoll(rt, fromInfo) {
+  if (!fromInfo || reducedMotion) return;
+  const toInfo = habitStatusBadgeInfo(rt);
+  if (!toInfo || toInfo.text === fromInfo.text) return;
+  document.querySelectorAll('[data-habit-status-id="' + CSS.escape(rt.id) + '"]').forEach(newBadge => {
+    if (newBadge.offsetParent === null) return; // hidden (e.g. the other List display mode's copy)
+    const parent = newBadge.parentNode;
+    if (!parent) return;
+    const h = newBadge.getBoundingClientRect().height;
+
+    const track = document.createElement("span");
+    track.className = "habit-status-roll-track";
+    track.style.height = h + "px";
+    track.appendChild(makeBadge(fromInfo.text, fromInfo.cls));
+    track.appendChild(makeBadge(toInfo.text, toInfo.cls));
+
+    parent.replaceChild(track, newBadge);
+    void track.offsetWidth; // commit the starting position before animating away from it
+    track.style.transition = "transform 0.32s var(--ease)";
+    track.style.transform = "translateY(-" + h + "px)";
     setTimeout(() => {
-      face.style.transition = "none";
-      face.classList.remove("roll-now");
-      face.textContent = toText;
-      void face.offsetWidth; // commit the instant snap before transitions come back on
-      face.style.transition = "";
-      roll.style.transition = "width 0.2s var(--ease)";
-      roll.style.width = toWidth + "px";
-      setTimeout(() => {
-        roll.style.transition = "";
-        roll.style.width = "";
-      }, 200);
+      if (track.parentNode === parent) parent.replaceChild(newBadge, track);
     }, 320);
   });
 }
@@ -2138,7 +2114,7 @@ function makeSkipButton(rt) {
     const before = habitStatusBadgeInfo(rt);
     toggleRecurringSkip(rt);
     playSkipAnimation(rt.id, willSkip);
-    playHabitStatusRoll(rt.id, before && before.text);
+    playHabitStatusRoll(rt, before);
   });
   return btn;
 }
