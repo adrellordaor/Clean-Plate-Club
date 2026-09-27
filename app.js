@@ -1030,8 +1030,8 @@ function renderViewSwitch() {
   document.getElementById("folder-tabs").hidden = false;
   document.getElementById("heatmap-legend").hidden = !isList;
   document.getElementById("list-group-mode").hidden = !isList;
+  document.getElementById("windows-toolbar").hidden = !isList;
   setShownAnimated(document.getElementById("overdue-callout"), isList);
-  document.getElementById("windows-toolbar").hidden = !(isList && listMode === "windows");
   document.getElementById("windows-row").hidden = !(isList && listMode === "windows");
   document.getElementById("list-full").hidden = !(isList && listMode === "full");
   document.getElementById("overview-view").hidden = activeView !== "overview";
@@ -1100,6 +1100,7 @@ function render() {
   renderCategoryTabs();
   renderListModeToggle();
   renderListGroupToggle();
+  renderWindowsToolbar(); // windows.js — shared sort dropdown + "+Folder", both List modes
   renderOverdueCallout();
   renderHeatMapLegend();
   renderNowLaterWindows();
@@ -1470,8 +1471,8 @@ function renderFolderList() {
   // showFolderContext).
   if (windowPrefs.group === "flat") { // windows.js
     const today = todayISODate();
-    const flatTasks = visibleFolders.flatMap(folder =>
-      tasks.filter(t => t.folder_id === folder.id && !t.parent_task_id && visibleInFolderList(t, today)));
+    const flatTasks = sortTasksBySortKey(visibleFolders.flatMap(folder =>
+      tasks.filter(t => t.folder_id === folder.id && !t.parent_task_id && visibleInFolderList(t, today))), today);
     if (flatTasks.length === 0) {
       const hint = document.createElement("div");
       hint.className = "empty-hint";
@@ -1510,8 +1511,16 @@ function renderFolderList() {
       container.appendChild(hint);
     }
   }
+}
 
-  container.appendChild(makeAddIcon("Add a folder", "Add folder", () => openFolderModal(), "Folder"));
+// Same sort key the Plate/Fridge windows use (windowPrefs.sort, windows.js), applied here too
+// so the top row's sort dropdown does the same thing in both List display modes. Only
+// top-level tasks carry a real assessment/priority score (subtasks are exempt from the matrix
+// entirely), so only they get reordered; a task's own subtasks stay in their natural order
+// underneath it.
+function sortTasksBySortKey(taskList, today) {
+  const entries = taskList.map(task => ({ task, assessment: assessTask(task, settings, today) }));
+  return sortWindowEntries(entries, windowPrefs.sort).map(e => e.task); // windows.js
 }
 
 // A category's collapsible wrapper around its folder sections, "All" tab only (item 38):
@@ -1565,7 +1574,8 @@ function renderCategorySection(category, categoryFolders) {
 
 function renderFolderSection(folder) {
   const today = todayISODate();
-  const topLevelTasks = tasks.filter(t => t.folder_id === folder.id && !t.parent_task_id && visibleInFolderList(t, today));
+  const topLevelTasks = sortTasksBySortKey(
+    tasks.filter(t => t.folder_id === folder.id && !t.parent_task_id && visibleInFolderList(t, today)), today);
 
   const section = document.createElement("div");
   section.className = "folder-section" + (collapsedFolders.has(folder.id) ? " collapsed" : "");

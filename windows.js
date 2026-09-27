@@ -260,6 +260,23 @@ const WINDOWS = {
 
 // ---------- Rendering ----------
 
+// Sort dropdown + "+Folder": shared by both List display modes so the top row looks identical
+// either way (item: "same position" — Plate and "full" List mode's toolbars used to differ).
+// The Flat/Folder switch is rendered separately, once, by renderListGroupToggle (app.js).
+function renderWindowsToolbar() {
+  if (activeView !== "list") return;
+  const toolbar = document.getElementById("windows-toolbar");
+  toolbar.innerHTML = "";
+  // The category tabs (and their "+ Category") live in the header banner, the same ones the
+  // folder-organized List mode shows (renderCategoryTabs, app.js), filtering both windows here.
+  toolbar.appendChild(makeWindowSortSelect(WINDOW_SORT_KEYS, windowPrefs.sort, key => changeWithRowRise(() => setWindowPref("sort", key)), "Sort"));
+  // Folder management otherwise had no reach from Plate mode at all — the task form's own
+  // folder picker has an inline "+ New folder…" option, but only once you're already adding/
+  // editing a task. Wrapped, not passed directly: makeAddIcon wires it as a click handler,
+  // which would hand openFolderModal the click event as its targetSelect argument otherwise.
+  toolbar.appendChild(makeAddIcon("Add a folder", "Add folder", () => openFolderModal(), "Folder"));
+}
+
 function renderNowLaterWindows() {
   if (activeView !== "list" || listDisplayMode !== "windows") {
     renderFocusOverlay(null, null); // hides the overlay if a view/mode switch happened under it
@@ -269,21 +286,6 @@ function renderNowLaterWindows() {
   // The category tabs filter both windows, the same selection the folder list uses —
   // rankActiveTasks (overview.js) now applies it itself, before ranking.
   const ranked = rankActiveTasks(today);
-
-  // The shared sort dropdown sits above both windows; the Flat/Folder switch is rendered once,
-  // shared with "full" List mode, by renderListGroupToggle (app.js), not duplicated here.
-  const toolbar = document.getElementById("windows-toolbar");
-  toolbar.innerHTML = "";
-  // The category tabs (and their "+ Category") live in the header banner, the same ones the
-  // folder-organized List mode shows (renderCategoryTabs, app.js), filtering both windows here.
-  toolbar.appendChild(makeWindowSortSelect(WINDOW_SORT_KEYS, windowPrefs.sort, key => changeWithRowRise(() => setWindowPref("sort", key)), "Sort (both windows)"));
-  // Folder management otherwise only surfaces in "full" List mode (the folder-list "+"); Plate
-  // mode needs its own reach to it too, or there'd be no way to add one without switching modes
-  // (the task form's own folder picker also has an inline "+ New folder…" option, but only once
-  // you're already adding/editing a task). Wrapped, not passed directly: makeAddIcon wires it
-  // as a click handler, which would hand openFolderModal the click event as its targetSelect
-  // argument otherwise.
-  toolbar.appendChild(makeAddIcon("Add a folder", "Add folder", () => openFolderModal(), "Folder"));
 
   const row = document.getElementById("windows-row");
   row.classList.toggle("focus-now", windowPrefs.focus === "now");
