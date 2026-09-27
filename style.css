@@ -1152,13 +1152,30 @@ kbd {
   gap: 2.25rem;
 }
 
-@media (max-width: 860px) {
+/* Below the desktop range (tablets and phones) the two columns never share a row: the task
+   list comes first at full width, the Habits panel below it at full width too. Task content
+   gets space priority at every width, so the stack must stretch both columns, not just the
+   habits (align-items: flex-start above would otherwise shrink the task list to its content).
+   On a tablet the three cadence boxes sit side by side under the list rather than one long
+   column; on a phone they stack. */
+@media (max-width: 1023.98px) {
   .main-layout {
     flex-direction: column;
+    align-items: stretch;
   }
 
   .recurring-column {
     width: 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    column-gap: 2rem;
+    align-items: start;
+  }
+}
+
+@media (max-width: 639.98px) {
+  .recurring-column {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
