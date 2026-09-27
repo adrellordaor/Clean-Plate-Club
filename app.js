@@ -2190,7 +2190,9 @@ function renderRecurringRow(rt) {
 
   const row = document.createElement("div");
   const done = isRecurringDoneNow(rt);
-  row.className = "task-row" + (isRecurringResolvedNow(rt) ? " done" : "");
+  // task-row for the shared row styling; habit-row marks it as a habit for the row gestures
+  // (double-tap completes tasks only; a swipe right skips a habit).
+  row.className = "task-row habit-row" + (isRecurringResolvedNow(rt) ? " done" : "");
 
   const spacer = document.createElement("span");
   spacer.className = "task-caret-spacer";
@@ -3164,6 +3166,7 @@ function rowCheckbox(row) {
 function completeRowFromDoubleTap(target) {
   if (target.closest("input, button, select, textarea, a, label")) return;
   const row = target.closest(DOUBLE_TAP_ROW_SELECTOR);
+  if (row && row.matches(".habit-row")) return; // habits share .task-row's look, not this gesture
   const box = row && rowCheckbox(row);
   if (!box || box.checked || box.disabled) return;
   box.click(); // fires the box's own change handler, and the check animation with it
