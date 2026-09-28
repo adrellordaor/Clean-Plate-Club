@@ -459,15 +459,31 @@ The app has three views:
     `priority_score`, scrollable, with basic inline editing. This is a
     third access point, distinct from both List modes below, "just show
     me the raw ranking, regardless of window or folder."
-- **Display mode toggle** (`overview_display_mode`, default `scatter`),
-  positioned **top-right of the page**: switches between the scatter view above and the quadrant-list style
-  already built (four boxes, tasks listed inside each, same tag shown per
-  task here as well), same Do/Plan/Clear/Backlog corner layout either
-  way. Both modes are worth keeping, the list is better for scanning
-  within one quadrant. This top-right position is the shared convention
-  all three display-mode toggles use (List and Calendar match it too),
-  one consistent location across every page rather than each view
-  placing its toggle wherever felt convenient.
+- **Display mode toggle** (`overview_display_mode`), positioned
+  **top-right of the page** per the Toggles section's view-toggle
+  convention: switches between the scatter view above and the
+  quadrant-list style already built (four boxes, tasks listed inside
+  each, same tag shown per task here as well), same Do/Plan/Clear/
+  Backlog corner layout either way. Both modes are worth keeping, the
+  list is better for scanning within one quadrant.
+  - **Default and persistence differ by breakpoint**: phones (<640px)
+    keep their own saved choice of display mode, defaulting to
+    Quadrants if never changed. Screens 640px and wider default to
+    Scatter and keep their own separate saved choice. A choice made on
+    a phone never changes the wider-screen default or vice versa, these
+    are two independent persisted preferences, not one shared setting.
+  - **On phones, the Scatter plot scrolls sideways** inside its own box
+    rather than squeezing to fit, with a one-line hint pinned above it:
+    "Swipe sideways to see the whole plot →".
+  - **Shared divider over the task map**: both display modes share one
+    divider line above the map area (Quadrants previously had none,
+    it's added now so the two modes feel like one continuous surface,
+    not two different screens). The divider stays in place through a
+    Scatter/Quadrants switch and eases its color between the two
+    display-mode colors (lilac for Scatter, ice blue for Quadrants, per
+    the Color system section) rather than cutting instantly.
+  - **The Overview toolbar holds only this display-mode toggle**, no
+    other controls or descriptive text live there.
 - "What changed since yesterday" line(s), unchanged from before
 - Read-only glance, no checking things off here
 
@@ -891,15 +907,25 @@ The app has three views:
     conditionally rather than behind a whole new toggleable state. Fridge
     is where planning actually happens, unlike Daily Plate's countdown
     treatment, a literal editable date makes sense here. **Guard rails,
-    both directions**: setting `do_date` to a date after the task's
-    `deadline` prompts a warning before allowing it, that combination is
-    logically inconsistent, planning to do something after it's already
-    due. The reverse also applies: setting `deadline` to a date before
-    the existing `do_date` prompts the same warning, **unless `do_date`
-    has already rolled over into the past** (`do_date < today`), a stale,
-    rolled-over `do_date` isn't a meaningful future commitment anymore,
-    just an artifact of the task not being done yet, so it shouldn't
-    constrain a new deadline.
+    asymmetric by direction**: setting `do_date` to a date after the
+    task's `deadline` no longer blocks or warns, it auto-adjusts instead,
+    `deadline` moves forward to match the new `do_date`. Planning to work
+    on something later is a legitimate reason to push its deadline out
+    too, and a silent, sensible default beats interrupting the flow of
+    setting a date. The reverse direction stays a hard block: editing
+    `deadline` itself to a date before an existing `do_date` is blocked
+    outright, **unless `do_date` has already rolled over into the past**
+    (`do_date < today`), a stale, rolled-over `do_date` isn't a
+    meaningful future commitment anymore, just an artifact of the task
+    not being done yet, so it shouldn't constrain a new deadline. This
+    asymmetry is deliberate: moving `do_date` later is a routine
+    replanning action that shouldn't need a gate, but moving `deadline`
+    earlier is redefining when something's actually due, a real enough
+    change to keep a deliberate block on. **Field order in the task
+    form**: `do_date` appears before `deadline`, not after, matching the
+    everyday order of thinking about a task (when will I actually do
+    this, only then, does it have a real due date) rather than the
+    field-definition order in the data model.
   Has its own "+ Add task" affordance, opening the same shared task form
   with no special prefill, unlike Now there's no single default to
   prefill toward, a task's landing in Plan vs. Backlog is derived after
@@ -931,14 +957,33 @@ The app has three views:
   completed one, both are "resolved for today." A task showing
   `missed_last_period` displays its small flag here too ("Missed
   yesterday" / "Missed last week" / "Missed last month"), and a task
-  currently skipped shows its own small flag ("Skipped today" /
-  "Skipped this week" / "Skipped this month"). Checking one off just sets
+  currently skipped shows its own small flag, just "Skipped" (not
+  period-specific wording, "Skipped today/this week/this month" was
+  simplified down to one flag regardless of cadence). Checking one off just sets
   `last_completed_date` and writes a CompletionLog row (also clearing any
   skip already in effect, the completion supersedes it); nothing here
   touches importance, urgency, or the quadrant system, recurring tasks
   never appear in the heat-map or the Overview. This same checkbox +
   Skip pairing appears wherever else a habit surfaces, including the
-  Now/Later windows below.
+  Now/Later windows below. The Skip control's icon is a single ">"
+  chevron (not the double "»" used earlier), and skipping animates as a
+  directional push in the direction of that arrow, paired with a
+  fill-style motion matching the feel of the completion checkbox's own
+  fill animation, not a fold/collapse motion (that's specifically the
+  completion animation's language, Skip needs its own distinct feel per
+  the "never mistaken for the checkbox" rule above, that applies to
+  motion too, not just static styling).
+- **Status tag change animation** (the small flag text: "Missed
+  yesterday", "Skipped", etc.): the whole tag rolls, not just its text,
+  matching the app's general text-roll mechanism but constrained to
+  pure vertical motion, the new tag rises straight up into its final
+  spot with no sideways or diagonal travel. Tags are right-aligned to
+  each other, so when the outgoing tag is wider than the incoming one it
+  sticks out to the left as it rolls away, fading out rather than
+  snapping off. A tag appearing from nothing rolls in the same way; a
+  tag disappearing to nothing rolls out from where it stood, both ends
+  of the transition use the same single mechanism, not separate
+  enter/exit treatments.
 
 Typical flow: open app → glance at the Overview (10 seconds) → switch
 to List view → work through tasks with Daily Plate/Fridge and heat-map colors
@@ -1026,9 +1071,14 @@ productivity view")
   honest Pale-blue day into Deep-blue or Gray after the fact. To prevent
   the calendar from rewriting its own history, freeze each day's planned
   set once, right before daily maintenance rolls incomplete `do_date`s
-  forward: record which regular Tasks had `do_date` equal to that day and
-  whether each was completed by day's end, plus which RecurringTasks were
-  scheduled that day and completed. This is a permanent, append-only
+  forward: record which regular Tasks had `do_date` equal to that day,
+  each one's `folder_id` at that moment, and whether each was completed
+  by day's end, plus which RecurringTasks were scheduled that day and
+  completed. Capturing `folder_id` in the frozen record (not just
+  completion status) is what lets the category filter (see Category
+  tabs, extended to Calendar) actually apply to past days too, not just
+  today, without it the filter would silently do nothing on every day
+  except the live one. This is a permanent, append-only
   per-day record (unlike the digest's short 2-3 day rolling window, this
   one persists indefinitely since the calendar can be viewed for any past
   month), captured for free at the exact moment daily maintenance already
@@ -1165,14 +1215,8 @@ new base palette rather than reverting to the old exact hex values. The
 rule this replaces ("Fire and Ice are the only two saturated colors")
 was read correctly but was underspecified, it meant to block decorative
 color creep on chrome/buttons, not strip meaning-bearing color elsewhere.
-Each major view (Overview, Checklist, Calendar) also carries a subtle
-distinguishing accent, used lightly on that view's typography/framing,
-not as a decorative wash.
-
-**Note (this file was edited directly by Claude Code during the initial
-visual pass, contrary to the established workflow where only chat edits
-this file, worth reconciling manually if any drift remains, and not
-repeating going forward).**
+Per-view and per-display-mode color is specified precisely in the Color
+system section below.
 
 **Window borders and fire/ice restored**: Daily Plate's border, icon, and
 header text carry fire (amber/red) coloring; Fridge's carry ice (blue),
@@ -1214,15 +1258,55 @@ consistent with the app's existing rectangular/hairline-border language.
 - Folder color-coding (within List/Checklist content, not just the
   top-banner tabs) extends beyond the small dot to font color and/or the
   section-divider lines, the dividers are no longer hardcoded green,
-  they carry each folder's own color.
+  they carry each folder's own color, falling back to sage for an
+  uncategorized folder specifically (see per-display-mode colors below).
 
-**Toggles**: any toggle control keeps the same screen position across
-every view it appears in (switching views shouldn't require re-finding
-it). Implemented as a single button-style toggle rather than a
-multi-option control; on hover, the button's label text-rolls to preview
-the destination state's name, reusing the text-roll mechanism below
-rather than a separate hover treatment. The Flat/Folder toggle exists in
-both List/Checklist and Plate view, same mechanism in both places.
+**Per-view tab color**: each of the three main tabs (Overview/Checklist/
+Calendar) is colored by its *own main/default view*, not a fourth
+arbitrary color invented for the tab itself:
+- Overview tab: lilac (its main view is Scatter)
+- Checklist tab: red (its main view is Plate, and Plate is Daily Plate's
+  own fire color, Checklist inherits it since Plate is Checklist's main
+  view, not a separate color)
+- Calendar tab: sand/beige (its main view is Pace)
+
+**Per-display-mode color**: every display mode across the app has one
+fixed color, reused everywhere that mode appears, not re-derived per
+view:
+- Scatter: lilac
+- Quadrants: ice blue
+- Plate: red
+- List: sage
+- Pace: sand/beige
+- Capacity: magenta
+
+**Dividers follow the active display mode's color**, and ease between
+colors on a switch rather than cutting instantly, this is the same
+easing-color mechanic as the Overview task-map divider described above,
+applied consistently everywhere a mode-dependent divider exists:
+- Overview: the task-map rule (lilac/ice blue, see above)
+- Calendar: the grid's top rule (sand for Pace / magenta for Capacity)
+- List mode: each folder's divider is that folder's own assigned color;
+  an uncategorized folder's divider falls back to sage (List's own
+  display-mode color) rather than a hardcoded default
+- Plate/Fridge frames are the one exception, they keep their fixed fire/
+  ice coloring regardless of display mode, per Window borders above,
+  since Plate and Fridge are identity, not a switchable mode.
+
+**Toggles**: view display toggles specifically (Plate/List, Scatter/
+Quadrants, Pace/Capacity) sit in the **top-right corner of their view's
+toolbar at every screen size**, other controls wrap to their left and
+never push the toggle down to a second row. They carry their own
+distinct look, deliberately heavier than an ordinary control so they
+read as "the one switch that changes what you're looking at": a heavier
+box outline in the current mode's color, the label in that same color
+over a faint tint of it, and a small solid color square before the
+label. On hover (or on tap, touch fallback per Motion above), the color
+shifts to the *next* mode's color in step with the label text-rolling to
+that mode's name, so the hover state itself previews the destination.
+The Flat/Folder grouping toggle keeps the plain, ordinary control look,
+it's a grouping control, not a view toggle, and doesn't compete visually
+with the real view switches.
 
 **Motion system**, one signature easing curve throughout,
 `cubic-bezier(0.22, 1, 0.36, 1)`, at different speeds by scale (~0.18s
@@ -1248,6 +1332,9 @@ far, see Smooth scroll below).
     looking through a sniper scope, distinct from roll or hop+rotate.
   - A "+" add icon: a quarter turn on click/hover where that reads as
     the more natural gesture for the shape.
+  - The habit Skip control (single ">" chevron): pushes in its arrow's
+    direction and fills, matching the completion checkbox's fill feel
+    but visually distinct from it (see Habits view section), not roll.
   Roll stays the default otherwise, these are named exceptions, not a
   blanket ban, lean toward fully static for icons that repeat densely
   (every list row, every card) so motion still reads as a flourish.
@@ -1259,6 +1346,20 @@ far, see Smooth scroll below).
 - **Tab-switch slide**: switching between Overview/Checklist/Calendar
   specifically slides content horizontally, direction follows tab order,
   ~0.4-0.5s. Scoped to these three, not category or toggle changes.
+  Views are clipped cleanly at the content column's edges throughout the
+  slide, so no strip of the outgoing tab lingers visible in the margin.
+  Checklist slides out together with its own contents, not as an empty
+  frame left behind while its content vanishes separately, the "shared
+  chrome stays still" exception (below) is about content-only changes
+  *within* a view, not about leaving the view entirely.
+- **Plate/List switch specifically** (within Checklist, not a tab
+  change): the shared Checklist toolbar, quadrant key, sort dropdown,
+  + Folder, and Flat/Folder, stays still, only the windows themselves
+  and each mode's rows animate. This is the content-only case the
+  shared-chrome exception below is actually about.
+- **Ultra-wide Habits column** (see Responsive breakpoints): grows open
+  and shut (a width transition) rather than simply appearing or
+  disappearing, consistent with the no-snap-transitions rule below.
 - **Scroll reveal**: major section headings/text blocks split into lines,
   each clipped and sliding up into place as it enters the viewport, tied
   to scroll position. Used sparingly, major headers only.
@@ -1303,13 +1404,88 @@ from the icon-hover roll.
 **Calendar-specific color** is specified in its own section above; this
 section covers the shared cross-app color/motion language only.
 
+**Touch fallback for hover motion**: every hover-triggered animation in
+this app plays on tap instead, as part of the tap's own action, not as a
+preview gated behind a separate first tap. Nothing in this app's motion
+requires seeing an animation before deciding to act (it's all feedback
+confirming a choice already made, e.g. a tab tap already declares intent
+to switch, there's nothing to preview first), so touch never needs a
+two-step tap anywhere. Concretely: a tap plays the hover motion for
+about 0.7s, then eases back to rest. On touch-only devices, the
+mouse-hover versions of these same motions are switched off entirely
+(not just redundant, actually disabled), so nothing can get stuck
+mid-roll from a hover event that touch input doesn't cleanly fire or
+release. This rule covers animations specifically; hover-*revealed*
+elements that aren't themselves animations (e.g. a row's edit pencil
+appearing on hover) are unaffected and unchanged, they're a visibility
+change, not motion.
+
+**Responsive breakpoints**: mobile (<640px), tablet (640-1024px), desktop
+(1024-1800px, ~1180px is the actual target width the rest of this
+document assumes), ultra-wide (>1800px).
+
+- **Overview on mobile**: the continuous scatter plot doesn't work well
+  at phone width, precise tap targets on a dense scatter, needing both
+  scroll axes at once. Below 640px specifically, Overview defaults to
+  its quadrant-list display mode (full default/persistence behavior,
+  and the phone-specific horizontal-scroll treatment for Scatter when
+  chosen anyway, are specified in the Overview section above, not
+  repeated here).
+- **List view + Habits sidebar**: these stack vertically below 1024px
+  (the mobile and tablet tiers combined, not mobile-only), task list
+  first, Habits panel below it, both full width when stacked, task
+  content gets space priority at every width. Within that stacked
+  Habits panel, the three habit boxes (Daily/Weekly/Monthly) sit side by
+  side on tablets (640-1024px), and stack into one column on phones
+  (<640px), the boxes themselves get a second, narrower breakpoint
+  inside the already-stacked panel.
+- **Ultra-wide (>1800px)**: content does not simply center with large
+  empty margins on either side, that reads as the app failing to use the
+  screen rather than as deliberate whitespace. Content width instead
+  grows to about 88% of the screen width, capped at 2200px (so it keeps
+  growing with the screen but never becomes unreasonably wide on very
+  large displays). The Habits panel moves into its own dedicated column
+  on the right at this width, shown alongside Overview, Calendar, and
+  List mode, there's genuinely room for it without crowding the primary
+  content. In Plate mode specifically, this column slides shut (a width
+  transition per the Motion section, not an instant hide), since the
+  Daily Plate window already surfaces today's habits on its own, a
+  second copy would be redundant there.
+- **Task completion, universal convenience**: double-tap (touch) or
+  double-click (pointer) also completes a task, an additional path
+  alongside the checkbox itself, never a replacement. Applies to List
+  rows, Plate/Fridge cards, and their subtasks, and to habit rows when
+  they appear in List mode. It ticks the row's own checkbox under the
+  hood, so the same completion animation and undo grace period apply,
+  not a separate code path. Completes only, it never un-completes an
+  already-done row. Excluded specifically on Plate/Fridge habit rows,
+  where a single tap anywhere on the row already completes it, so a
+  double-tap there would be redundant at best and could misfire as two
+  competing actions.
+- **Habit skip, universal convenience**: a horizontal drag to the right
+  on a habit row also triggers Skip, one drag-based implementation for
+  both touch (swipe) and mouse (click-drag), since they're the same
+  underlying pointer gesture. The row follows the finger/cursor as it's
+  dragged, but its right side disappears into its own resting right
+  edge rather than being draggable out past the window's bound, and the
+  Skip button underneath fills proportionally as the drag progresses.
+  Releasing past ~72px of drag commits the skip; releasing short of that
+  glides the row back to its resting position unchanged. Skip-only, same
+  as the tap version, undoing a skip stays with the existing Skip
+  control, this gesture doesn't add a new undo path. Vertical drags are
+  left alone and still scroll the page normally, only horizontal drag on
+  a habit row is captured by this gesture.
+
 ## Backlog (v2+, not in scope now)
 - Bulk import via AI parsing of unstructured pasted text (ongoing API cost
   per use — start with template/tag-based parsing instead, see below)
 - (Daily time-capacity limits moved out of Backlog and into the Calendar
   view spec below, using is_quick_win as the effort proxy instead of a
   new estimate field)
-- Native mobile app (browser works fine on phone)
+- Native mobile app: not needed for its own sake, the browser works fine
+  on phone for everything except storage. See the v2 sync aspiration
+  below, that's the actual mobile blocker (iOS Safari can't bind to a
+  real OneDrive folder the way desktop browsers can), not app-vs-browser.
 - Collaboration/sharing
 - Notifications outside the browser
 - Two-minute/quick-win tag, focus mode, time-boxing timer
@@ -1319,7 +1495,78 @@ section covers the shared cross-app color/motion language only.
   (separate billing from any chat subscription, small but real ongoing
   cost — estimate under $1/month at daily use)
 
+## v2 Aspiration: Real-Time OneDrive Sync (not in scope now, revisit
+after v1's UI settles)
+
+The current storage model (File System Access API pointing at a
+OneDrive-synced local folder) works on desktop but not on iPhone, iOS
+Safari has no directory-picker API at all, only a sandboxed private
+storage bucket invisible to the Files app. A manual export/import bridge
+(save a JSON file via the share sheet, import it back via the standard
+file picker) is the near-term stopgap for mobile and is worth building
+regardless of this section, see the main spec. This section is the
+larger, deferred fix: automatic sync straight to OneDrive over the
+internet, no local-folder dependency, working identically on any device.
+
+**Confirmed feasible without a backend server**: Microsoft's OAuth 2.0
+PKCE flow is explicitly designed for browser-only apps with no server
+component. Skip the official MSAL.js library, though, its current
+version requires a build/bundler step this project doesn't have; a
+hand-rolled PKCE flow is a genuinely small amount of code (a few fetch
+calls plus the browser's native crypto functions) and keeps the project
+exactly as simple and buildless as it is now.
+
+**"Real-time," precisely**: true instant push (the other device updates
+the moment something changes, zero delay) requires Microsoft to call a
+webhook, which needs something to host and receive that call, a static
+GitHub Pages site can't. Without adding a backend, the achievable version
+is: push every local change up immediately, and pull for remote changes
+on app open, on app foreground, and periodically while open. This reads
+as effectively real-time for personal two-device use, but is a distinct
+technical claim from true push, worth remembering if it ever comes up
+again.
+
+**Data model changes required, regardless of anything else in this
+section**:
+- Every Task and RecurringTask needs a reliable `updated_at`, bumped on
+  any field change, not just creation, completion and Skip included.
+- Deletions need a tombstone record (task id + deleted-at timestamp)
+  rather than simply disappearing, so sync can distinguish "deleted on
+  the other device" from "never existed here."
+
+**Merge policy**: per-item, whichever side's `updated_at` is more recent
+wins. A deletion is just another timestamped event in that same
+comparison, not a special case, if the deletion is newer than the other
+side's last edit, the item stays deleted; if an edit is newer than a
+deletion, the item is restored with that edit.
+
+**Storage location**: the OneDrive App Folder (a Graph API concept, a
+hidden app-specific folder) rather than broad access to the user's whole
+OneDrive, smaller consent screen, better privacy posture, and the app
+only ever needs its own one data file anyway.
+
+**Build stages, in order** (not one prompt, correctness stakes differ a
+lot by stage):
+1. Data model rework (`updated_at` everywhere, tombstones) — foundational
+2. Auth (hand-rolled PKCE sign-in, token storage/refresh) — self-
+   contained, testable alone before touching sync
+3. OneDrive read/write via Graph API (push/pull the data file)
+4. Merge engine + sync triggers (on-edit push, on-focus/periodic pull) —
+   the highest-stakes stage, a wrong assumption here silently loses data
+5. UI (sign-in state, sync status, offline messaging)
+Stages 1 and 4 warrant the more careful/expensive model available at the
+time, that's where subtle bugs cost real data, not just cosmetics.
+
+**Prerequisite only the user can do**: registering the app with
+Microsoft (a one-time form in their developer portal, needs the user's
+own Microsoft account), Claude Code cannot do this step.
+
 ## Bulk Import (v1, lightweight)
+**Entry point**: the first icon in the header's icon row, before Help,
+Settings, and Theme, styled consistently with those three. Lives in the
+header, not a per-view toolbar, so it's reachable from every tab, not
+Checklist-only.
+
 One task per line, with optional inline tags parsed mechanically (no AI
 call, no ongoing cost), pasted directly into a paste box in the app, no
 file upload:
