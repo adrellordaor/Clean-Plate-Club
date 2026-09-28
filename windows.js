@@ -35,8 +35,8 @@
 //
 // Compact vs. expanded cards: at default width a card is checkbox + title + tag. Expanded,
 // a card also shows the meta line (never on Bite-size cards — small by definition), the
-// sizing chip, and in Later an inline do_date input (with a guard rail against planning a
-// task after its deadline). Now shows the countdown instead of any editable date.
+// sizing chip, and in Later an inline do_date input (planning a task past its deadline
+// pushes the deadline out to match). Now shows the countdown instead of any editable date.
 //
 // Completing a task: the card strikes through at once and, after a short grace period, the
 // task moves into Now's collapsed "Completed Today" folder (completed_at == today — no new
@@ -1482,19 +1482,15 @@ function toggleQuickWin(task) {
 // genuine edit: touches last_touched_at and resets the rollover count. Setting a do_date of
 // today (i.e. actually landing in Daily Plate) on a deadline-less task runs the same deadline
 // prompt as adding to Now would; a future do_date (planning ahead in Fridge) doesn't, it's not
-// actually joining Daily Plate. Guard rail: a do_date after the task's deadline (planning to do
-// it once it's already due) is logically inconsistent, so the write is blocked outright — no
-// override, unlike the reverse direction's stale-do_date exception (see inlineSetDeadline).
+// actually joining Daily Plate. Guard rail: a do_date after the task's deadline is a routine
+// replanning move, so the deadline silently moves forward to match, no popup. The reverse
+// direction stays a hard block, with its stale-do_date exception (see inlineSetDeadline).
 // Resolves true when the write happened.
 function setDoDateExplicit(task, value) {
   const next = value || null;
   if (next === (task.do_date || null)) return Promise.resolve(false);
-  if (next && task.deadline && next > task.deadline) {
-    alert("That's after this task's deadline (" + task.deadline + ") — can't plan to do it once it's already due.");
-    render(); // re-render puts the old value back
-    return Promise.resolve(false);
-  }
   const finish = () => {
+    if (next && task.deadline && next > task.deadline) task.deadline = next;
     task.do_date = next;
     task.do_date_rollover_count = 0;
     task.last_touched_at = new Date().toISOString();

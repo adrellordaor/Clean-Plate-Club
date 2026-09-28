@@ -2576,18 +2576,20 @@ taskForm.addEventListener("submit", e => {
   const today = todayISODate();
   const existing = id ? tasks.find(t => t.id === id) : null;
 
-  // Guard rail, both directions: a do_date after the deadline, or a deadline moved before the
-  // do_date, is logically inconsistent — planning to do something once it's already due — so
-  // the save is blocked outright rather than silently allowed. Exception: skip the block when
-  // it's the deadline being pulled earlier than a do_date that's already rolled over into the
-  // past (do_date < today) — that do_date is a stale rollover artifact, not a real commitment,
+  // Guard rail, asymmetric by direction. A do_date set after the deadline is a routine
+  // replanning move, so the deadline silently moves forward to match, no popup. The reverse
+  // (a deadline pulled before an existing do_date) is planning to do something once it's already
+  // due, so it stays a hard block. Exception: skip the block when that do_date has already rolled
+  // over into the past (do_date < today) — it's a stale rollover artifact, not a real commitment,
   // and shouldn't constrain a new deadline.
   if (data.do_date && data.deadline && data.do_date > data.deadline) {
     const prevDoDate = existing ? (existing.do_date || null) : null;
     const doDateChanged = prevDoDate !== data.do_date;
-    const exempt = !doDateChanged && prevDoDate && prevDoDate < today;
-    if (!exempt) {
-      taskError.textContent = "Do date can't be after the deadline (" + data.deadline + ").";
+    if (doDateChanged) {
+      data.deadline = data.do_date;
+      document.getElementById("task-deadline").value = data.deadline;
+    } else if (!(prevDoDate < today)) {
+      taskError.textContent = "Deadline can't be before the do date (" + data.do_date + ").";
       return;
     }
   }
