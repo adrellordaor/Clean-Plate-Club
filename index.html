@@ -174,24 +174,10 @@
         </select>
       </label>
 
-      <div class="form-row">
-        <label>Deadline
-          <input type="date" id="task-deadline">
-        </label>
-
-        <label>Importance
-          <select id="task-importance">
-            <option value="Low">Low</option>
-            <option value="Medium">Medium</option>
-            <option value="High">High</option>
-            <option value="Critical">Critical</option>
-          </select>
-        </label>
-      </div>
-
       <!-- Week-strip do_date picker: seven boxes (today first), one tap picks a day. The native
            date input underneath is the source of truth and stays visible alongside the strip
-           at all times, for anything further out. See renderWeekPicker in app.js. -->
+           at all times, for anything further out. See renderWeekPicker in app.js. Sits before
+           Deadline: when will I do this comes first, whether it has a real due date second. -->
       <div class="form-row form-row-picker">
         <div class="week-picker-field">
           <span class="week-picker-title">Do date</span>
@@ -206,6 +192,21 @@
           <span class="week-picker-title">Size</span>
           <button type="button" id="task-quick-win" class="size-toggle" aria-pressed="true">Bite-size</button>
         </div>
+      </div>
+
+      <div class="form-row">
+        <label>Deadline
+          <input type="date" id="task-deadline">
+        </label>
+
+        <label>Importance
+          <select id="task-importance">
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
+            <option value="Critical">Critical</option>
+          </select>
+        </label>
       </div>
       <p class="settings-hint">A do date puts the task in Daily Plate that day (it rolls forward until done); anything already in Do or Clear shows there regardless. High/Critical tasks need a deadline.</p>
 
